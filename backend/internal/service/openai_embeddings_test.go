@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -88,9 +89,11 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 		}`)),
 	}}
 	svc := &OpenAIGatewayService{
-		cfg:          &config.Config{},
-		httpUpstream: upstream,
+		cfg:                 &config.Config{},
+		httpUpstream:        upstream,
+		tlsFPProfileService: &TLSFingerprintProfileService{},
 	}
+	routedProfile := &tlsfingerprint.Profile{Name: "embeddings-router"}
 	account := &Account{
 		ID:       42,
 		Platform: PlatformOpenAI,
@@ -104,7 +107,11 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 		},
 	}
 
-	result, err := svc.ForwardEmbeddings(context.Background(), c, account, reqBody, "")
+	result, err := svc.ForwardEmbeddings(context.Background(), c, account, reqBody, "", TLSFingerprintRouterMatchResult{
+		Matched:            true,
+		TLSProfileResolved: true,
+		TLSProfile:         routedProfile,
+	})
 
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -123,6 +130,7 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 	require.Equal(t, "world", gjson.GetBytes(upstream.lastBody, "input.1").String())
 	require.Equal(t, "float", gjson.GetBytes(upstream.lastBody, "encoding_format").String())
 	require.Equal(t, int64(256), gjson.GetBytes(upstream.lastBody, "dimensions").Int())
+	require.Same(t, routedProfile, upstream.lastTLSProfile)
 }
 
 func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {

@@ -437,6 +437,9 @@ var defaultOpenAICodexSnapshotPersistThrottle = newAccountWriteThrottle(openAICo
 // support but no compatible account is available.
 var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /responses/compact")
 
+// ErrOpenAIClientPolicyDenied 表示请求被账号本地客户端策略拒绝，不应计入上游账号健康或调度失败。
+var ErrOpenAIClientPolicyDenied = errors.New("openai client policy denied")
+
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
 	accountRepo           AccountRepository
@@ -1342,7 +1345,7 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 	}
 }
 
-// EnforceOpenAIClientPolicyForRequest 在非 /responses 主入口上复用 OpenAI OAuth 客户端访问策略。
+// EnforceOpenAIClientPolicyForRequest 在非 /responses 主入口上复用 OpenAI 客户端访问策略。
 func (s *OpenAIGatewayService) EnforceOpenAIClientPolicyForRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, tlsRouterMatch TLSFingerprintRouterMatchResult) error {
 	result := s.detectCodexClientRestriction(c, account, tlsRouterMatch)
 	apiKeyID := getAPIKeyIDFromContext(c)
@@ -1359,7 +1362,7 @@ func (s *OpenAIGatewayService) EnforceOpenAIClientPolicyForRequest(ctx context.C
 			},
 		})
 	}
-	return errors.New("openai oauth client policy restriction: client is not allowed")
+	return ErrOpenAIClientPolicyDenied
 }
 
 // MatchOpenAITLSFingerprintRouterForRequest 暴露给 OpenAI handler，用于在选中账号后统一执行
@@ -1427,7 +1430,18 @@ func (s *OpenAIGatewayService) matchTLSFingerprintRouter(c *gin.Context, account
 	if c != nil {
 		userAgent = c.GetHeader("User-Agent")
 	}
-	return s.tlsFPRouterService.MatchUserAgent(account.GetTLSFingerprintRouterID(), userAgent)
+	return s.resolveOpenAITLSRouterMatch(account, s.tlsFPRouterService.MatchUserAgent(account.GetTLSFingerprintRouterID(), userAgent))
+}
+
+// resolveOpenAITLSRouterMatch 在准入前解析并固定规则选中的 Profile，供后续 transport 复用。
+func (s *OpenAIGatewayService) resolveOpenAITLSRouterMatch(account *Account, match TLSFingerprintRouterMatchResult) TLSFingerprintRouterMatchResult {
+	if !match.Matched || s == nil || s.tlsFPProfileService == nil {
+		return match
+	}
+	profile, ok := s.tlsFPProfileService.ResolveRoutableTLSProfileByID(account, match.TLSFingerprintProfileID)
+	match.TLSProfileResolved = ok && profile != nil
+	match.TLSProfile = profile
+	return match
 }
 
 func (s *OpenAIGatewayService) resolveOpenAITLSProfile(account *Account, routerMatch ...TLSFingerprintRouterMatchResult) *tlsfingerprint.Profile {
@@ -1435,11 +1449,11 @@ func (s *OpenAIGatewayService) resolveOpenAITLSProfile(account *Account, routerM
 		return nil
 	}
 	if len(routerMatch) > 0 && routerMatch[0].Matched {
-		if profile, ok := s.tlsFPProfileService.ResolveRoutableTLSProfileByID(account, routerMatch[0].TLSFingerprintProfileID); ok {
-			return profile
+		if routerMatch[0].TLSProfileResolved && routerMatch[0].TLSProfile != nil {
+			return routerMatch[0].TLSProfile
 		}
 	}
-	// ResolveTLSProfile 内部会按账号类型兜底，OpenAI API Key 即使手写 extra 也不会生效。
+	// 非路由命中或规则 Profile 不可用时，按账号固定 TLS 配置执行既有回退语义。
 	return s.tlsFPProfileService.ResolveTLSProfile(account)
 }
 

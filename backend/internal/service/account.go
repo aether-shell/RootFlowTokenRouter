@@ -2490,12 +2490,17 @@ const (
 )
 
 const (
-	// OpenAIOAuthClientPolicyAny 表示 OpenAI OAuth 账号允许任意客户端访问。
-	OpenAIOAuthClientPolicyAny = "any"
-	// OpenAIOAuthClientPolicyCodexOnly 表示仅允许官方 Codex 客户端访问。
-	OpenAIOAuthClientPolicyCodexOnly = "codex_only"
-	// OpenAIOAuthClientPolicyTLSRouterMatchedOnly 表示仅允许 TLS 路由器命中的 UA 访问。
-	OpenAIOAuthClientPolicyTLSRouterMatchedOnly = "tls_router_matched_only"
+	// OpenAIClientPolicyAny 表示 OpenAI 账号允许任意客户端访问。
+	OpenAIClientPolicyAny = "any"
+	// OpenAIClientPolicyCodexOnly 表示仅允许官方 Codex 客户端访问。
+	OpenAIClientPolicyCodexOnly = "codex_only"
+	// OpenAIClientPolicyTLSRouterMatchedOnly 表示仅允许 TLS 路由器命中的 UA 访问。
+	OpenAIClientPolicyTLSRouterMatchedOnly = "tls_router_matched_only"
+
+	// 旧常量保留给现有调用方，值与中性策略常量一致。
+	OpenAIOAuthClientPolicyAny                  = OpenAIClientPolicyAny
+	OpenAIOAuthClientPolicyCodexOnly            = OpenAIClientPolicyCodexOnly
+	OpenAIOAuthClientPolicyTLSRouterMatchedOnly = OpenAIClientPolicyTLSRouterMatchedOnly
 )
 
 // GetWebSearchEmulationMode 返回账号的 WebSearch 模拟模式。
@@ -2526,44 +2531,59 @@ func (a *Account) GetWebSearchEmulationMode() string {
 	}
 }
 
-// IsCodexCLIOnlyEnabled 返回 OpenAI OAuth 账号是否启用"仅允许 Codex 官方客户端"。
-// 新字段 openai_oauth_client_policy 优先；旧字段 accounts.extra.codex_cli_only 仅用于兼容。
-func (a *Account) IsCodexCLIOnlyEnabled() bool {
-	return a.GetOpenAIOAuthClientPolicy() == OpenAIOAuthClientPolicyCodexOnly
+// SupportsOpenAIClientPolicy 返回账号是否支持 OpenAI 客户端访问策略。
+func (a *Account) SupportsOpenAIClientPolicy() bool {
+	return a != nil && a.Platform == PlatformOpenAI &&
+		(a.Type == AccountTypeOAuth || a.Type == AccountTypeAPIKey)
 }
 
-// GetOpenAIOAuthClientPolicy 返回 OpenAI OAuth 账号的客户端访问策略。
-func (a *Account) GetOpenAIOAuthClientPolicy() string {
-	if a == nil || !a.IsOpenAIOAuth() || a.Extra == nil {
-		return OpenAIOAuthClientPolicyAny
+// IsCodexCLIOnlyEnabled 返回 OpenAI 账号是否启用"仅允许 Codex 官方客户端"。
+func (a *Account) IsCodexCLIOnlyEnabled() bool {
+	return a.GetOpenAIClientPolicy() == OpenAIClientPolicyCodexOnly
+}
+
+// GetOpenAIClientPolicy 返回 OpenAI OAuth/API Key 账号的客户端访问策略。
+// 规范字段优先，旧 OAuth 字段和 codex_cli_only 仅用于兼容。
+func (a *Account) GetOpenAIClientPolicy() string {
+	if !a.SupportsOpenAIClientPolicy() || a.Extra == nil {
+		return OpenAIClientPolicyAny
 	}
-	if policy, ok := a.Extra["openai_oauth_client_policy"].(string); ok {
+	for _, key := range []string{"openai_client_policy", "openai_oauth_client_policy"} {
+		policy, ok := a.Extra[key].(string)
+		if !ok {
+			continue
+		}
 		switch strings.TrimSpace(policy) {
-		case OpenAIOAuthClientPolicyCodexOnly:
-			return OpenAIOAuthClientPolicyCodexOnly
-		case OpenAIOAuthClientPolicyTLSRouterMatchedOnly:
-			return OpenAIOAuthClientPolicyTLSRouterMatchedOnly
-		case OpenAIOAuthClientPolicyAny:
-			return OpenAIOAuthClientPolicyAny
+		case OpenAIClientPolicyCodexOnly:
+			return OpenAIClientPolicyCodexOnly
+		case OpenAIClientPolicyTLSRouterMatchedOnly:
+			return OpenAIClientPolicyTLSRouterMatchedOnly
+		case OpenAIClientPolicyAny:
+			return OpenAIClientPolicyAny
 		}
 	}
 	enabled, ok := a.Extra["codex_cli_only"].(bool)
 	if ok && enabled {
-		return OpenAIOAuthClientPolicyCodexOnly
+		return OpenAIClientPolicyCodexOnly
 	}
-	return OpenAIOAuthClientPolicyAny
+	return OpenAIClientPolicyAny
+}
+
+// GetOpenAIOAuthClientPolicy 兼容旧接口。
+func (a *Account) GetOpenAIOAuthClientPolicy() string {
+	return a.GetOpenAIClientPolicy()
 }
 
 // IsOpenAIOAuthTLSRouterMatchedOnly 返回账号是否仅允许 TLS 路由器命中的客户端。
 func (a *Account) IsOpenAIOAuthTLSRouterMatchedOnly() bool {
-	return a.GetOpenAIOAuthClientPolicy() == OpenAIOAuthClientPolicyTLSRouterMatchedOnly
+	return a.GetOpenAIClientPolicy() == OpenAIClientPolicyTLSRouterMatchedOnly
 }
 
 // GetCodexCLIOnlyAllowedClients 返回 codex_cli_only 之上额外放行的命名客户端预设 ID 列表。
-// 仅 OpenAI OAuth 账号生效；缺失或类型不符时返回空。预设 ID 的具体匹配规则由
+// 仅 OpenAI OAuth/API Key 账号生效；缺失或类型不符时返回空。预设 ID 的具体匹配规则由
 // openai 包的 registry 固化，配置只能引用预设键、不能自定义规则。
 func (a *Account) GetCodexCLIOnlyAllowedClients() []string {
-	if a == nil || !a.IsOpenAIOAuth() || a.Extra == nil {
+	if !a.SupportsOpenAIClientPolicy() || a.Extra == nil {
 		return nil
 	}
 	raw, ok := a.Extra["codex_cli_only_allowed_clients"]
@@ -2613,7 +2633,7 @@ func (a *Account) IsAnthropicOAuthOrSetupToken() bool {
 }
 
 // SupportsTLSFingerprint 返回账号是否支持 TLS 指纹伪装。
-// 当前支持 Anthropic OAuth/SetupToken、OpenAI OAuth 与 Qoder COSY。
+// 当前支持 Anthropic OAuth/SetupToken、OpenAI OAuth/API Key 与 Qoder COSY。
 func (a *Account) SupportsTLSFingerprint() bool {
 	if a == nil {
 		return false
@@ -2621,7 +2641,7 @@ func (a *Account) SupportsTLSFingerprint() bool {
 	if a.IsAnthropicOAuthOrSetupToken() {
 		return true
 	}
-	return (a.Platform == PlatformOpenAI && a.Type == AccountTypeOAuth) ||
+	return (a.Platform == PlatformOpenAI && (a.Type == AccountTypeOAuth || a.Type == AccountTypeAPIKey)) ||
 		(a.IsCNProvider() && a.Type == AccountTypeAPIKey) ||
 		a.IsQoderCosy()
 }

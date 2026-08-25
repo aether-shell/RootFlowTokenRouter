@@ -682,6 +682,7 @@ type adminServiceImpl struct {
 	runtimeBlocker       AccountRuntimeBlocker
 	httpUpstream         HTTPUpstream
 	tlsFPProfileService  *TLSFingerprintProfileService
+	tlsFPRouterService   *TLSFingerprintRouterService
 	affiliateService     adminRechargeAffiliateAccruer
 	// 分组平台变更后失效渠道缓存；可为 nil，此时缓存会在 TTL 到期后自然重建。
 	channelCacheInvalidator ChannelCacheInvalidator
@@ -724,6 +725,7 @@ func NewAdminService(
 	runtimeBlocker AccountRuntimeBlocker,
 	httpUpstream HTTPUpstream,
 	tlsFPProfileService *TLSFingerprintProfileService,
+	tlsFPRouterService *TLSFingerprintRouterService,
 	affiliateService *AffiliateService,
 	channelCacheInvalidator ChannelCacheInvalidator,
 ) AdminService {
@@ -751,6 +753,7 @@ func NewAdminService(
 		runtimeBlocker:       runtimeBlocker,
 		httpUpstream:         httpUpstream,
 		tlsFPProfileService:  tlsFPProfileService,
+		tlsFPRouterService:   tlsFPRouterService,
 		affiliateService:     affiliateService,
 
 		channelCacheInvalidator: channelCacheInvalidator,

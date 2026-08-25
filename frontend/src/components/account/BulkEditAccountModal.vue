@@ -947,8 +947,8 @@
         </div>
       </div>
 
-      <!-- OpenAI OAuth 客户端访问策略 -->
-      <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <!-- OpenAI OAuth/API Key 客户端访问策略 -->
+      <div v-if="allOpenAIPassthroughCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-openai-codex-cli-only-label"
@@ -981,8 +981,8 @@
         </div>
       </div>
 
-      <!-- OpenAI OAuth: 额外放行 Claude Code 的 Codex 插件 -->
-      <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <!-- OpenAI OAuth/API Key: 额外放行 Claude Code 的 Codex 插件 -->
+      <div v-if="allOpenAIPassthroughCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
             id="bulk-edit-openai-codex-allow-claude-code-label"
@@ -1577,7 +1577,7 @@
             data-testid="bulk-edit-tls-fingerprint-profile"
             :options="tlsFingerprintProfileOptions"
           />
-          <div v-if="tlsFingerprintEnabled && allOpenAIOAuth" class="mt-3">
+          <div v-if="tlsFingerprintEnabled && allOpenAIPassthroughCapable" class="mt-3">
             <Select
               v-model="tlsFingerprintRouterId"
               id="bulk-edit-tls-fingerprint-router"
@@ -1813,10 +1813,10 @@ const allAnthropicOAuthOrSetupToken = computed(() => {
 })
 
 const isTLSFingerprintCapableTarget = (platform: AccountPlatform, type: AccountType) => {
-  // TLS 指纹伪装支持 Anthropic OAuth/SetupToken、OpenAI OAuth 与 Qoder COSY，OpenAI API Key 不开放。
+  // TLS 指纹伪装支持 Anthropic OAuth/SetupToken、OpenAI OAuth/API Key 与 Qoder COSY。
   return (
     (platform === 'anthropic' && (type === 'oauth' || type === 'setup-token')) ||
-    (platform === 'openai' && type === 'oauth') ||
+    (platform === 'openai' && (type === 'oauth' || type === 'apikey')) ||
     (platform === 'qoder' && type === 'cosy')
   )
 }
@@ -1826,7 +1826,7 @@ const allTLSFingerprintCapable = computed(() => {
   const types = targetSelectedTypes.value
   if (platforms.length === 0 || types.length === 0) return false
   if (!platforms.every(platform => platform === 'anthropic' || platform === 'openai' || platform === 'qoder')) return false
-  if (!types.every(type => type === 'oauth' || type === 'setup-token' || type === 'cosy')) return false
+  if (!types.every(type => type === 'oauth' || type === 'setup-token' || type === 'apikey' || type === 'cosy')) return false
   if (platforms.length === 1) {
     return types.every(type => isTLSFingerprintCapableTarget(platforms[0], type))
   }
@@ -2483,6 +2483,7 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
 
   if (enableCodexCLIOnly.value) {
     const extra = ensureExtra()
+    extra.openai_client_policy = openAIOAuthClientPolicy.value
     extra.openai_oauth_client_policy = openAIOAuthClientPolicy.value
     // 兼容旧后端/旧账号字段；非 codex_only 时显式写 false，避免 JSONB merge 留下旧 true。
     extra.codex_cli_only = openAIOAuthClientPolicy.value === 'codex_only'
@@ -2524,7 +2525,7 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     const extra = ensureExtra()
     extra.enable_tls_fingerprint = tlsFingerprintEnabled.value
     extra.tls_fingerprint_profile_id = tlsFingerprintEnabled.value ? tlsFingerprintProfileId.value : 0
-    if (allOpenAIOAuth.value) {
+    if (allOpenAIPassthroughCapable.value) {
       // 0 表示清除账号上的 TLS 路由器，避免批量关闭后旧路由器继续生效。
       extra.tls_fingerprint_router_id = tlsFingerprintEnabled.value ? (tlsFingerprintRouterId.value ?? 0) : 0
     }
@@ -2667,6 +2668,15 @@ const handleSubmit = async () => {
 
   if (!hasAnyFieldEnabled) {
     appStore.showError(t('admin.accounts.bulkEdit.noFieldsSelected'))
+    return
+  }
+
+  if (
+    enableCodexCLIOnly.value &&
+    openAIOAuthClientPolicy.value === 'tls_router_matched_only' &&
+    (!enableTLSFingerprint.value || !tlsFingerprintEnabled.value || !tlsFingerprintRouterId.value)
+  ) {
+    appStore.showError(t('admin.accounts.openai.clientPolicyTLSRouterRequired'))
     return
   }
 
@@ -2862,7 +2872,7 @@ watch(
       if (allTLSFingerprintCapable.value) {
         void loadTLSFingerprintProfiles()
       }
-      if (allOpenAIOAuth.value) {
+      if (allOpenAIPassthroughCapable.value) {
         void loadTLSFingerprintRouters()
       }
       void loadSelectedAccountDefaults()

@@ -177,7 +177,11 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 					accountReleaseFunc()
 				}
 			}()
-			return h.gatewayService.ForwardEmbeddings(c.Request.Context(), c, account, forwardBody, "")
+			tlsRouterMatch := h.gatewayService.MatchOpenAITLSFingerprintRouterForRequest(c, account)
+			if err := h.gatewayService.EnforceOpenAIClientPolicyForRequest(c.Request.Context(), c, account, forwardBody, tlsRouterMatch); err != nil {
+				return nil, err
+			}
+			return h.gatewayService.ForwardEmbeddings(c.Request.Context(), c, account, forwardBody, "", tlsRouterMatch)
 		}()
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()

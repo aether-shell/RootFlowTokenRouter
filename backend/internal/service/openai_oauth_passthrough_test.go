@@ -287,10 +287,10 @@ func TestOpenAIGatewayService_OpenAIOAuthHTTPForwardsTLSProfile(t *testing.T) {
 			wantProfile: false,
 		},
 		{
-			name:        "OpenAI API Key 手写 extra 也不传 profile",
+			name:        "OpenAI API Key 启用 TLS 时传入 profile",
 			accountType: AccountTypeAPIKey,
 			extra:       map[string]any{"enable_tls_fingerprint": true},
-			wantProfile: false,
+			wantProfile: true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

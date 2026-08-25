@@ -414,7 +414,7 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		}
 	}
 
-	// TLS 指纹伪装字段支持 Anthropic OAuth/SetupToken 与 OpenAI OAuth。
+	// TLS 指纹伪装字段支持 Anthropic OAuth/SetupToken 与 OpenAI OAuth/API Key。
 	if a.SupportsTLSFingerprint() {
 		if a.IsTLSFingerprintEnabled() {
 			enabled := true
@@ -428,9 +428,13 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		}
 	}
 
-	if a.IsOpenAIOAuth() {
-		policy := a.GetOpenAIOAuthClientPolicy()
-		out.OpenAIOAuthClientPolicy = &policy
+	if a.SupportsOpenAIClientPolicy() {
+		policy := a.GetOpenAIClientPolicy()
+		out.OpenAIClientPolicy = &policy
+		// 旧字段只对 OAuth 输出，避免新 API Key 客户端继续依赖 OAuth 命名。
+		if a.IsOpenAIOAuth() {
+			out.OpenAIOAuthClientPolicy = &policy
+		}
 	}
 
 	// 提取账号配额限制（apikey / bedrock 类型有效）

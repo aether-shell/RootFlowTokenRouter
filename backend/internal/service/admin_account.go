@@ -511,6 +511,146 @@ func normalizeGrokMediaEligibilityUpdateExtra(account *Account, input *UpdateAcc
 	return normalized, nil
 }
 
+func openAIClientPolicyFromExtra(extra map[string]any) (string, bool, error) {
+	if extra == nil {
+		return "", false, nil
+	}
+	for _, key := range []string{"openai_client_policy", "openai_oauth_client_policy"} {
+		raw, exists := extra[key]
+		if !exists || raw == nil {
+			continue
+		}
+		policy, ok := raw.(string)
+		if !ok {
+			return "", true, infraerrors.BadRequest("OPENAI_CLIENT_POLICY_INVALID", key+" must be a string")
+		}
+		policy = strings.TrimSpace(policy)
+		switch policy {
+		case OpenAIClientPolicyAny, OpenAIClientPolicyCodexOnly, OpenAIClientPolicyTLSRouterMatchedOnly:
+			return policy, true, nil
+		default:
+			return "", true, infraerrors.BadRequest("OPENAI_CLIENT_POLICY_INVALID", "unsupported OpenAI client policy")
+		}
+	}
+	if enabled, ok := extra["codex_cli_only"].(bool); ok && enabled {
+		return OpenAIClientPolicyCodexOnly, true, nil
+	}
+	return "", false, nil
+}
+
+func hasOpenAIClientPolicyPatch(extra map[string]any) bool {
+	if extra == nil {
+		return false
+	}
+	for _, key := range []string{
+		"openai_client_policy",
+		"openai_oauth_client_policy",
+		"codex_cli_only",
+		"codex_cli_only_allowed_clients",
+		"enable_tls_fingerprint",
+		"tls_fingerprint_profile_id",
+		"tls_fingerprint_router_id",
+	} {
+		if _, exists := extra[key]; exists {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeOpenAIClientPolicyPatch 将新旧策略写法归一到规范字段，供批量 JSONB 合并使用。
+func normalizeOpenAIClientPolicyPatch(extra map[string]any) error {
+	policy, provided, err := openAIClientPolicyFromExtra(extra)
+	if err != nil {
+		return err
+	}
+	if provided {
+		extra["openai_client_policy"] = policy
+		// 批量更新可能同时包含 OAuth 和 API Key；旧字段对 API Key 无效，但可保障 OAuth 回滚兼容。
+		extra["openai_oauth_client_policy"] = policy
+		extra["codex_cli_only"] = policy == OpenAIClientPolicyCodexOnly
+		if policy != OpenAIClientPolicyCodexOnly {
+			extra["codex_cli_only_allowed_clients"] = nil
+		}
+	}
+	if enabled, ok := extra["enable_tls_fingerprint"].(bool); ok && !enabled {
+		if provided && policy == OpenAIClientPolicyTLSRouterMatchedOnly {
+			return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_TLS_ROUTER_REQUIRED", "TLS router matched policy requires TLS fingerprinting")
+		}
+		extra["tls_fingerprint_profile_id"] = nil
+		extra["tls_fingerprint_router_id"] = nil
+	}
+	return nil
+}
+
+// normalizeOpenAIClientPolicyAccount 校验并规范化账号的完整策略状态。
+func (s *adminServiceImpl) normalizeOpenAIClientPolicyAccount(ctx context.Context, account *Account) error {
+	if account == nil {
+		return nil
+	}
+	policy, provided, err := openAIClientPolicyFromExtra(account.Extra)
+	if err != nil {
+		return err
+	}
+	if !account.SupportsOpenAIClientPolicy() {
+		if provided {
+			return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_UNSUPPORTED_ACCOUNT_TYPE", "OpenAI client policy only applies to OpenAI OAuth or API Key accounts")
+		}
+		return nil
+	}
+	if !provided {
+		policy = OpenAIClientPolicyAny
+	}
+	if account.Extra == nil {
+		account.Extra = make(map[string]any)
+	}
+	account.Extra["openai_client_policy"] = policy
+	if account.Type == AccountTypeOAuth {
+		account.Extra["openai_oauth_client_policy"] = policy
+		account.Extra["codex_cli_only"] = policy == OpenAIClientPolicyCodexOnly
+	}
+	if policy != OpenAIClientPolicyCodexOnly {
+		delete(account.Extra, "codex_cli_only_allowed_clients")
+	}
+	if !account.IsTLSFingerprintEnabled() {
+		if policy == OpenAIClientPolicyTLSRouterMatchedOnly {
+			return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_TLS_ROUTER_REQUIRED", "TLS router matched policy requires TLS fingerprinting")
+		}
+		delete(account.Extra, "tls_fingerprint_profile_id")
+		delete(account.Extra, "tls_fingerprint_router_id")
+		return nil
+	}
+	if policy != OpenAIClientPolicyTLSRouterMatchedOnly {
+		return nil
+	}
+	routerID := account.GetTLSFingerprintRouterID()
+	if routerID <= 0 {
+		return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_TLS_ROUTER_REQUIRED", "TLS router matched policy requires a router")
+	}
+	if s == nil || s.tlsFPRouterService == nil {
+		return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_TLS_ROUTER_UNAVAILABLE", "TLS fingerprint router service is unavailable")
+	}
+	router, err := s.tlsFPRouterService.GetByID(ctx, routerID)
+	if err != nil || router == nil || !router.Enabled {
+		return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_TLS_ROUTER_UNAVAILABLE", "TLS fingerprint router does not exist or is disabled")
+	}
+	for _, rule := range router.Rules {
+		if !rule.Enabled || rule.TLSFingerprintProfileID == 0 {
+			continue
+		}
+		if rule.TLSFingerprintProfileID < -1 {
+			return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_TLS_ROUTER_UNAVAILABLE", "TLS fingerprint router references an invalid profile")
+		}
+		if s.tlsFPProfileService == nil {
+			return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_TLS_ROUTER_UNAVAILABLE", "TLS fingerprint profile service is unavailable")
+		}
+		if _, ok := s.tlsFPProfileService.ResolveRoutableTLSProfileByID(account, rule.TLSFingerprintProfileID); !ok {
+			return infraerrors.BadRequest("OPENAI_CLIENT_POLICY_TLS_ROUTER_UNAVAILABLE", "TLS fingerprint router references an unavailable profile")
+		}
+	}
+	return nil
+}
+
 func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]any) (*Account, error) {
 	// 受管会话状态由系统维护，废弃字段不得通过通用账号接口写入。
 	DiscardDeprecatedAccountExtra(accountExtra)
@@ -624,6 +764,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 
 	account, err := buildAccountForCreate(input, accountExtra)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.normalizeOpenAIClientPolicyAccount(ctx, account); err != nil {
 		return nil, err
 	}
 	// 只有新建账号需要生成并持久化机器身份；编辑旧账号时必须保留兼容回退语义。
@@ -844,6 +987,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if err := normalizeOpenAIAPIKeyConfiguration(account); err != nil {
 		return nil, err
 	}
+	if err := s.normalizeOpenAIClientPolicyAccount(ctx, account); err != nil {
+		return nil, err
+	}
 	if account.Extra != nil {
 		if !IsOllamaCloudUsageAccount(account) {
 			delete(account.Extra, OllamaCloudUsageSessionExtraKey)
@@ -992,6 +1138,9 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	delete(input.Extra, OllamaCloudUsageAutoRefreshExtraKey)
 	delete(input.Extra, OllamaCloudUsageSnapshotExtraKey)
 	delete(input.Extra, CNUsageMonitorSnapshotExtraKey)
+	if err := normalizeOpenAIClientPolicyPatch(input.Extra); err != nil {
+		return nil, err
+	}
 
 	if len(input.AccountIDs) == 0 && input.Filters != nil {
 		accountIDs, err := s.resolveBulkUpdateTargetIDs(ctx, input.Filters)
@@ -1025,12 +1174,39 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	// 预取所有目标账号，供凭据守卫/代理守卫/混合渠道检查共用，避免多次 DB 查询。
 	var cachedTargets []*Account
 	hasOpenAIConfigPatch := hasOpenAIConfigurationPatch(input.Credentials, input.Extra)
-	if len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck || hasOpenAIConfigPatch {
+	hasOpenAIClientPolicyPatch := hasOpenAIClientPolicyPatch(input.Extra)
+	if len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck || hasOpenAIConfigPatch || hasOpenAIClientPolicyPatch {
 		loaded, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
 		if err != nil {
 			return nil, err
 		}
 		cachedTargets = loaded
+	}
+	if hasOpenAIClientPolicyPatch {
+		targetsByID := make(map[int64]*Account, len(cachedTargets))
+		for _, account := range cachedTargets {
+			if account == nil {
+				continue
+			}
+			targetsByID[account.ID] = account
+		}
+		for _, accountID := range input.AccountIDs {
+			account := targetsByID[accountID]
+			if account == nil {
+				return nil, infraerrors.BadRequest("OPENAI_CLIENT_POLICY_UNSUPPORTED_ACCOUNT_TYPE", "OpenAI client policy target account does not exist")
+			}
+			prospective := *account
+			prospective.Extra = maps.Clone(account.Extra)
+			if prospective.Extra == nil {
+				prospective.Extra = make(map[string]any, len(input.Extra))
+			}
+			for key, value := range input.Extra {
+				prospective.Extra[key] = value
+			}
+			if err := s.normalizeOpenAIClientPolicyAccount(ctx, &prospective); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if hasOpenAIConfigPatch {
 		targetsByID := make(map[int64]*Account, len(cachedTargets))

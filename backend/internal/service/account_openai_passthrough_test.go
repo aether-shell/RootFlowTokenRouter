@@ -114,7 +114,7 @@ func TestAccount_IsCodexCLIOnlyEnabled(t *testing.T) {
 		require.False(t, account.IsCodexCLIOnlyEnabled())
 	})
 
-	t.Run("非 OAuth 账号始终关闭", func(t *testing.T) {
+	t.Run("OpenAI API Key 兼容旧布尔字段", func(t *testing.T) {
 		apiKeyAccount := &Account{
 			Platform: PlatformOpenAI,
 			Type:     AccountTypeAPIKey,
@@ -122,7 +122,7 @@ func TestAccount_IsCodexCLIOnlyEnabled(t *testing.T) {
 				"codex_cli_only": true,
 			},
 		}
-		require.False(t, apiKeyAccount.IsCodexCLIOnlyEnabled())
+		require.True(t, apiKeyAccount.IsCodexCLIOnlyEnabled())
 
 		otherPlatform := &Account{
 			Platform: PlatformAnthropic,
@@ -132,6 +132,20 @@ func TestAccount_IsCodexCLIOnlyEnabled(t *testing.T) {
 			},
 		}
 		require.False(t, otherPlatform.IsCodexCLIOnlyEnabled())
+	})
+
+	t.Run("API Key 规范字段优先于 OAuth 旧字段", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Extra: map[string]any{
+				"openai_client_policy":       OpenAIClientPolicyAny,
+				"openai_oauth_client_policy": OpenAIClientPolicyCodexOnly,
+				"codex_cli_only":             true,
+			},
+		}
+		require.True(t, account.SupportsOpenAIClientPolicy())
+		require.Equal(t, OpenAIClientPolicyAny, account.GetOpenAIClientPolicy())
 	})
 
 	t.Run("新策略字段优先于旧字段", func(t *testing.T) {
@@ -196,13 +210,13 @@ func TestAccount_IsTLSFingerprintEnabled(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "OpenAI API Key 不支持",
+			name: "OpenAI API Key 开启",
 			account: &Account{
 				Platform: PlatformOpenAI,
 				Type:     AccountTypeAPIKey,
 				Extra:    map[string]any{"enable_tls_fingerprint": true},
 			},
-			want: false,
+			want: true,
 		},
 		{
 			name: "非法类型按关闭处理",

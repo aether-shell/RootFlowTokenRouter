@@ -2915,6 +2915,22 @@ func TestReportOpenAIAccountScheduleResult_SuccessClearsModelTransientState(t *t
 	require.False(t, svc.openaiModelTransient.isBlocked(21636, "gpt-5.5", now.Add(2*time.Millisecond)))
 }
 
+func TestReportOpenAIAccountScheduleResult_ClientPolicyDeniedDoesNotInitializeScheduler(t *testing.T) {
+	svc := &OpenAIGatewayService{rateLimitService: &RateLimitService{}}
+
+	reported := svc.ReportOpenAIAccountScheduleResult(
+		&Account{ID: 21637, Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+		"gpt-5.5",
+		false,
+		nil,
+		ErrOpenAIClientPolicyDenied,
+	)
+
+	require.False(t, reported)
+	require.Nil(t, svc.openaiScheduler)
+	require.Nil(t, svc.openaiAccountStats)
+}
+
 func TestDefaultOpenAIAccountScheduler_ShouldEscapeStickyAccount_ThresholdBoundary(t *testing.T) {
 	stats := newOpenAIAccountRuntimeStats()
 	accountID := int64(21501)

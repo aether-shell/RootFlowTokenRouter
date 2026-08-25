@@ -44,6 +44,9 @@ vi.mock('@/api/admin', () => ({
     },
     tlsFingerprintProfiles: {
       list: listTLSProfilesMock
+    },
+    tlsFingerprintRouters: {
+      list: vi.fn().mockResolvedValue([{ id: 9, name: 'Codex router' }])
     }
   }
 }))
@@ -1210,6 +1213,34 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.enable_tls_fingerprint).toBe(true)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.tls_fingerprint_profile_id).toBe(7)
+  })
+
+  it('loads and submits OpenAI API Key client policy and TLS router settings', async () => {
+    const account = buildAccount()
+    account.extra = {
+      openai_client_policy: 'tls_router_matched_only',
+      enable_tls_fingerprint: true,
+      tls_fingerprint_router_id: 9
+    }
+    account.enable_tls_fingerprint = true
+    account.tls_fingerprint_router_id = 9
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await flushPromises()
+
+    expect((wrapper.get('[data-testid="edit-openai-client-policy"]').element as HTMLSelectElement).value)
+      .toBe('tls_router_matched_only')
+    expect(wrapper.find('[data-testid="edit-openai-tls-fingerprint-router"]').exists()).toBe(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
+      openai_client_policy: 'tls_router_matched_only',
+      enable_tls_fingerprint: true,
+      tls_fingerprint_router_id: 9
+    })
   })
 
   it('loads and submits Qoder COSY model mappings', async () => {

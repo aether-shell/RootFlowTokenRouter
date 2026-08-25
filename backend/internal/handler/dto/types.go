@@ -324,13 +324,15 @@ type Account struct {
 	RPMStickyBuffer  *int    `json:"rpm_sticky_buffer,omitempty"`
 	UserMsgQueueMode *string `json:"user_msg_queue_mode,omitempty"`
 
-	// TLS指纹伪装（仅 Anthropic OAuth/SetupToken 账号有效）
+	// TLS指纹伪装（支持 Anthropic OAuth/SetupToken、OpenAI OAuth/API Key 等账号）
 	// 从 extra 字段提取，方便前端显示和编辑
 	EnableTLSFingerprint    *bool  `json:"enable_tls_fingerprint,omitempty"`
 	TLSFingerprintProfileID *int64 `json:"tls_fingerprint_profile_id,omitempty"`
 	TLSFingerprintRouterID  *int64 `json:"tls_fingerprint_router_id,omitempty"`
 
-	// OpenAI OAuth 客户端访问策略。
+	// OpenAI OAuth/API Key 客户端访问策略。
+	OpenAIClientPolicy *string `json:"openai_client_policy,omitempty"`
+	// OpenAIOAuthClientPolicy 为 OAuth 旧客户端保留的兼容字段。
 	OpenAIOAuthClientPolicy *string `json:"openai_oauth_client_policy,omitempty"`
 
 	// 会话ID伪装（仅 Anthropic OAuth/SetupToken 账号有效）

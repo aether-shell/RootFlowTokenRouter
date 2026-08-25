@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +22,17 @@ func newCodexDetectorTestContext(ua string, originator string) *gin.Context {
 		c.Request.Header.Set("originator", originator)
 	}
 	return c
+}
+
+func matchedTLSRouterResult(routerID int64, profileID int64) TLSFingerprintRouterMatchResult {
+	return TLSFingerprintRouterMatchResult{
+		Matched:                 true,
+		RouterAvailable:         true,
+		TLSProfileResolved:      true,
+		RouterID:                routerID,
+		TLSFingerprintProfileID: profileID,
+		TLSProfile:              &tlsfingerprint.Profile{Name: "test"},
+	}
 }
 
 func TestOpenAICodexClientRestrictionDetector_Detect(t *testing.T) {
@@ -191,6 +203,21 @@ func TestOpenAICodexClientRestrictionDetector_Detect(t *testing.T) {
 		require.True(t, result.Enabled)
 		require.True(t, result.Matched)
 		require.Equal(t, CodexClientRestrictionReasonForceCodexCLI, result.Reason)
+	})
+
+	t.Run("API Key 的 codex_only 使用相同识别规则", func(t *testing.T) {
+		detector := NewOpenAICodexClientRestrictionDetector(nil)
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Extra:    map[string]any{"openai_client_policy": OpenAIClientPolicyCodexOnly},
+		}
+
+		allowed := detector.Detect(newCodexDetectorTestContext("codex_cli_rs/0.99.0", ""), account, nil, TLSFingerprintRouterMatchResult{})
+		rejected := detector.Detect(newCodexDetectorTestContext("curl/8.0", ""), account, nil, TLSFingerprintRouterMatchResult{})
+		require.True(t, allowed.Matched)
+		require.False(t, rejected.Matched)
+		require.Equal(t, CodexClientRestrictionReasonNotMatchedUA, rejected.Reason)
 	})
 }
 
@@ -376,6 +403,7 @@ func TestOpenAICodexClientRestrictionDetector_Detect_ClientPolicy(t *testing.T) 
 			Type:     AccountTypeOAuth,
 			Extra: map[string]any{
 				"openai_oauth_client_policy": OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
+				"enable_tls_fingerprint":     true,
 			},
 		}
 
@@ -392,6 +420,7 @@ func TestOpenAICodexClientRestrictionDetector_Detect_ClientPolicy(t *testing.T) 
 			Type:     AccountTypeOAuth,
 			Extra: map[string]any{
 				"openai_oauth_client_policy": OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
+				"enable_tls_fingerprint":     true,
 				"tls_fingerprint_router_id":  int64(9),
 			},
 		}
@@ -400,7 +429,7 @@ func TestOpenAICodexClientRestrictionDetector_Detect_ClientPolicy(t *testing.T) 
 			newCodexDetectorTestContext("opencode/1.0", ""),
 			account,
 			nil,
-			TLSFingerprintRouterMatchResult{Matched: true, RouterID: 9, TLSFingerprintProfileID: 2},
+			matchedTLSRouterResult(9, 2),
 		)
 		require.True(t, result.Enabled)
 		require.True(t, result.Matched)
@@ -413,6 +442,7 @@ func TestOpenAICodexClientRestrictionDetector_Detect_ClientPolicy(t *testing.T) 
 			Type:     AccountTypeOAuth,
 			Extra: map[string]any{
 				"openai_oauth_client_policy": OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
+				"enable_tls_fingerprint":     true,
 				"tls_fingerprint_router_id":  int64(9),
 			},
 		}
@@ -421,7 +451,7 @@ func TestOpenAICodexClientRestrictionDetector_Detect_ClientPolicy(t *testing.T) 
 			newCodexDetectorTestContext("Mozilla/5.0 codex_cli_rs/0.1.0", ""),
 			account,
 			nil,
-			TLSFingerprintRouterMatchResult{Matched: true, RouterID: 9, TLSFingerprintProfileID: 2},
+			matchedTLSRouterResult(9, 2),
 		)
 		require.True(t, result.Enabled)
 		require.True(t, result.Matched)
@@ -434,6 +464,7 @@ func TestOpenAICodexClientRestrictionDetector_Detect_ClientPolicy(t *testing.T) 
 			Type:     AccountTypeOAuth,
 			Extra: map[string]any{
 				"openai_oauth_client_policy": OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
+				"enable_tls_fingerprint":     true,
 				"tls_fingerprint_router_id":  int64(9),
 			},
 		}
@@ -442,9 +473,33 @@ func TestOpenAICodexClientRestrictionDetector_Detect_ClientPolicy(t *testing.T) 
 			newCodexDetectorTestContext("curl/8.0", ""),
 			account,
 			nil,
-			TLSFingerprintRouterMatchResult{RouterID: 9},
+			TLSFingerprintRouterMatchResult{RouterAvailable: true, RouterID: 9},
 		)
 		require.True(t, result.Enabled)
+		require.False(t, result.Matched)
+		require.Equal(t, CodexClientRestrictionReasonNotMatchedTLSRouter, result.Reason)
+	})
+
+	t.Run("ForceCodexCLI 不能绕过 API Key TLS-only", func(t *testing.T) {
+		detector := NewOpenAICodexClientRestrictionDetector(&config.Config{
+			Gateway: config.GatewayConfig{ForceCodexCLI: true},
+		})
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Extra: map[string]any{
+				"openai_client_policy":      OpenAIClientPolicyTLSRouterMatchedOnly,
+				"enable_tls_fingerprint":    true,
+				"tls_fingerprint_router_id": int64(9),
+			},
+		}
+
+		result := detector.Detect(
+			newCodexDetectorTestContext("codex_cli_rs/0.99.0", ""),
+			account,
+			nil,
+			TLSFingerprintRouterMatchResult{RouterAvailable: true, RouterID: 9},
+		)
 		require.False(t, result.Matched)
 		require.Equal(t, CodexClientRestrictionReasonNotMatchedTLSRouter, result.Reason)
 	})

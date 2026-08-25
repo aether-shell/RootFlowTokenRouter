@@ -160,3 +160,26 @@ func TestAccountFromServiceShallow_OpenAIOAuthTLSFingerprint(t *testing.T) {
 	require.NotNil(t, got.TLSFingerprintProfileID)
 	require.Equal(t, int64(-1), *got.TLSFingerprintProfileID)
 }
+
+func TestAccountFromServiceShallow_OpenAIAPIKeyClientPolicyAndTLSFingerprint(t *testing.T) {
+	src := &service.Account{
+		ID:       4,
+		Name:     "openai-apikey",
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeAPIKey,
+		Extra: map[string]any{
+			"openai_client_policy":       service.OpenAIClientPolicyTLSRouterMatchedOnly,
+			"enable_tls_fingerprint":     true,
+			"tls_fingerprint_profile_id": int64(2),
+			"tls_fingerprint_router_id":  int64(7),
+		},
+	}
+
+	got := AccountFromServiceShallow(src)
+	require.NotNil(t, got.OpenAIClientPolicy)
+	require.Equal(t, service.OpenAIClientPolicyTLSRouterMatchedOnly, *got.OpenAIClientPolicy)
+	require.Nil(t, got.OpenAIOAuthClientPolicy)
+	require.NotNil(t, got.EnableTLSFingerprint)
+	require.Equal(t, int64(2), *got.TLSFingerprintProfileID)
+	require.Equal(t, int64(7), *got.TLSFingerprintRouterID)
+}

@@ -16,6 +16,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -57,8 +58,10 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyUsesResponsesI
 			Enabled:           false,
 			AllowInsecureHTTP: true,
 		}}},
-		httpUpstream: upstream,
+		httpUpstream:        upstream,
+		tlsFPProfileService: &TLSFingerprintProfileService{},
 	}
+	routedProfile := &tlsfingerprint.Profile{Name: "count-tokens-router"}
 	account := &Account{
 		ID:          101,
 		Name:        "openai-apikey",
@@ -73,7 +76,11 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyUsesResponsesI
 		Schedulable: true,
 	}
 
-	err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "gpt-5.3-codex")
+	err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "gpt-5.3-codex", TLSFingerprintRouterMatchResult{
+		Matched:            true,
+		TLSProfileResolved: true,
+		TLSProfile:         routedProfile,
+	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{"input_tokens":42}`, rec.Body.String())
@@ -83,6 +90,7 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyUsesResponsesI
 	require.Equal(t, "gpt-5.3-codex", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
+	require.Same(t, routedProfile, upstream.lastTLSProfile)
 }
 
 func TestOpenAIGatewayServiceForwardCountTokensCNProvidersAlwaysEstimateLocally(t *testing.T) {

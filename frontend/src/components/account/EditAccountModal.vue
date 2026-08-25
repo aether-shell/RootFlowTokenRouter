@@ -1958,9 +1958,9 @@
         />
       </div>
 
-      <!-- OpenAI OAuth 客户端访问策略 -->
+      <!-- OpenAI OAuth/API Key 客户端访问策略 -->
       <div
-        v-if="account?.platform === 'openai' && account?.type === 'oauth'"
+        v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="flex items-center justify-between gap-4">
@@ -1971,7 +1971,11 @@
             </p>
           </div>
           <div class="w-64">
-            <Select v-model="openAIOAuthClientPolicy" :options="openAIOAuthClientPolicyOptions" />
+            <Select
+              v-model="openAIOAuthClientPolicy"
+              data-testid="edit-openai-client-policy"
+              :options="openAIOAuthClientPolicyOptions"
+            />
           </div>
         </div>
         <div
@@ -3267,10 +3271,10 @@ const {
 } = useQuotaNotifyState()
 
 const supportsTLSFingerprint = (account: Account | null | undefined) => {
-  // TLS 指纹伪装开放给实际走 OAuth/COSY 客户端模拟链路的账号。
+  // TLS 指纹伪装开放给支持出站指纹 transport 的账号。
   return !!account && (
     (account.platform === 'anthropic' && (account.type === 'oauth' || account.type === 'setup-token')) ||
-    (account.platform === 'openai' && account.type === 'oauth') ||
+    (account.platform === 'openai' && (account.type === 'oauth' || account.type === 'apikey')) ||
     (account.platform === 'qoder' && account.type === 'cosy')
   )
 }
@@ -3294,7 +3298,7 @@ const isAnthropicOAuthLikeAccount = computed(() =>
   (props.account?.type === 'oauth' || props.account?.type === 'setup-token')
 )
 const supportsTLSFingerprintRouter = computed(() =>
-  props.account?.platform === 'openai' && props.account?.type === 'oauth'
+  props.account?.platform === 'openai' && (props.account?.type === 'oauth' || props.account?.type === 'apikey')
 )
 const showStandaloneTLSFingerprint = computed(() =>
   supportsTLSFingerprint(props.account) && !isAnthropicOAuthLikeAccount.value
@@ -3818,8 +3822,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       fallbackEnabledKeys: ['responses_websockets_v2_enabled', 'openai_ws_enabled'],
       defaultMode: OPENAI_WS_MODE_OFF
     })
-    if (newAccount.type === 'oauth') {
-      openAIOAuthClientPolicy.value = normalizeOpenAIOAuthClientPolicy(extra?.openai_oauth_client_policy, extra?.codex_cli_only)
+    if (newAccount.type === 'oauth' || newAccount.type === 'apikey') {
+      openAIOAuthClientPolicy.value = normalizeOpenAIOAuthClientPolicy(
+        extra?.openai_client_policy ?? extra?.openai_oauth_client_policy,
+        extra?.codex_cli_only
+      )
       codexCLIOnlyAllowClaudeCodeEnabled.value =
         Array.isArray(extra?.codex_cli_only_allowed_clients) &&
         (extra.codex_cli_only_allowed_clients as unknown[]).includes('claude_code')
@@ -4502,7 +4509,7 @@ function loadTempUnschedRules(credentials?: Record<string, unknown>) {
   })
 }
 
-// 从账号加载配额控制配置（TLS 支持 OpenAI OAuth，其余配额控制仍仅限 Anthropic）
+// 从账号加载配额控制配置（TLS 支持 OpenAI OAuth/API Key，其余配额控制仍仅限 Anthropic）
 function loadQuotaControlSettings(account: Account) {
   // Reset all quota control state first
   windowCostEnabled.value = false
@@ -4741,6 +4748,16 @@ const submitUpdateAccount = async (accountID: number, updatePayload: Record<stri
 const handleSubmit = async () => {
   if (!props.account) return
   const accountID = props.account.id
+
+  if (
+    props.account.platform === 'openai' &&
+    (props.account.type === 'oauth' || props.account.type === 'apikey') &&
+    openAIOAuthClientPolicy.value === 'tls_router_matched_only' &&
+    (!tlsFingerprintEnabled.value || !tlsFingerprintRouterId.value)
+  ) {
+    appStore.showError(t('admin.accounts.openai.clientPolicyTLSRouterRequired'))
+    return
+  }
 
   if (form.status !== 'active' && form.status !== 'inactive' && form.status !== 'error') {
     appStore.showError(t('admin.accounts.pleaseSelectStatus'))
@@ -5342,8 +5359,13 @@ const handleSubmit = async () => {
 
       applyCodexImageToolMode(newExtra, codexImageToolMode.value)
 
-      if (props.account.type === 'oauth') {
-        newExtra.openai_oauth_client_policy = openAIOAuthClientPolicy.value
+      if (props.account.type === 'oauth' || props.account.type === 'apikey') {
+        newExtra.openai_client_policy = openAIOAuthClientPolicy.value
+        if (props.account.type === 'oauth') {
+          newExtra.openai_oauth_client_policy = openAIOAuthClientPolicy.value
+        } else {
+          delete newExtra.openai_oauth_client_policy
+        }
         if (openAIOAuthClientPolicy.value === 'codex_only') {
           newExtra.codex_cli_only = true
         } else if (hadCodexCLIOnlyEnabled || currentExtra.openai_oauth_client_policy != null) {
@@ -5359,7 +5381,7 @@ const handleSubmit = async () => {
           delete newExtra.codex_cli_only_allowed_clients
         }
 
-        // OpenAI OAuth 复用 Anthropic 的 TLS 指纹伪装字段。
+        // OpenAI OAuth/API Key 复用同一组 TLS 指纹伪装字段。
         if (tlsFingerprintEnabled.value) {
           newExtra.enable_tls_fingerprint = true
           if (tlsFingerprintProfileId.value) {

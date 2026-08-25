@@ -22,7 +22,7 @@ func TestTLSFingerprintProfileService_ResolveTLSProfileOpenAI(t *testing.T) {
 		Type:     AccountTypeAPIKey,
 		Extra:    map[string]any{"enable_tls_fingerprint": true},
 	}
-	require.Nil(t, svc.ResolveTLSProfile(openAIAPIKey), "OpenAI API Key 不应启用 TLS 指纹伪装")
+	require.NotNil(t, svc.ResolveTLSProfile(openAIAPIKey), "OpenAI API Key 开启后应返回内置默认 profile")
 }
 
 func TestTLSFingerprintProfileService_ResolveTLSProfileQoderCosy(t *testing.T) {
@@ -61,9 +61,13 @@ func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 	svc := &OpenAIGatewayService{tlsFPProfileService: profileSvc}
 
 	// 路由器命中优先使用规则目标模板。
+	resolvedRouterProfile, ok := profileSvc.ResolveRoutableTLSProfileByID(account, 20)
+	require.True(t, ok)
 	routerProfile := svc.resolveOpenAITLSProfile(account, TLSFingerprintRouterMatchResult{
 		Matched:                 true,
+		TLSProfileResolved:      true,
 		TLSFingerprintProfileID: 20,
+		TLSProfile:              resolvedRouterProfile,
 	})
 	require.NotNil(t, routerProfile)
 	require.Equal(t, "router", routerProfile.Name)

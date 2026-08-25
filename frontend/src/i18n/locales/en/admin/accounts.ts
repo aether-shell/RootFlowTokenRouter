@@ -764,13 +764,14 @@ export default {
         planTypeClear: 'Clear (auto-detect)',
         codexCLIOnly: 'Codex official clients only',
         codexCLIOnlyDesc:
-          'Only applies to OpenAI OAuth. When enabled, only Codex official client families are allowed; when disabled, the gateway bypasses this restriction and keeps existing behavior.',
+          'Applies to OpenAI OAuth and API Key accounts. When enabled, only Codex official client families are allowed; when disabled, the gateway bypasses this restriction and keeps existing behavior.',
         clientPolicy: 'Client access policy',
         clientPolicyDesc:
-          'Only applies to OpenAI OAuth. Allow any client, restrict to official Codex clients, or require the request to match a TLS router rule.',
+          'Applies to OpenAI OAuth and API Key accounts. Allow any client, restrict to Codex clients, or require the request to match a TLS router rule.',
         clientPolicyAny: 'Allow any client',
         clientPolicyCodexOnly: 'Codex clients only',
         clientPolicyTLSRouterMatchedOnly: 'TLS router matched clients only',
+        clientPolicyTLSRouterRequired: 'TLS router matched policy requires TLS fingerprinting and a selected TLS router.',
         clientPolicyClaudeCodeHint:
           'The current policy is not Codex-only, so the Claude Code allow-list will not take effect.',
         codexCLIOnlyAllowClaudeCode: "Also allow Claude Code's Codex plugin",

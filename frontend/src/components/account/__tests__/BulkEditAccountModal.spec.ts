@@ -698,6 +698,29 @@ describe('BulkEditAccountModal', () => {
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       extra: {
+        openai_client_policy: 'codex_only',
+        openai_oauth_client_policy: 'codex_only',
+        codex_cli_only: true
+      }
+    })
+  })
+
+  it('OpenAI API Key 批量编辑显示并提交客户端访问策略', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['apikey']
+    })
+
+    expect(wrapper.find('[data-testid="bulk-edit-openai-client-policy-select"]').exists()).toBe(true)
+    expect(wrapper.find('#bulk-edit-tls-fingerprint-enabled').exists()).toBe(true)
+    await wrapper.get('#bulk-edit-openai-codex-cli-only-enabled').setValue(true)
+    await wrapper.get('[data-testid="bulk-edit-openai-client-policy-select"]').setValue('codex_only')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        openai_client_policy: 'codex_only',
         openai_oauth_client_policy: 'codex_only',
         codex_cli_only: true
       }

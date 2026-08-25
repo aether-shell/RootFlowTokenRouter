@@ -76,10 +76,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": gin.H{
 				"type":    "forbidden_error",
-				"message": "This account only allows Codex official clients",
+				"message": openAIClientPolicyForbiddenMessage(restrictionResult),
 			},
 		})
-		return nil, errors.New("codex_cli_only restriction: only codex official clients are allowed")
+		return nil, ErrOpenAIClientPolicyDenied
 	}
 	if account.Platform == PlatformGrok {
 		if account.IsGrokOAuth() {

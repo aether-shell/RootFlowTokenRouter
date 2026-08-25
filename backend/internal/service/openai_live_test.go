@@ -187,13 +187,17 @@ func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 }
 
 func TestLiveClientPolicyUsesTLSRouterMatch(t *testing.T) {
-	_, routerService := newLiveTLSRoutingServices()
-	service := &OpenAIGatewayService{tlsFPRouterService: routerService}
+	profileService, routerService := newLiveTLSRoutingServices()
+	service := &OpenAIGatewayService{
+		tlsFPProfileService: profileService,
+		tlsFPRouterService:  routerService,
+	}
 	account := &Account{
 		Platform: PlatformOpenAI,
 		Type:     AccountTypeOAuth,
 		Extra: map[string]any{
 			"tls_fingerprint_router_id":  int64(9),
+			"enable_tls_fingerprint":     true,
 			"openai_oauth_client_policy": OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
 		},
 	}

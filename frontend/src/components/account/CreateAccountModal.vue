@@ -3351,9 +3351,9 @@
         </div>
       </div>
 
-      <!-- OpenAI OAuth 客户端访问策略 -->
+      <!-- OpenAI OAuth/API Key 客户端访问策略 -->
       <div
-        v-if="form.platform === 'openai' && accountCategory === 'oauth-based'"
+        v-if="form.platform === 'openai' && (accountCategory === 'oauth-based' || accountCategory === 'apikey')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="flex items-center justify-between gap-4">
@@ -3364,7 +3364,11 @@
             </p>
           </div>
           <div class="w-64">
-            <Select v-model="openAIOAuthClientPolicy" :options="openAIOAuthClientPolicyOptions" />
+            <Select
+              v-model="openAIOAuthClientPolicy"
+              data-testid="create-openai-client-policy"
+              :options="openAIOAuthClientPolicyOptions"
+            />
           </div>
         </div>
         <div
@@ -3396,7 +3400,7 @@
       </div>
 
       <div
-        v-if="form.platform === 'openai' && accountCategory === 'oauth-based'"
+        v-if="form.platform === 'openai' && (accountCategory === 'oauth-based' || accountCategory === 'apikey')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="flex items-center justify-between">
@@ -5411,7 +5415,7 @@ watch(qoderSite, (newSite, oldSite) => {
 watch(
   [accountCategory, () => form.platform],
   ([category, platform]) => {
-    if (platform === 'openai' && category !== 'oauth-based') {
+    if (platform === 'openai' && category !== 'oauth-based' && category !== 'apikey') {
       codexCLIOnlyAllowClaudeCodeEnabled.value = false
       openAIOAuthClientPolicy.value = 'any'
       tlsFingerprintRouterId.value = null
@@ -5981,8 +5985,13 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
   } else {
     delete extra.openai_responses_flatten_namespaces
   }
-  if (accountCategory.value === 'oauth-based') {
-    extra.openai_oauth_client_policy = openAIOAuthClientPolicy.value
+  if (accountCategory.value === 'oauth-based' || accountCategory.value === 'apikey') {
+    extra.openai_client_policy = openAIOAuthClientPolicy.value
+    if (accountCategory.value === 'oauth-based') {
+      extra.openai_oauth_client_policy = openAIOAuthClientPolicy.value
+    } else {
+      delete extra.openai_oauth_client_policy
+    }
     if (openAIOAuthClientPolicy.value === 'codex_only') {
       extra.codex_cli_only = true
     } else {
@@ -5994,6 +6003,7 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
       delete extra.codex_cli_only_allowed_clients
     }
   } else {
+    delete extra.openai_client_policy
     delete extra.openai_oauth_client_policy
     delete extra.codex_cli_only
     delete extra.codex_cli_only_allowed_clients
@@ -6026,14 +6036,14 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     delete extra.auto_pause_5h_disabled
     delete extra.auto_pause_7d_disabled
   }
-  if (accountCategory.value === 'oauth-based' && tlsFingerprintEnabled.value) {
+  if ((accountCategory.value === 'oauth-based' || accountCategory.value === 'apikey') && tlsFingerprintEnabled.value) {
     extra.enable_tls_fingerprint = true
     if (tlsFingerprintProfileId.value) {
       extra.tls_fingerprint_profile_id = tlsFingerprintProfileId.value
     } else {
       delete extra.tls_fingerprint_profile_id
     }
-    if (form.platform === 'openai' && accountCategory.value === 'oauth-based' && tlsFingerprintRouterId.value) {
+    if (form.platform === 'openai' && tlsFingerprintRouterId.value) {
       extra.tls_fingerprint_router_id = tlsFingerprintRouterId.value
     } else {
       delete extra.tls_fingerprint_router_id
@@ -6204,6 +6214,16 @@ const handleVertexServiceAccountDrop = async (event: DragEvent) => {
 }
 
 const handleSubmit = async () => {
+  if (
+    form.platform === 'openai' &&
+    (accountCategory.value === 'oauth-based' || accountCategory.value === 'apikey') &&
+    openAIOAuthClientPolicy.value === 'tls_router_matched_only' &&
+    (!tlsFingerprintEnabled.value || !tlsFingerprintRouterId.value)
+  ) {
+    appStore.showError(t('admin.accounts.openai.clientPolicyTLSRouterRequired'))
+    return
+  }
+
   // For OAuth-based type, handle OAuth flow (goes to step 2)
   if (isOAuthFlow.value) {
     if (!isGrokSSOInputMethod.value && !form.name.trim()) {

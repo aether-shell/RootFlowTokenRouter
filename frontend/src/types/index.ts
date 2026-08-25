@@ -1323,12 +1323,14 @@ export interface Account {
   rpm_sticky_buffer?: number | null
   user_msg_queue_mode?: string | null  // "serialize" | "throttle" | null
 
-  // TLS指纹伪装（仅 Anthropic OAuth/SetupToken 与 OpenAI OAuth 账号有效）
+  // TLS指纹伪装（支持 Anthropic OAuth/SetupToken 与 OpenAI OAuth/API Key 账号）
   enable_tls_fingerprint?: boolean | null
   tls_fingerprint_profile_id?: number | null
   tls_fingerprint_router_id?: number | null
 
-  // OpenAI OAuth 客户端访问策略
+  // OpenAI OAuth/API Key 客户端访问策略
+  openai_client_policy?: OpenAIClientPolicy | null
+  // OAuth 旧响应字段，保留兼容。
   openai_oauth_client_policy?: OpenAIOAuthClientPolicy | null
 
   // 会话ID伪装（仅 Anthropic OAuth/SetupToken 账号有效）
@@ -1658,7 +1660,8 @@ export interface CodexUsageSnapshot {
 }
 
 export type OpenAICompactMode = 'auto' | 'force_on' | 'force_off'
-export type OpenAIOAuthClientPolicy = 'any' | 'codex_only' | 'tls_router_matched_only'
+export type OpenAIClientPolicy = 'any' | 'codex_only' | 'tls_router_matched_only'
+export type OpenAIOAuthClientPolicy = OpenAIClientPolicy
 export type OpenAITextRouteMode =
   | 'preserve_client_protocol'
   | 'force_responses'

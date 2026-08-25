@@ -176,7 +176,12 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 
 	setOpsSelectedAccount(c, account.ID, account.Platform)
 	forwardBody := mappedBodyForMessages(channelMapping.Mapped, channelMapping.MappedModel)
-	if err := h.gatewayService.ForwardCountTokensAsAnthropic(c.Request.Context(), c, account, forwardBody, accountLayerModel); err != nil {
+	tlsRouterMatch := h.gatewayService.MatchOpenAITLSFingerprintRouterForRequest(c, account)
+	if err := h.gatewayService.EnforceOpenAIClientPolicyForRequest(c.Request.Context(), c, account, forwardBody, tlsRouterMatch); err != nil {
+		reqLog.Warn("openai_count_tokens.client_policy_rejected", zap.Int64("account_id", account.ID), zap.Error(err))
+		return
+	}
+	if err := h.gatewayService.ForwardCountTokensAsAnthropic(c.Request.Context(), c, account, forwardBody, accountLayerModel, tlsRouterMatch); err != nil {
 		reqLog.Error("openai_count_tokens.forward_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 	}
 }

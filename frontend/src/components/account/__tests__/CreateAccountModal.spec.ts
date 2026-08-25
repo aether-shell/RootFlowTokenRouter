@@ -42,6 +42,9 @@ vi.mock('@/api/admin', () => ({
     tlsFingerprintProfiles: {
       list: vi.fn().mockResolvedValue([]),
     },
+    tlsFingerprintRouters: {
+      list: vi.fn().mockResolvedValue([{ id: 9, name: 'Codex router' }]),
+    },
   },
 }))
 
@@ -134,11 +137,18 @@ const SelectStub = defineComponent({
     },
   },
   emits: ['update:modelValue'],
+  methods: {
+    coerceValue(value: string) {
+      const option = (this.options as Array<Record<string, unknown>>)
+        .find((item) => String(item.value ?? '') === value)
+      return option ? option.value : value
+    },
+  },
   template: `
     <select
       v-bind="$attrs"
       :value="modelValue"
-      @change="$emit('update:modelValue', $event.target.value)"
+      @change="$emit('update:modelValue', coerceValue($event.target.value))"
     >
       <option v-for="option in options" :key="option.value" :value="option.value">
         {{ option.label }}
@@ -222,9 +232,11 @@ describe('CreateAccountModal OpenAI account options', () => {
   })
 
   it('submits the explicit OpenAI text protocol defaults with the new configuration shape', async () => {
-    await submitApiKeyAccount('openai')
+    const wrapper = await submitApiKeyAccount('openai')
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="create-openai-client-policy"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-openai-tls-fingerprint-toggle"]').exists()).toBe(true)
     const payload = createAccountMock.mock.calls[0]?.[0]
     expect(payload?.credentials?.openai_workload_capabilities).toEqual([
       'text_generation',
@@ -235,6 +247,31 @@ describe('CreateAccountModal OpenAI account options', () => {
     expect(payload?.extra?.openai_responses_probe_status).toBe('unknown')
     expect(payload?.extra).not.toHaveProperty('openai_responses_mode')
     expect(payload?.extra).not.toHaveProperty('openai_responses_supported')
+    expect(payload?.extra?.openai_client_policy).toBe('any')
+  })
+
+  it('submits TLS router matched policy for an OpenAI API Key account', async () => {
+    const wrapper = mountModal()
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await selectButtonByText(wrapper, 'OpenAI')
+    await selectButtonByText(wrapper, 'API Key')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="create-openai-client-policy"]').setValue('tls_router_matched_only')
+    await wrapper.get('[data-testid="create-openai-tls-fingerprint-toggle"]').trigger('click')
+    await wrapper.get('[data-testid="create-openai-tls-fingerprint-router"]').setValue('9')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('restricted apikey')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    const payload = createAccountMock.mock.calls[0]?.[0]
+    expect(payload?.extra).toMatchObject({
+      openai_client_policy: 'tls_router_matched_only',
+      enable_tls_fingerprint: true,
+      tls_fingerprint_router_id: 9,
+    })
   })
 
   it('stores the optional New API wallet token in credentials, never in Extra', async () => {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/model"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 )
 
 // TLSFingerprintRouterRepository 定义 TLS 路由器的数据访问接口。
@@ -32,12 +33,15 @@ type TLSFingerprintRouterCache interface {
 // TLSFingerprintRouterMatchResult 表示一次 UA 路由匹配结果。
 type TLSFingerprintRouterMatchResult struct {
 	Matched                 bool
+	RouterAvailable         bool
+	TLSProfileResolved      bool
 	RouterID                int64
 	RouterName              string
 	RuleName                string
 	TLSFingerprintProfileID int64
 	UpstreamUserAgent       string
 	UpstreamOriginator      string
+	TLSProfile              *tlsfingerprint.Profile
 }
 
 type cachedTLSFingerprintRouter struct {
@@ -163,7 +167,7 @@ func (s *TLSFingerprintRouterService) MatchUserAgent(routerID int64, userAgent s
 	}
 	ua := strings.TrimSpace(userAgent)
 	if ua == "" {
-		return TLSFingerprintRouterMatchResult{RouterID: routerID, RouterName: router.Name}
+		return TLSFingerprintRouterMatchResult{RouterAvailable: true, RouterID: routerID, RouterName: router.Name}
 	}
 	for _, rule := range router.rules {
 		if !rule.Enabled {
@@ -172,6 +176,7 @@ func (s *TLSFingerprintRouterService) MatchUserAgent(routerID int64, userAgent s
 		if tlsRouterRuleMatches(rule, ua) {
 			return TLSFingerprintRouterMatchResult{
 				Matched:                 true,
+				RouterAvailable:         true,
 				RouterID:                router.ID,
 				RouterName:              router.Name,
 				RuleName:                rule.Name,
@@ -181,7 +186,7 @@ func (s *TLSFingerprintRouterService) MatchUserAgent(routerID int64, userAgent s
 			}
 		}
 	}
-	return TLSFingerprintRouterMatchResult{RouterID: router.ID, RouterName: router.Name}
+	return TLSFingerprintRouterMatchResult{RouterAvailable: true, RouterID: router.ID, RouterName: router.Name}
 }
 
 // GetRuntimeRouter 从本地缓存读取路由器运行时配置，供后台 token 刷新等非请求路径使用。

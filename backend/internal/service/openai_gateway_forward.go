@@ -43,7 +43,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				"message": openAIClientPolicyForbiddenMessage(restrictionResult),
 			},
 		})
-		return nil, errors.New("openai oauth client policy restriction: client is not allowed")
+		return nil, ErrOpenAIClientPolicyDenied
 	}
 
 	normalizedBody, normalized, err := normalizeOpenAICodexCompactReasoningEffortForAccount(c, account, body)

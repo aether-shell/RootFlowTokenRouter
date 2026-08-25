@@ -1959,6 +1959,9 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 }
 
 func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountOrID any, model string, success bool, firstTokenMs *int, observedErr ...error) bool {
+	if !success && len(observedErr) > 0 && errors.Is(observedErr[0], ErrOpenAIClientPolicyDenied) {
+		return false
+	}
 	var account *Account
 	var accountID int64
 	switch value := accountOrID.(type) {
