@@ -130,7 +130,10 @@ func TestAccountTestService_AutomaticOpenAIProbeRejectsClientPolicyLocally(t *te
 					Pattern:   "allowed-client/",
 				}},
 			},
-			extra: map[string]any{"tls_fingerprint_router_id": int64(9)},
+			extra: map[string]any{
+				"enable_tls_fingerprint":    true,
+				"tls_fingerprint_router_id": int64(9),
+			},
 		},
 		{
 			name:      "Codex 官方身份未命中",
@@ -153,7 +156,10 @@ func TestAccountTestService_AutomaticOpenAIProbeRejectsClientPolicyLocally(t *te
 					Pattern:   "different-client/",
 				}},
 			},
-			extra: map[string]any{"tls_fingerprint_router_id": int64(9)},
+			extra: map[string]any{
+				"enable_tls_fingerprint":    true,
+				"tls_fingerprint_router_id": int64(9),
+			},
 		},
 	}
 
