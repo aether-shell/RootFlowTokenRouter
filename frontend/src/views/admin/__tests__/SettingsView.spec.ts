@@ -6,6 +6,8 @@ import SettingsView from "../SettingsView.vue";
 
 const {
   getSettings,
+  getCreativeModelCandidates,
+  getCreativeWorkerStatus,
   updateSettings,
   getWebSearchEmulationConfig,
   updateWebSearchEmulationConfig,
@@ -38,8 +40,12 @@ const {
   adminSettingsFetch,
   showError,
   showSuccess,
+  getMarketplaceModels,
+  getMarketplaceStats,
 } = vi.hoisted(() => ({
   getSettings: vi.fn(),
+  getCreativeModelCandidates: vi.fn(),
+  getCreativeWorkerStatus: vi.fn(),
   updateSettings: vi.fn(),
   getWebSearchEmulationConfig: vi.fn(),
   updateWebSearchEmulationConfig: vi.fn(),
@@ -95,6 +101,12 @@ const {
   adminSettingsFetch: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
+  getMarketplaceModels: vi.fn().mockResolvedValue([]),
+  getMarketplaceStats: vi.fn().mockResolvedValue({
+    today_tokens: 0,
+    total_tokens: 0,
+    total_users: 0,
+  }),
 }));
 
 const localeRef = vi.hoisted(() => ({ value: "zh-CN" }));
@@ -103,6 +115,8 @@ vi.mock("@/api", () => ({
   adminAPI: {
     settings: {
       getSettings,
+      getCreativeModelCandidates,
+      getCreativeWorkerStatus,
       updateSettings,
       getWebSearchEmulationConfig,
       updateWebSearchEmulationConfig,
@@ -143,6 +157,11 @@ vi.mock("@/api", () => ({
       list: listTLSFingerprintProfiles,
     },
   },
+}));
+
+vi.mock("@/api/marketplace", () => ({
+  getMarketplaceModels,
+  getMarketplaceStats,
 }));
 
 vi.mock("@/stores", () => ({
@@ -277,6 +296,15 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.scheduling.stickyWeightedDescription": "开启后，上一响应和会话粘性作为评分信号参与选择；关闭时保留既有粘性优先行为。",
     "admin.settings.scheduling.subscriptionPriorityTitle": "订阅优先",
     "admin.settings.scheduling.subscriptionPriorityDescription": "具备订阅能力的账号会获得订阅优先评分；缺少该能力的账号保持中性。",
+    "admin.settings.scheduling.stickyEscapeTitle": "粘性健康切换",
+    "admin.settings.scheduling.stickyEscapeDescription": "绑定账号的错误率或首 token 延迟超过阈值时，本次请求允许切换到其它账号，并保留原粘性绑定。",
+    "admin.settings.scheduling.stickyEscapeEnabled": "强制粘性切换",
+    "admin.settings.scheduling.stickyEscapeTTFT": "TTFT 切换阈值（毫秒）",
+    "admin.settings.scheduling.stickyEscapeErrorRate": "错误率切换阈值（0-1）",
+    "admin.settings.scheduling.ewmaTitle": "EWMA 反馈因子",
+    "admin.settings.scheduling.ewmaDescription": "控制运行时错误率和首 token 延迟反馈对最新样本的敏感度；值越大越重视最新观测。",
+    "admin.settings.scheduling.ewmaErrorRateAlpha": "错误率 EWMA 因子",
+    "admin.settings.scheduling.ewmaTTFTAlpha": "TTFT EWMA 因子",
     "admin.settings.scheduling.weightsTitle": "高级调度权重",
     "admin.settings.scheduling.weightsDescription": "留空时使用配置或内置默认值；非空设置优先。权重对所有启用高级调度器的分组生效。",
     "admin.settings.scheduling.defaultPlaceholder": "配置/默认：{value}",
@@ -485,6 +513,7 @@ const baseSettingsResponse = {
   registration_email_suffix_whitelist: [],
   registration_email_normalization: false,
   registration_email_domain_quota_enabled: false,
+  user_email_change_enabled: false,
   promo_code_enabled: true,
   invitation_code_enabled: false,
   password_reset_enabled: false,
@@ -594,6 +623,8 @@ const baseSettingsResponse = {
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",
   payment_enabled: true,
+  creative_enabled: true,
+  creative_model_settings: [],
   payment_min_amount: 1,
   payment_max_amount: 10000,
   payment_daily_limit: 50000,
@@ -621,6 +652,11 @@ const baseSettingsResponse = {
   payment_visible_method_wxpay_enabled: true,
   advanced_scheduler_sticky_weighted_enabled: false,
   advanced_scheduler_subscription_priority_enabled: false,
+  advanced_scheduler_ewma_error_rate_alpha: "",
+  advanced_scheduler_ewma_ttft_alpha: "",
+  advanced_scheduler_sticky_escape_enabled: true,
+  advanced_scheduler_sticky_escape_ttft_ms: "",
+  advanced_scheduler_sticky_escape_error_rate: "",
   advanced_scheduler_lb_top_k: "",
   advanced_scheduler_weight_priority: "",
   advanced_scheduler_weight_load: "",
@@ -641,6 +677,11 @@ const baseSettingsResponse = {
   advanced_scheduler_effective_weight_quota_headroom: "0",
   advanced_scheduler_effective_weight_previous_response: "5",
   advanced_scheduler_effective_weight_session_sticky: "3",
+  advanced_scheduler_effective_ewma_error_rate_alpha: "0.2",
+  advanced_scheduler_effective_ewma_ttft_alpha: "0.2",
+  advanced_scheduler_effective_sticky_escape_enabled: true,
+  advanced_scheduler_effective_sticky_escape_ttft_ms: "15000",
+  advanced_scheduler_effective_sticky_escape_error_rate: "0.5",
   openai_account_quota_auto_pause: {
     default_threshold_5h: 0,
     default_threshold_7d: 0,
@@ -742,6 +783,7 @@ async function openUsersTab(wrapper: ReturnType<typeof mountView>) {
 describe("admin SettingsView payment visible method controls", () => {
   beforeEach(() => {
     getSettings.mockReset();
+    getCreativeModelCandidates.mockReset();
     updateSettings.mockReset();
     getWebSearchEmulationConfig.mockReset();
     updateWebSearchEmulationConfig.mockReset();
@@ -772,6 +814,7 @@ describe("admin SettingsView payment visible method controls", () => {
     localeRef.value = "zh-CN";
 
     getSettings.mockResolvedValue({ ...baseSettingsResponse });
+    getCreativeModelCandidates.mockResolvedValue([]);
     updateSettings.mockImplementation(async (payload) => ({
       ...baseSettingsResponse,
       ...payload,
@@ -901,6 +944,7 @@ describe("admin SettingsView payment visible method controls", () => {
       usage_ranking_show_requests: false,
       usage_ranking_show_actual_cost: false,
     });
+    getCreativeModelCandidates.mockResolvedValue([]);
 
     const wrapper = mountView();
     await flushPromises();
@@ -1936,6 +1980,10 @@ describe("admin SettingsView payment visible method controls", () => {
     const advancedCard = wrapper.get(
       '[data-testid="gateway-scheduling-general-advanced"]',
     );
+    const generalCard = wrapper.get(
+      '[data-testid="gateway-scheduling-general"]',
+    );
+    expect(generalCard.isVisible()).toBe(true);
     expect(advancedCard.isVisible()).toBe(true);
     expect(advancedCard.classes()).toContain("border-t");
     expect(advancedCard.find("h3").text()).toBe("通用高级调度器");
@@ -1946,6 +1994,9 @@ describe("admin SettingsView payment visible method controls", () => {
     ).toBe("查看高级调度器评分与选择原理");
     expect(advancedCard.text()).toContain("通用高级调度器");
     expect(wrapper.text()).not.toContain("OpenAI 实验调度策略");
+    expect(advancedCard.text()).toContain("EWMA");
+    expect(generalCard.text()).toContain("强制粘性切换");
+    expect(advancedCard.text()).not.toContain("强制粘性切换");
 
     await wrapper.find("form").trigger("submit.prevent");
     await flushPromises();
@@ -1954,6 +2005,11 @@ describe("admin SettingsView payment visible method controls", () => {
       expect.objectContaining({
         advanced_scheduler_sticky_weighted_enabled: false,
         advanced_scheduler_subscription_priority_enabled: false,
+        advanced_scheduler_ewma_error_rate_alpha: "",
+        advanced_scheduler_ewma_ttft_alpha: "",
+        advanced_scheduler_sticky_escape_enabled: true,
+        advanced_scheduler_sticky_escape_ttft_ms: "",
+        advanced_scheduler_sticky_escape_error_rate: "",
       }),
     );
     expect(updateSettings.mock.calls[0]?.[0]).not.toHaveProperty(
@@ -2196,11 +2252,102 @@ describe("admin SettingsView payment visible method controls", () => {
       "auto_pause_5h_disabled",
     );
   });
+
+  it("loads creative model candidates and submits the configured capability subset", async () => {
+    const creativeSettings = [{
+      group_id: 12,
+      model: "gpt-image-2",
+      operations: ["generate", "inpaint"],
+    }];
+    getSettings.mockResolvedValue({
+      ...baseSettingsResponse,
+      creative_model_settings: creativeSettings,
+    });
+    getCreativeModelCandidates.mockResolvedValue([{
+      group_id: 12,
+      group_name: "Images",
+      platform: "openai",
+      model: "gpt-image-2",
+      operations: ["generate", "edit", "inpaint"],
+    }]);
+
+    const wrapper = mountView();
+    await flushPromises();
+    expect(getCreativeModelCandidates).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain("admin.settings.features.creative.modelSettings.title");
+
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ creative_model_settings: creativeSettings }),
+    );
+  });
+
+  it("removes stale Gemini inpaint when saving creative model settings", async () => {
+    getSettings.mockResolvedValue({
+      ...baseSettingsResponse,
+      creative_model_settings: [{
+        group_id: 12,
+        model: "gemini-3.1-flash-image",
+        operations: ["generate", "inpaint"],
+      }],
+    });
+    getCreativeModelCandidates.mockResolvedValue([{
+      group_id: 12,
+      group_name: "Gemini Images",
+      platform: "gemini",
+      model: "gemini-3.1-flash-image",
+      operations: ["generate", "edit"],
+    }]);
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        creative_model_settings: [{
+          group_id: 12,
+          model: "gemini-3.1-flash-image",
+          operations: ["generate"],
+        }],
+      }),
+    );
+  });
+
+  it("drops a Gemini setting that only contains stale inpaint", async () => {
+    getSettings.mockResolvedValue({
+      ...baseSettingsResponse,
+      creative_model_settings: [{
+        group_id: 12,
+        model: "gemini-3.1-flash-image",
+        operations: ["inpaint"],
+      }],
+    });
+    getCreativeModelCandidates.mockResolvedValue([{
+      group_id: 12,
+      group_name: "Gemini Images",
+      platform: "gemini",
+      model: "gemini-3.1-flash-image",
+      operations: ["generate", "edit"],
+    }]);
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ creative_model_settings: [] }),
+    );
+  });
 });
 
 describe("admin SettingsView security tab controls", () => {
   beforeEach(() => {
     getSettings.mockReset();
+    getCreativeModelCandidates.mockReset();
     updateSettings.mockReset();
     getWebSearchEmulationConfig.mockReset();
     updateWebSearchEmulationConfig.mockReset();
@@ -2231,6 +2378,7 @@ describe("admin SettingsView security tab controls", () => {
       ...baseSettingsResponse,
       payment_visible_method_wxpay_source: "official_wxpay",
     });
+    getCreativeModelCandidates.mockResolvedValue([]);
     updateSettings.mockImplementation(async (payload) => ({
       ...baseSettingsResponse,
       payment_visible_method_wxpay_source: "official_wxpay",
@@ -2389,6 +2537,30 @@ describe("admin SettingsView security tab controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         registration_email_domain_quota_enabled: true,
+      }),
+    );
+  });
+
+  it("renders and submits the user email change switch", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      user_email_change_enabled: true,
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await openSecurityTab(wrapper);
+
+    const emailChangeSetting = wrapper.get('[data-testid="user-email-change-setting"]');
+    const emailChangeToggle = emailChangeSetting.get("input.toggle-stub");
+    expect((emailChangeToggle.element as HTMLInputElement).checked).toBe(true);
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_email_change_enabled: true,
       }),
     );
   });
@@ -2560,6 +2732,7 @@ describe("admin SettingsView security tab controls", () => {
 describe("admin SettingsView platform quota matrix", () => {
   beforeEach(() => {
     getSettings.mockReset();
+    getCreativeModelCandidates.mockReset();
     updateSettings.mockReset();
     getWebSearchEmulationConfig.mockReset();
     updateWebSearchEmulationConfig.mockReset();
@@ -2583,6 +2756,7 @@ describe("admin SettingsView platform quota matrix", () => {
     localeRef.value = "zh-CN";
 
     getSettings.mockResolvedValue({ ...baseSettingsResponse });
+    getCreativeModelCandidates.mockResolvedValue([]);
     updateSettings.mockImplementation(async (payload) => ({
       ...baseSettingsResponse,
       ...payload,

@@ -1,21 +1,28 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
-      <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div class="hidden lg:block"></div>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div>
-            <label class="input-label">{{ t('usageRanking.timeRange') }}</label>
-            <DateRangePicker
-              v-model:start-date="startDate"
-              v-model:end-date="endDate"
-              apply-on-preset
-              @change="onDateRangeChange"
-            />
-          </div>
-          <button type="button" class="btn btn-secondary inline-flex items-center gap-2" :disabled="loading" @click="loadRanking">
+      <!-- 标题与筛选工具共用一行，保持和 OpenRouter 页面工具栏一致。 -->
+      <section class="flex flex-row items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h1 class="page-title">{{ t('usageRanking.title') }}</h1>
+          <p class="page-description">{{ t('usageRanking.description') }}</p>
+        </div>
+
+        <div class="flex shrink-0 items-center gap-2">
+          <DateRangePicker
+            v-model:start-date="startDate"
+            v-model:end-date="endDate"
+            apply-on-preset
+            @change="onDateRangeChange"
+          />
+          <button
+            type="button"
+            class="btn btn-secondary h-9 w-9 p-0"
+            :disabled="loading"
+            :title="t('common.refresh')"
+            @click="loadRanking"
+          >
             <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
-            {{ t('common.refresh') }}
           </button>
         </div>
       </section>
@@ -87,6 +94,7 @@ import {
 } from '@/api/usage'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
@@ -140,11 +148,14 @@ function topCardOrderClass(rank: number): string {
   return 'md:order-3'
 }
 
-// 用户没有头像时使用名称首字作为兜底展示。
-function initials(name: string): string {
-  const trimmed = name.trim()
-  if (!trimmed) return '?'
-  return Array.from(trimmed).slice(0, 2).join('').toUpperCase()
+// 排行榜接口不暴露邮箱，统一用付款主体 ID 作为 identicon 种子，与全站其他位置的头像保持一致。
+function rankingAvatarProps(item: UsageRankingItem, sizeClass: string) {
+  return {
+    avatarUrl: item.avatar_url,
+    userId: item.user_id,
+    alt: item.display_name,
+    sizeClass,
+  }
 }
 
 function rankLabel(rank: number): string {
@@ -249,33 +260,6 @@ async function loadRanking() {
   }
 }
 
-const UserAvatar = defineComponent({
-  name: 'UserAvatar',
-  props: {
-    item: { type: Object as PropType<UsageRankingItem>, required: true },
-    size: { type: String as PropType<'sm' | 'lg'>, default: 'sm' },
-  },
-  setup(props) {
-    return () => {
-      const sizeClass = props.size === 'lg' ? 'h-16 w-16 text-lg' : 'h-10 w-10 text-sm'
-      if (props.item.avatar_url) {
-        return h('img', {
-          src: props.item.avatar_url,
-          alt: props.item.display_name,
-          class: `${sizeClass} rounded-lg object-cover ring-1 ring-black/5 dark:ring-white/10`,
-        })
-      }
-      return h(
-        'div',
-        {
-          class: `${sizeClass} flex items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 font-semibold text-white shadow-sm shadow-primary-500/20`,
-        },
-        initials(props.item.display_name),
-      )
-    }
-  },
-})
-
 const TopRankCard = defineComponent({
   name: 'TopRankCard',
   props: {
@@ -306,7 +290,7 @@ const TopRankCard = defineComponent({
             ]),
           ]),
           h('div', { class: 'relative mt-7 flex flex-col items-center text-center' }, [
-            h(UserAvatar, { item: props.item, size: 'lg' }),
+            h(UserAvatar, rankingAvatarProps(props.item, 'h-16 w-16')),
             h('h3', { class: 'mt-4 max-w-full truncate text-lg font-semibold text-gray-900 dark:text-white' }, props.item.display_name),
             h('p', { class: 'mt-2 text-3xl font-semibold text-gray-900 dark:text-white' }, metricValue(props.item, props.primaryMetric)),
             h('p', { class: 'mt-1 text-xs text-gray-500 dark:text-gray-400' }, metricLabel(props.primaryMetric)),
@@ -352,7 +336,7 @@ const RankingRow = defineComponent({
         [
           h('span', { class: `mt-1 inline-flex h-8 w-12 items-center justify-center rounded-lg text-sm font-semibold ring-1 sm:mt-0 ${theme.badge}` }, rankLabel(props.item.rank)),
           h('div', { class: 'flex min-w-0 items-center gap-3' }, [
-            h(UserAvatar, { item: props.item }),
+            h(UserAvatar, rankingAvatarProps(props.item, 'h-10 w-10')),
             h('div', { class: 'min-w-0' }, [
               h('p', { class: 'truncate text-sm font-medium text-gray-900 dark:text-white' }, props.item.display_name),
             ]),

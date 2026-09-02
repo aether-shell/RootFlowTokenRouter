@@ -59,4 +59,31 @@ describe('OrderStatsCards', () => {
     expect(wrapper.text()).toContain('¥0.3125/AI Credits')
     expect(wrapper.text()).toContain('4 订单')
   })
+
+  it('shows zero amounts when the dashboard has no orders', () => {
+    const wrapper = mount(OrderStatsCards, {
+      props: {
+        stats: {
+          today_amount: {},
+          total_amount: {},
+          today_count: 0,
+          total_count: 0,
+          avg_amount: {},
+          avg_reasoning_point_purchase_unit_price: 0,
+          reasoning_point_purchase_order_count: 0,
+          daily_series: [],
+          payment_methods: [],
+          purchase_distribution: [],
+          top_users: {}
+        }
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('¥0.00')
+  })
 })

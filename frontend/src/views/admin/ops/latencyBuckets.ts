@@ -1,5 +1,6 @@
 export const DEFAULT_LATENCY_BUCKET_BOUNDARIES = [100, 200, 500, 1000, 2000] as const
 export const MAX_LATENCY_BUCKET_BOUNDARY_MS = 86_400_000
+export const LATENCY_BUCKET_STORAGE_KEY = 'ops-latency-bucket-boundaries'
 
 export function defaultLatencyBucketBoundaries(): number[] {
   return [...DEFAULT_LATENCY_BUCKET_BOUNDARIES]

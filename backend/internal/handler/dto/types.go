@@ -627,6 +627,9 @@ type UsageLog struct {
 type AdminUsageLog struct {
 	UsageLog
 
+	// DetailedTiming 是从 http.access 系统日志关联出的单请求阶段耗时，仅管理员使用记录可见。
+	DetailedTiming *UsageLogTiming `json:"detailed_timing,omitempty"`
+
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Omitted when no mapping was applied (requested model was used as-is).
 	UpstreamModel *string `json:"upstream_model,omitempty"`
@@ -648,6 +651,25 @@ type AdminUsageLog struct {
 
 	// Account 最小账号信息（避免泄露敏感字段）
 	Account *AccountSummary `json:"account,omitempty"`
+}
+
+// UsageLogTiming 展示请求进入网关后各阶段相对于入口的毫秒数。
+type UsageLogTiming struct {
+	RequestContentLength           *int64 `json:"request_content_length,omitempty"`
+	AccountSlotAcquiredMs          *int64 `json:"account_slot_acquired_ms,omitempty"`
+	UpstreamGetConnMs              *int64 `json:"upstream_get_conn_ms,omitempty"`
+	UpstreamGotConnMs              *int64 `json:"upstream_got_conn_ms,omitempty"`
+	UpstreamWroteRequestMs         *int64 `json:"upstream_wrote_request_ms,omitempty"`
+	UpstreamFirstResponseByteMs    *int64 `json:"upstream_first_response_byte_ms,omitempty"`
+	UpstreamFirstSSEDataMs         *int64 `json:"upstream_first_sse_data_ms,omitempty"`
+	FirstVisibleOutputMs           *int64 `json:"first_visible_output_ms,omitempty"`
+	FirstDownstreamFlushMs         *int64 `json:"first_downstream_flush_ms,omitempty"`
+	UpstreamGetConnCount           *int64 `json:"upstream_get_conn_count,omitempty"`
+	UpstreamGotConnCount           *int64 `json:"upstream_got_conn_count,omitempty"`
+	UpstreamAttemptCount           *int64 `json:"upstream_attempt_count,omitempty"`
+	UpstreamFirstResponseByteCount *int64 `json:"upstream_first_response_byte_count,omitempty"`
+	UpstreamConnectionReused       bool   `json:"upstream_connection_reused,omitempty"`
+	UpstreamWroteRequestError      bool   `json:"upstream_wrote_request_error,omitempty"`
 }
 
 type UsageCleanupFilters struct {

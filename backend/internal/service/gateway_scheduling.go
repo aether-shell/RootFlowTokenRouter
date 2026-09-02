@@ -159,7 +159,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	}
 	stickyEscaped := false
 	if usesAdvancedScheduler && !advancedStickyWeighted && stickyAccountID > 0 {
-		escapeCfg := resolveAdvancedStickyEscapeConfig(s.cfg)
+		escapeCfg := s.advancedSchedulerEffectiveSettingsForRequest(ctx, groupID).stickyEscape
 		if reason, errorRate, ttft, shouldEscape := shouldEscapeAdvancedStickyAccount(s.advancedSchedulerStats(), stickyAccountID, escapeCfg); shouldEscape {
 			stickyEscaped = true
 			ctx = withAdvancedSchedulerPreserveStickyBinding(ctx)
@@ -855,6 +855,10 @@ func (s *GatewayService) ReportAdvancedAccountScheduleResult(selection *AccountS
 	if result != nil {
 		firstTokenMs = result.FirstTokenMs
 	}
+	if selection.AdvancedSchedulerFeedback != nil {
+		s.advancedSchedulerStats().report(accountID, success, firstTokenMs, *selection.AdvancedSchedulerFeedback)
+		return
+	}
 	s.advancedSchedulerStats().report(accountID, success, firstTokenMs)
 }
 
@@ -959,6 +963,8 @@ func (s *GatewayService) tryAcquireByAdvancedScheduler(
 			return nil, true, selectErr
 		}
 		selection.AdvancedScheduler = true
+		feedback := effectiveSettings.feedback
+		selection.AdvancedSchedulerFeedback = &feedback
 		return selection, true, nil
 	}
 	for _, candidate := range selectionOrder {
@@ -975,6 +981,8 @@ func (s *GatewayService) tryAcquireByAdvancedScheduler(
 			return nil, true, selectErr
 		}
 		selection.AdvancedScheduler = true
+		feedback := effectiveSettings.feedback
+		selection.AdvancedSchedulerFeedback = &feedback
 		return selection, true, nil
 	}
 	return nil, false, nil
@@ -1797,6 +1805,8 @@ func (s *GatewayService) newSelectionResult(ctx context.Context, account *Accoun
 	if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(group) && group.UsesAdvancedScheduler() {
 		// 让转发层只依据选择结果写入高级运行时反馈，避免基础分组污染统计。
 		selection.AdvancedScheduler = true
+		feedback := s.advancedSchedulerEffectiveSettingsForRequest(ctx, &group.ID).feedback
+		selection.AdvancedSchedulerFeedback = &feedback
 	}
 	return selection, nil
 }

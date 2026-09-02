@@ -33,6 +33,9 @@ func TestResolveAdvancedSchedulerEffectiveSettingsPrefersGroupOverrides(t *testi
 			stickyWeightedEnabled:       true,
 			subscriptionPriorityEnabled: false,
 			lbTopKOverride:              11,
+			ewmaErrorRateAlpha:          0.4,
+			ewmaTTFTAlpha:               0.3,
+			stickyEscape:                advancedStickyEscapeConfig{enabled: true, ttftMs: 12000, errorRate: 0.6},
 			weightOverrides: map[string]float64{
 				"priority":          12,
 				"load":              13,
@@ -48,6 +51,11 @@ func TestResolveAdvancedSchedulerEffectiveSettingsPrefersGroupOverrides(t *testi
 		GroupAdvancedSchedulerOverrides{
 			StickyWeightedEnabled:       groupAdvancedSchedulerOverrideTestPointer(false),
 			SubscriptionPriorityEnabled: groupAdvancedSchedulerOverrideTestPointer(true),
+			EWMAErrorRateAlpha:          groupAdvancedSchedulerOverrideTestPointer(0.8),
+			EWMATTFTAlpha:               groupAdvancedSchedulerOverrideTestPointer(0.7),
+			StickyEscapeEnabled:         groupAdvancedSchedulerOverrideTestPointer(false),
+			StickyEscapeTTFTMs:          groupAdvancedSchedulerOverrideTestPointer(9000),
+			StickyEscapeErrorRate:       groupAdvancedSchedulerOverrideTestPointer(0.25),
 			LBTopK:                      groupAdvancedSchedulerOverrideTestPointer(3),
 			WeightPriority:              groupAdvancedSchedulerOverrideTestPointer(21.0),
 			WeightQueue:                 groupAdvancedSchedulerOverrideTestPointer(0.0),
@@ -67,6 +75,11 @@ func TestResolveAdvancedSchedulerEffectiveSettingsPrefersGroupOverrides(t *testi
 	require.Equal(t, 18.0, settings.weights.QuotaHeadroom)
 	require.Equal(t, 22.0, settings.weights.Previous)
 	require.Equal(t, 20.0, settings.weights.SessionSticky)
+	require.InDelta(t, 0.8, settings.feedback.errorRateAlpha, 0.000001)
+	require.InDelta(t, 0.7, settings.feedback.ttftAlpha, 0.000001)
+	require.False(t, settings.stickyEscape.enabled)
+	require.InDelta(t, 9000, settings.stickyEscape.ttftMs, 0.000001)
+	require.InDelta(t, 0.25, settings.stickyEscape.errorRate, 0.000001)
 }
 
 func TestResolveAdvancedSchedulerEffectiveSettingsKeepsExplicitZeroWeights(t *testing.T) {
@@ -134,6 +147,21 @@ func TestValidateGroupAdvancedSchedulerOverrides(t *testing.T) {
 			name: "top k must be positive",
 			overrides: GroupAdvancedSchedulerOverrides{
 				LBTopK: groupAdvancedSchedulerOverrideTestPointer(0),
+			},
+			wantError: true,
+		},
+		{
+			name: "ewma alpha must be within range",
+			overrides: GroupAdvancedSchedulerOverrides{
+				EWMAErrorRateAlpha: groupAdvancedSchedulerOverrideTestPointer(0.0),
+			},
+			wantError: true,
+		},
+		{
+			name: "sticky escape thresholds are validated",
+			overrides: GroupAdvancedSchedulerOverrides{
+				StickyEscapeTTFTMs:    groupAdvancedSchedulerOverrideTestPointer(0),
+				StickyEscapeErrorRate: groupAdvancedSchedulerOverrideTestPointer(1.1),
 			},
 			wantError: true,
 		},

@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseMarketplaceAvailabilityWindowSettings(t *testing.T) {
@@ -821,4 +823,46 @@ func TestModelMarketplaceDisplayPricing_SharedImageRateUsesGroupMultiplier(t *te
 	if pricing.ImagePrice1K != 20 {
 		t.Fatalf("image 1K price = %v, want 20", pricing.ImagePrice1K)
 	}
+}
+
+func TestModelMarketplaceModelModalitiesComeFromPricingMetadata(t *testing.T) {
+	pricingSvc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"gpt-image-2": {Mode: "image_generation", InputCostPerImageToken: 8e-6},
+		"gpt-5.5":     {Mode: "chat", SupportsVision: true},
+	}}
+	billingService := NewBillingService(nil, pricingSvc)
+	svc := NewModelMarketplaceService(nil, nil, nil, billingService, nil, nil, nil)
+
+	input, output := svc.marketplaceModelModalities(marketplaceModelDef{ID: "gpt-image-2"})
+	require.Equal(t, []string{"text", "image"}, input)
+	require.Equal(t, []string{"image"}, output)
+
+	input, output = svc.marketplaceModelModalities(marketplaceModelDef{ID: "gpt-5.5"})
+	require.Equal(t, []string{"text", "image"}, input)
+	require.Equal(t, []string{"text"}, output)
+
+	// 定价元数据查不到的模型返回 nil，由前端能力标签降级为本地规则。
+	input, output = svc.marketplaceModelModalities(marketplaceModelDef{ID: "totally-unknown-model"})
+	require.Nil(t, input)
+	require.Nil(t, output)
+}
+
+func TestModelMarketplacePublicModelsIncludeModalities(t *testing.T) {
+	pricingSvc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"gpt-image-2": {Mode: "image_generation", InputCostPerImageToken: 8e-6},
+	}}
+	billingService := NewBillingService(nil, pricingSvc)
+	svc := NewModelMarketplaceService(nil, nil, nil, billingService, nil, nil, nil)
+	group := &Group{ID: 1, Platform: PlatformOpenAI, RateMultiplier: 1}
+
+	models := svc.buildPublicModelsForGroup(context.Background(), group, []marketplaceModelDef{
+		{ID: "gpt-image-2", DisplayName: "GPT Image 2"},
+		{ID: "custom-unknown", DisplayName: "Custom Unknown"},
+	})
+
+	require.Len(t, models, 2)
+	require.Equal(t, []string{"text", "image"}, models[0].InputModalities)
+	require.Equal(t, []string{"image"}, models[0].OutputModalities)
+	require.Nil(t, models[1].InputModalities)
+	require.Nil(t, models[1].OutputModalities)
 }

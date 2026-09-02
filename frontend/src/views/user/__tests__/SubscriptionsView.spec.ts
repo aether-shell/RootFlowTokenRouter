@@ -6,10 +6,14 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import SubscriptionsView from '../SubscriptionsView.vue'
 
 const mockGetMySubscriptions = vi.fn()
+const mockGetActiveSubscriptions = vi.fn()
+const mockRevokeExhaustedSubscription = vi.fn()
 
 vi.mock('@/api/subscriptions', () => ({
   default: {
-    getMySubscriptions: (...args: unknown[]) => mockGetMySubscriptions(...args)
+    getMySubscriptions: (...args: unknown[]) => mockGetMySubscriptions(...args),
+    getActiveSubscriptions: (...args: unknown[]) => mockGetActiveSubscriptions(...args),
+    revokeExhaustedSubscription: (...args: unknown[]) => mockRevokeExhaustedSubscription(...args)
   }
 }))
 
@@ -24,7 +28,10 @@ function createTestI18n() {
         },
         common: {
           today: 'Today',
-          tomorrow: 'Tomorrow'
+          tomorrow: 'Tomorrow',
+          cancel: 'Cancel',
+          confirm: 'Confirm',
+          processing: 'Processing...'
         },
         userSubscriptions: {
           noActiveSubscriptions: 'No active subscriptions',
@@ -44,6 +51,16 @@ function createTestI18n() {
           failedToLoad: 'Failed to load subscriptions',
           daysRemaining: '{days} days remaining',
           windowNotActive: 'Window not active',
+          revoke: 'Revoke plan',
+          revokeTitle: 'Revoke exhausted plan',
+          revokeConfirmWithReplacement: 'Queued pack will start immediately.',
+          revokeConfirmWithoutReplacement: 'No queued pack will replace this plan.',
+          revokeSuccessWithReplacement: 'Plan revoked and {count} API key(s) rebound.',
+          revokeSuccess: 'Plan revoked successfully.',
+          revokeFailed: 'Failed to revoke plan.',
+          groupAccess: 'Accessible groups',
+          allGroups: 'All groups',
+          restrictedGroups: 'Restricted groups',
           status: {
             active: 'Active',
             pending: 'Pending',
@@ -71,7 +88,18 @@ async function mountView() {
       plugins: [pinia, i18n, router],
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
-        Icon: { template: '<span />' }
+        Icon: { template: '<span />' },
+        ConfirmDialog: {
+          props: ['show', 'title', 'message', 'confirmText', 'cancelText', 'danger', 'loading'],
+          emits: ['confirm', 'cancel'],
+          template: `
+            <div v-if="show" data-testid="revoke-dialog">
+              <p data-testid="revoke-dialog-message">{{ message }}</p>
+              <button data-testid="revoke-dialog-confirm" :disabled="loading" @click="$emit('confirm')">{{ confirmText }}</button>
+              <button data-testid="revoke-dialog-cancel" :disabled="loading" @click="$emit('cancel')">{{ cancelText }}</button>
+            </div>
+          `
+        }
       }
     }
   })
@@ -80,6 +108,8 @@ async function mountView() {
 describe('SubscriptionsView', () => {
   beforeEach(() => {
     mockGetMySubscriptions.mockReset()
+    mockGetActiveSubscriptions.mockReset().mockResolvedValue([])
+    mockRevokeExhaustedSubscription.mockReset()
   })
 
   it('groups same-plan active and pending subscriptions into one chain card', async () => {
@@ -193,5 +223,85 @@ describe('SubscriptionsView', () => {
     expect(text.match(/Plan Alpha/g)?.length).toBe(1)
     expect(text.match(/Plan Beta/g)?.length).toBe(1)
     expect(text).toMatch(/Queued 1|userSubscriptions\.queuedPacks/)
+  })
+
+  it('shows revoke only when the highest configured quota is exhausted', async () => {
+    const now = Date.now()
+    const subscription = {
+        id: 9,
+        user_id: 7,
+        plan_id: 101,
+        starts_at: new Date(now - 60 * 60 * 1000).toISOString(),
+        expires_at: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+        status: 'active',
+        daily_limit_usd: 1,
+        daily_usage_usd: 1,
+        weekly_limit_usd: 10,
+        weekly_usage_usd: 10,
+        monthly_limit_usd: 100,
+        monthly_usage_usd: 99,
+        daily_window_start: new Date(now - 30 * 60 * 1000).toISOString(),
+        weekly_window_start: new Date(now - 30 * 60 * 1000).toISOString(),
+        monthly_window_start: new Date(now - 30 * 60 * 1000).toISOString(),
+        created_at: new Date(now - 60 * 60 * 1000).toISOString(),
+        updated_at: new Date(now - 60 * 60 * 1000).toISOString(),
+        plan: { id: 101, name: 'Plan Alpha', description: '', price: 10, features: [], validity_days: 30, validity_unit: 'day', daily_limit_usd: 1, weekly_limit_usd: 10, monthly_limit_usd: 100, for_sale: true, sort_order: 0 }
+    }
+    mockGetMySubscriptions.mockResolvedValue([subscription])
+
+    const wrapper = await mountView()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="revoke-subscription"]').exists()).toBe(false)
+
+    await wrapper.unmount()
+    mockGetMySubscriptions.mockResolvedValue([{ ...subscription, monthly_usage_usd: 100 }])
+    const exhaustedWrapper = await mountView()
+    await flushPromises()
+    expect(exhaustedWrapper.find('[data-testid="revoke-subscription"]').exists()).toBe(true)
+  })
+
+  it('requires confirmation and prevents duplicate revoke submissions', async () => {
+    const now = Date.now()
+    mockGetMySubscriptions.mockResolvedValue([
+      {
+        id: 12,
+        user_id: 7,
+        plan_id: 303,
+        starts_at: new Date(now - 60 * 60 * 1000).toISOString(),
+        expires_at: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+        status: 'active',
+        daily_limit_usd: null,
+        daily_usage_usd: 0,
+        weekly_limit_usd: null,
+        weekly_usage_usd: 0,
+        monthly_limit_usd: 50,
+        monthly_usage_usd: 50,
+        daily_window_start: null,
+        weekly_window_start: null,
+        monthly_window_start: new Date(now - 30 * 60 * 1000).toISOString(),
+        created_at: new Date(now - 60 * 60 * 1000).toISOString(),
+        updated_at: new Date(now - 60 * 60 * 1000).toISOString(),
+        plan: { id: 303, name: 'Plan Gamma', description: '', price: 10, features: [], validity_days: 30, validity_unit: 'day', daily_limit_usd: null, weekly_limit_usd: null, monthly_limit_usd: 50, for_sale: true, sort_order: 0 }
+      }
+    ])
+    let resolveRevoke!: (value: { revoked_subscription_id: number; replacement_subscription_id: number | null; rebound_api_key_count: number }) => void
+    mockRevokeExhaustedSubscription.mockReturnValue(new Promise((resolve) => { resolveRevoke = resolve }))
+
+    const wrapper = await mountView()
+    await flushPromises()
+    await wrapper.get('[data-testid="revoke-subscription"]').trigger('click')
+    const dialog = wrapper.get('[data-testid="revoke-dialog"]')
+    expect(dialog.text()).toContain('userSubscriptions.revokeConfirmWithoutReplacement')
+
+    await wrapper.get('[data-testid="revoke-dialog-confirm"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(mockRevokeExhaustedSubscription).toHaveBeenCalledTimes(1)
+    expect(mockRevokeExhaustedSubscription).toHaveBeenCalledWith(12)
+    expect(wrapper.get('[data-testid="revoke-dialog-confirm"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.get('[data-testid="revoke-dialog-confirm"]').trigger('click')
+    expect(mockRevokeExhaustedSubscription).toHaveBeenCalledTimes(1)
+    resolveRevoke({ revoked_subscription_id: 12, replacement_subscription_id: null, rebound_api_key_count: 0 })
+    await flushPromises()
   })
 })

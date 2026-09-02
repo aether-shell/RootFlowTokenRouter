@@ -41,9 +41,6 @@ vi.mock('vue-i18n', async (importOriginal) => {
     useI18n: () => ({
       t: (key: string) => {
         if (key === 'profile.editProfile') return 'Edit profile'
-        if (key === 'auth.emailLabel') return 'Email'
-        if (key === 'profile.emailChangeRequiresVerification')
-          return 'Change email from the sign-in methods section after verification.'
         if (key === 'profile.username') return 'Username'
         if (key === 'profile.enterUsername') return 'Enter username'
         if (key === 'profile.updateProfile') return 'Update profile'
@@ -84,19 +81,15 @@ describe('ProfileEditForm', () => {
     authStoreState.user = null
   })
 
-  it('shows email as read-only and updates username without sending email', async () => {
+  it('updates username without sending email', async () => {
     const updatedUser = createUser()
     updateProfileMock.mockResolvedValue(updatedUser)
 
     const wrapper = mount(ProfileEditForm, {
       props: {
-        initialEmail: 'alice@example.com',
         initialUsername: 'alice',
       },
     })
-
-    expect(wrapper.get('[data-testid="profile-email-readonly"]').text()).toBe('alice@example.com')
-    expect(wrapper.find('input[type="email"]').exists()).toBe(false)
 
     await wrapper.get('#username').setValue('alice-new')
     await wrapper.get('form').trigger('submit')

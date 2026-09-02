@@ -2,7 +2,7 @@
   <div ref="dropdownRef" class="relative" data-tour="keys-scope-switch">
     <button
       type="button"
-      class="btn btn-secondary h-11 w-11 p-0 md:h-auto md:w-auto md:px-3 md:py-2.5"
+      class="btn btn-secondary h-9 w-9 p-0 md:w-auto md:min-h-0 md:px-3 md:py-1.5"
       :title="t('team.scopeSwitch')"
       :aria-expanded="open"
       aria-haspopup="menu"

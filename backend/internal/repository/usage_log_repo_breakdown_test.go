@@ -146,7 +146,7 @@ func TestGetUserBreakdownStatsRequestTypeIncludesLegacyFallback(t *testing.T) {
 	requestType := int16(service.RequestTypeStream)
 
 	legacyFilter := `(ul.request_type = $3 OR (ul.request_type = 0 AND ul.stream = TRUE AND ul.openai_ws_mode = FALSE))`
-	mock.ExpectQuery(regexp.QuoteMeta(legacyFilter)).
+	mock.ExpectQuery("(?s)COALESCE\\(ul\\.billing_user_id, ul\\.user_id, 0\\).*LEFT JOIN users u ON u\\.id = COALESCE\\(ul\\.billing_user_id, ul\\.user_id\\).*"+regexp.QuoteMeta(legacyFilter)+".*GROUP BY COALESCE\\(ul\\.billing_user_id, ul\\.user_id, 0\\)").
 		WithArgs(start, end, requestType).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"user_id", "email", "requests", "input_tokens", "output_tokens",

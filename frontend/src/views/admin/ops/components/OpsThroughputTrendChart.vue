@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, CategoryScale, Filler, Legend, LineElement, LinearScale, PointElement, Title, Tooltip } from 'chart.js'
 import { Line } from 'vue-chartjs'
@@ -10,8 +10,11 @@ import { formatHistoryLabel, sumNumbers } from '../utils/opsFormatters'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import { formatNumber } from '@/utils/format'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 
 ChartJS.register(Title, Tooltip, Legend, LineElement, LinearScale, PointElement, CategoryScale, Filler)
+
+onBeforeUnmount(hideExternalTooltip)
 
 interface Props {
   points: OpsThroughputTrendPoint[]
@@ -104,13 +107,8 @@ const options = computed(() => {
         labels: { color: c.text, usePointStyle: true, boxWidth: 6, font: { size: 10 } }
       },
       tooltip: {
-        backgroundColor: isDarkMode.value ? '#1F1F23' : '#ffffff',
-        titleColor: isDarkMode.value ? '#F4F4F5' : '#18181B',
-        bodyColor: isDarkMode.value ? '#D4D4D8' : '#52525B',
-        borderColor: c.grid,
-        borderWidth: 1,
-        padding: 10,
-        displayColors: true,
+        enabled: false,
+        external: externalTooltipHandler,
         callbacks: {
           label: (context: any) => {
             let label = context.dataset.label || ''

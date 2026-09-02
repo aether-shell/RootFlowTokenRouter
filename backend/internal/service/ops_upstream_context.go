@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"time"
@@ -73,6 +74,24 @@ func SetOpsLatencyMs(c *gin.Context, key string, value int64) {
 		return
 	}
 	c.Set(key, value)
+}
+
+// MarkOpsTimestamp 记录请求阶段的绝对时间，供访问日志计算相对入口的耗时。
+func MarkOpsTimestamp(c *gin.Context, key ctxkey.Key) {
+	if c == nil || c.Request == nil || key == "" {
+		return
+	}
+	ctx := c.Request.Context()
+	if _, exists := ctx.Value(key).(time.Time); exists {
+		return
+	}
+	ctx = context.WithValue(ctx, key, time.Now())
+	c.Request = c.Request.WithContext(ctx)
+}
+
+// MarkOpsAccountSlotAcquired 标记账号并发槽位成功获取的时间。
+func MarkOpsAccountSlotAcquired(c *gin.Context) {
+	MarkOpsTimestamp(c, ctxkey.AccountSlotAcquiredAt)
 }
 
 // SetOpsUpstreamModel stores only the effective model slug for final Ops

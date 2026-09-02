@@ -121,3 +121,14 @@ func TestAuthCacheInvalidationMigration_SecurityCoverageAndNoPlaintextPayload(t 
 	require.Len(t, hex.EncodeToString(sum[:]), 64)
 	require.NotContains(t, sqlText, plaintext)
 }
+
+func TestAuthCacheInvalidationBillingMigrationCoversSubscriptionBinding(t *testing.T) {
+	content, err := migrations.FS.ReadFile("258_extend_api_key_auth_cache_invalidation.sql")
+	require.NoError(t, err)
+	sqlText := string(content)
+	// 结算来源变化会影响鉴权快照，必须由同一触发函数写入失效 outbox。
+	require.Contains(t, sqlText, "OLD.billing_mode IS DISTINCT FROM NEW.billing_mode")
+	require.Contains(t, sqlText, "OLD.preferred_subscription_id IS DISTINCT FROM NEW.preferred_subscription_id")
+	require.Contains(t, sqlText, "OLD.key")
+	require.NotContains(t, sqlText, "sk-")
+}

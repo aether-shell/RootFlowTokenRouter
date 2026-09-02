@@ -60,6 +60,7 @@ vi.mock('@/api/admin/ops', () => ({
 }))
 
 import OpsDashboard from '../OpsDashboard.vue'
+import { LATENCY_BUCKET_STORAGE_KEY } from '../latencyBuckets'
 
 const SlotStub = defineComponent({
   template: '<div><slot /></div>',
@@ -111,6 +112,7 @@ describe('OpsDashboard latency bucket refresh', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     route.query = {}
+    localStorage.removeItem(LATENCY_BUCKET_STORAGE_KEY)
     mocks.settingsFetch.mockResolvedValue(undefined)
     mocks.getGroups.mockResolvedValue([])
     mocks.getMetricThresholds.mockResolvedValue(null)
@@ -162,6 +164,22 @@ describe('OpsDashboard latency bucket refresh', () => {
     expect(mocks.routerReplace).toHaveBeenCalledWith({
       query: { latency_bounds: '1000,2000,5000,10000,20000' },
     })
+    expect(localStorage.getItem(LATENCY_BUCKET_STORAGE_KEY)).toBe('1000,2000,5000,10000,20000')
+
+    wrapper.unmount()
+  })
+
+  it('没有 URL 参数时恢复本地保存的分桶偏好', async () => {
+    localStorage.setItem(LATENCY_BUCKET_STORAGE_KEY, '1000,2000,5000,10000,20000')
+
+    const wrapper = mountDashboard()
+    await flushPromises()
+    await flushPromises()
+
+    expect(mocks.getLatencyHistogram).toHaveBeenCalledWith(
+      expect.objectContaining({ bucket_boundaries_ms: [1000, 2000, 5000, 10000, 20000] }),
+      expect.any(Object),
+    )
 
     wrapper.unmount()
   })

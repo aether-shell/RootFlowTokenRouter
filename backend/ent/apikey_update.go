@@ -631,6 +631,26 @@ func (_u *APIKeyUpdate) SetNillableFallbackToDefaultGroupWhenUnavailable(v *bool
 	return _u
 }
 
+// SetManagedBy sets the "managed_by" field.
+func (_u *APIKeyUpdate) SetManagedBy(v string) *APIKeyUpdate {
+	_u.mutation.SetManagedBy(v)
+	return _u
+}
+
+// SetNillableManagedBy sets the "managed_by" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableManagedBy(v *string) *APIKeyUpdate {
+	if v != nil {
+		_u.SetManagedBy(*v)
+	}
+	return _u
+}
+
+// ClearManagedBy clears the value of the "managed_by" field.
+func (_u *APIKeyUpdate) ClearManagedBy() *APIKeyUpdate {
+	_u.mutation.ClearManagedBy()
+	return _u
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_u *APIKeyUpdate) SetUser(v *User) *APIKeyUpdate {
 	return _u.SetUserID(v.ID)
@@ -808,6 +828,11 @@ func (_u *APIKeyUpdate) check() error {
 	if v, ok := _u.mutation.BillingMode(); ok {
 		if err := apikey.BillingModeValidator(v); err != nil {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "APIKey.billing_mode": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ManagedBy(); ok {
+		if err := apikey.ManagedByValidator(v); err != nil {
+			return &ValidationError{Name: "managed_by", err: fmt.Errorf(`ent: validator failed for field "APIKey.managed_by": %w`, err)}
 		}
 	}
 	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
@@ -993,6 +1018,12 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.FallbackToDefaultGroupWhenUnavailable(); ok {
 		_spec.SetField(apikey.FieldFallbackToDefaultGroupWhenUnavailable, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ManagedBy(); ok {
+		_spec.SetField(apikey.FieldManagedBy, field.TypeString, value)
+	}
+	if _u.mutation.ManagedByCleared() {
+		_spec.ClearField(apikey.FieldManagedBy, field.TypeString)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1788,6 +1819,26 @@ func (_u *APIKeyUpdateOne) SetNillableFallbackToDefaultGroupWhenUnavailable(v *b
 	return _u
 }
 
+// SetManagedBy sets the "managed_by" field.
+func (_u *APIKeyUpdateOne) SetManagedBy(v string) *APIKeyUpdateOne {
+	_u.mutation.SetManagedBy(v)
+	return _u
+}
+
+// SetNillableManagedBy sets the "managed_by" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableManagedBy(v *string) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetManagedBy(*v)
+	}
+	return _u
+}
+
+// ClearManagedBy clears the value of the "managed_by" field.
+func (_u *APIKeyUpdateOne) ClearManagedBy() *APIKeyUpdateOne {
+	_u.mutation.ClearManagedBy()
+	return _u
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_u *APIKeyUpdateOne) SetUser(v *User) *APIKeyUpdateOne {
 	return _u.SetUserID(v.ID)
@@ -1978,6 +2029,11 @@ func (_u *APIKeyUpdateOne) check() error {
 	if v, ok := _u.mutation.BillingMode(); ok {
 		if err := apikey.BillingModeValidator(v); err != nil {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "APIKey.billing_mode": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ManagedBy(); ok {
+		if err := apikey.ManagedByValidator(v); err != nil {
+			return &ValidationError{Name: "managed_by", err: fmt.Errorf(`ent: validator failed for field "APIKey.managed_by": %w`, err)}
 		}
 	}
 	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
@@ -2180,6 +2236,12 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	}
 	if value, ok := _u.mutation.FallbackToDefaultGroupWhenUnavailable(); ok {
 		_spec.SetField(apikey.FieldFallbackToDefaultGroupWhenUnavailable, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ManagedBy(); ok {
+		_spec.SetField(apikey.FieldManagedBy, field.TypeString, value)
+	}
+	if _u.mutation.ManagedByCleared() {
+		_spec.ClearField(apikey.FieldManagedBy, field.TypeString)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

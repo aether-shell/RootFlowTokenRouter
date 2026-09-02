@@ -1,27 +1,37 @@
 <template>
-  <header class="glass sticky top-0 z-30 border-b border-primary-900/10 dark:border-dark-600/80">
-    <div class="flex h-16 items-center justify-between gap-2 px-2 sm:px-4 md:px-6">
-      <!-- Left: Mobile Menu Toggle + Page Title -->
-      <div class="flex shrink-0 items-center gap-2 sm:gap-4">
+  <header class="glass fixed inset-x-0 top-0 z-50 border-b border-primary-900/10 dark:border-dark-600/80">
+    <div class="flex h-14 items-center justify-between gap-3 px-3 sm:px-5 md:px-7">
+      <!-- 品牌固定在全局顶栏，避免与侧栏和页面标题争夺层级。 -->
+      <div class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">
         <button
-          @click="toggleMobileSidebar"
-          class="btn-ghost btn-icon lg:hidden"
-          :aria-label="t('common.toggleMenu')"
+          @click="handlePrimaryNavigation"
+          :class="['btn-ghost btn-icon', !isCreativeStudio && 'lg:hidden']"
+          :aria-label="isCreativeStudio ? t('creative.canvas.backToDashboard') : t('common.toggleMenu')"
+          :title="isCreativeStudio ? t('creative.canvas.backToDashboard') : t('common.toggleMenu')"
         >
-          <Icon name="menu" size="md" />
+          <Icon :name="isCreativeStudio ? 'home' : 'menu'" size="md" />
         </button>
 
-        <div class="hidden lg:block">
-          <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
-            {{ pageTitle }}
-          </h1>
-          <p v-if="pageDescription" class="text-xs text-gray-500 dark:text-dark-400">
-            {{ pageDescription }}
-          </p>
+        <!-- 版本标签与首页链接分离，避免按钮嵌套在链接内触发错误跳转。 -->
+        <div class="header-brand flex min-w-0 items-center gap-2.5 rounded-control px-1.5 py-1 transition-colors hover:bg-primary-100/70 dark:hover:bg-dark-800/80">
+          <router-link
+            :to="homePath"
+            class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary-100 dark:bg-dark-800"
+            :aria-label="siteName"
+          >
+            <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" :alt="siteName" class="h-full w-full object-contain" />
+          </router-link>
+          <span class="hidden min-w-0 sm:block">
+            <router-link
+              :to="homePath"
+              class="block max-w-44 truncate text-base font-bold leading-tight text-gray-900 dark:text-white"
+            >{{ siteName }}</router-link>
+            <VersionBadge :version="siteVersion" />
+          </span>
         </div>
       </div>
 
-      <!-- 右侧状态项：只调整按钮形状、间距和分隔线，不改变顶部栏主体结构。 -->
+      <!-- 右侧状态项保持紧凑，作为全局账户工具区。 -->
       <div class="header-status-actions">
         <div class="header-status-icon-group">
           <div v-if="user" class="hidden sm:block">
@@ -87,15 +97,12 @@
             class="header-status-user-button"
             :aria-label="t('common.userMenu')"
           >
-            <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-medium text-white shadow-sm">
-              <img
-                v-if="avatarUrl"
-                :src="avatarUrl"
-                :alt="displayName"
-                class="h-full w-full object-cover"
-              >
-              <span v-else>{{ userInitials }}</span>
-            </div>
+            <UserAvatar
+              :avatar-url="avatarUrl"
+              :user-id="user.id"
+              :alt="displayName"
+              size-class="h-9 w-9"
+            />
           </button>
 
           <!-- Dropdown Menu -->
@@ -238,14 +245,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
-import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import Icon from '@/components/icons/Icon.vue'
+import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useTheme } from '@/composables/useTheme'
@@ -255,12 +263,17 @@ const route = useRoute()
 const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
-const adminSettingsStore = useAdminSettingsStore()
 const onboardingStore = useOnboardingStore()
 const { formatBalanceAmount } = useBalanceDisplay()
 const { isDark, toggleTheme } = useTheme()
 
 const user = computed(() => authStore.user)
+const isCreativeStudio = computed(() => route.path === '/creative')
+const homePath = '/home'
+const siteName = computed(() => appStore.siteName)
+const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
+const siteVersion = computed(() => appStore.siteVersion)
+const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 const dropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
@@ -311,51 +324,21 @@ const showOnboardingButton = computed(() => {
   return !authStore.isSimpleMode && user.value?.role === 'admin'
 })
 
-const userInitials = computed(() => {
-  if (!user.value) return ''
-  // Prefer username, fallback to email
-  if (user.value.username) {
-    return user.value.username.substring(0, 2).toUpperCase()
-  }
-  if (user.value.email) {
-    // Get the part before @ and take first 2 chars
-    const localPart = user.value.email.split('@')[0]
-    return localPart.substring(0, 2).toUpperCase()
-  }
-  return ''
-})
-
 const displayName = computed(() => {
   if (!user.value) return ''
   return user.value.username || user.value.email?.split('@')[0] || ''
 })
 
-const pageTitle = computed(() => {
-  // For custom pages, use the menu item's label instead of generic "自定义页面"
-  if (route.name === 'CustomPage') {
-    const id = route.params.id as string
-    const publicItems = appStore.cachedPublicSettings?.custom_menu_items ?? []
-    const menuItem = publicItems.find((item) => item.id === id)
-      ?? (authStore.isAdmin ? adminSettingsStore.customMenuItems.find((item) => item.id === id) : undefined)
-    if (menuItem?.label) return menuItem.label
-  }
-  const titleKey = route.meta.titleKey as string
-  if (titleKey) {
-    return t(titleKey)
-  }
-  return (route.meta.title as string) || ''
-})
-
-const pageDescription = computed(() => {
-  const descKey = route.meta.descriptionKey as string
-  if (descKey) {
-    return t(descKey)
-  }
-  return (route.meta.description as string) || ''
-})
-
 function toggleMobileSidebar() {
   appStore.toggleMobileSidebar()
+}
+
+function handlePrimaryNavigation() {
+  if (isCreativeStudio.value) {
+    void router.push('/dashboard')
+    return
+  }
+  toggleMobileSidebar()
 }
 
 function toggleDropdown() {
@@ -406,6 +389,10 @@ onBeforeUnmount(() => {
   @apply ml-auto flex min-w-0 shrink-0 items-center gap-1 sm:gap-3.5;
 }
 
+.header-brand {
+  max-width: min(18rem, 42vw);
+}
+
 .header-status-icon-group {
   @apply flex items-center gap-1 sm:gap-2;
 }
@@ -415,7 +402,7 @@ onBeforeUnmount(() => {
 }
 
 .header-status-icon-button {
-  @apply flex h-10 w-10 items-center justify-center rounded-control text-primary-900/90 transition-colors hover:bg-primary-100 hover:text-primary-900 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white;
+  @apply flex h-9 w-9 items-center justify-center rounded-control text-primary-900/90 transition-colors hover:bg-primary-100 hover:text-primary-900 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white;
 }
 
 .header-status-balance {
@@ -423,7 +410,7 @@ onBeforeUnmount(() => {
 }
 
 .header-status-user-button {
-  @apply flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-primary-100 dark:hover:bg-dark-800;
+  @apply flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-primary-100 dark:hover:bg-dark-800;
 }
 
 .dropdown-enter-active,

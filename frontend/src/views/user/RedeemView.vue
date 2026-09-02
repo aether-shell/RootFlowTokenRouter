@@ -42,7 +42,7 @@
                     required
                     :placeholder="t('redeem.redeemCodePlaceholder')"
                     :disabled="submitting"
-                    class="input py-3 pl-12 text-lg"
+                    class="input h-9 py-0 pl-12 text-lg"
                   />
                 </div>
               </div>
@@ -50,7 +50,7 @@
               <button
                 type="submit"
                 :disabled="!redeemCode || submitting"
-                class="btn btn-primary w-full py-3"
+                class="btn btn-primary h-9 w-full py-1.5"
               >
                 <svg
                   v-if="submitting"

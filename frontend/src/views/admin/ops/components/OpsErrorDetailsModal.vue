@@ -237,7 +237,7 @@ watch(
               <input
                 v-model="q"
                 type="text"
-                class="w-full rounded-lg border-gray-200 bg-gray-50/50 py-1.5 pl-9 pr-3 text-xs font-medium text-gray-700 transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 dark:border-dark-700 dark:bg-dark-950 dark:text-gray-300 dark:focus:bg-dark-800"
+                class="h-9 w-full rounded-lg border-gray-200 bg-gray-50/50 py-1.5 pl-9 pr-3 text-xs font-medium text-gray-700 transition-all focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 dark:border-dark-700 dark:bg-dark-950 dark:text-gray-300 dark:focus:bg-dark-800"
                 :placeholder="t('admin.ops.errorDetails.searchPlaceholder')"
               />
             </div>
@@ -262,7 +262,7 @@ watch(
           </div>
 
           <div class="col-span-2 flex items-center justify-start gap-1 md:col-span-2 md:justify-end">
-            <button type="button" class="btn btn-secondary btn-sm h-[34px] whitespace-nowrap" @click="resetFilters">
+            <button type="button" class="btn btn-secondary btn-sm h-9 whitespace-nowrap" @click="resetFilters">
               {{ t('common.reset') }}
             </button>
             <IpGeoBatchToolbar :ips="rows.map((row) => row.client_ip)" inline compact />

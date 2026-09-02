@@ -121,6 +121,7 @@ export default {
       qualityCheck: 'Quality Check',
       batchQualityCheck: 'Batch Quality Check',
       batchTest: 'Test All Proxies',
+      moreActions: 'More Actions',
       testFailed: 'Failed',
       latencyFailed: 'Connection failed',
       batchTestEmpty: 'No proxies available for testing',

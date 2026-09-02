@@ -1,26 +1,5 @@
 {
-  "actions": [
-    {
-      "action": "review",
-      "module": "xlsx",
-      "resolves": [
-        {
-          "id": 1108110,
-          "path": ".>xlsx",
-          "dev": false,
-          "bundled": false,
-          "optional": false
-        },
-        {
-          "id": 1108111,
-          "path": ".>xlsx",
-          "dev": false,
-          "bundled": false,
-          "optional": false
-        }
-      ]
-    }
-  ],
+  "actions": [],
   "advisories": {
     "1108110": {
       "findings": [
@@ -105,14 +84,14 @@
   "metadata": {
     "vulnerabilities": {
       "info": 0,
-      "low": 0,
-      "moderate": 0,
+      "low": 1,
+      "moderate": 11,
       "high": 2,
       "critical": 0
     },
-    "dependencies": 639,
+    "dependencies": 765,
     "devDependencies": 0,
     "optionalDependencies": 0,
-    "totalDependencies": 639
+    "totalDependencies": 765
   }
 }

@@ -73,21 +73,39 @@ describe('AppSidebar scroll position persistence', () => {
   })
 })
 
-describe('AppSidebar header styles', () => {
-  it('does not clip the version badge dropdown', () => {
-    const sidebarHeaderBlockMatch = styleSource.match(/\.sidebar-header\s*\{[\s\S]*?\n {2}\}/)
-    const sidebarBrandBlockMatch = componentSource.match(/\.sidebar-brand\s*\{[\s\S]*?\n\}/)
-
-    expect(sidebarHeaderBlockMatch).not.toBeNull()
-    expect(sidebarBrandBlockMatch).not.toBeNull()
-    expect(sidebarHeaderBlockMatch?.[0]).not.toContain('@apply overflow-hidden;')
-    expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
+describe('global header and sidebar hierarchy', () => {
+  it('keeps branding out of the sidebar and places the global header before it', () => {
+    expect(componentSource).not.toContain('sidebar-header')
+    expect(componentSource).not.toContain('sidebar-brand')
+    expect(layoutSource).toContain('<AppHeader />')
+    // AppLayout 改造后侧栏按 hideSidebar 条件渲染，这里只要求 header 出现在侧栏组件之前。
+    const headerIndex = layoutSource.indexOf('<AppHeader />')
+    const sidebarIndex = layoutSource.indexOf('<AppSidebar')
+    expect(headerIndex).toBeGreaterThanOrEqual(0)
+    expect(sidebarIndex).toBeGreaterThan(headerIndex)
   })
 
-  it('links the logo and site name to the role-specific dashboard', () => {
-    expect(componentSource).toContain("const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))")
-    expect(componentSource.match(/:to="homePath"/g)).toHaveLength(2)
-    expect(componentSource).toContain(':tabindex="sidebarCollapsed ? -1 : undefined"')
+  it('starts the mobile overlay below the global header', () => {
+    // 遮罩不能位于半透明顶栏下方，否则 glass 背景会透出黑色并使顶栏变灰。
+    expect(componentSource).toContain('fixed inset-x-0 bottom-0 top-14 z-30 bg-black/50 lg:hidden')
+    expect(componentSource).not.toContain('fixed inset-0 z-30 bg-black/50 lg:hidden')
+  })
+
+  it('keeps the scrolling content below the fixed global header', () => {
+    // 主内容不能与顶栏使用同级 z-index，否则滚动时后渲染内容会盖住顶栏。
+    expect(layoutSource).toContain('class="relative z-10 min-w-0 pt-14 transition-all duration-300"')
+    expect(layoutSource).toContain("fullViewport ? 'h-full min-h-0' : 'min-h-screen'")
+    expect(layoutSource).not.toContain('lg:z-50')
+  })
+
+  it('fades the mobile overlay in and out', () => {
+    // 遮罩应渐进显示和隐藏，避免打开侧栏时页面突然变暗。
+    expect(componentSource).toContain('.fade-enter-active')
+    expect(componentSource).toContain('transition: opacity 200ms ease-out;')
+    expect(componentSource).toContain('.fade-leave-active')
+    expect(componentSource).toContain('transition: opacity 150ms ease-in;')
+    expect(componentSource).toContain('.fade-enter-from,')
+    expect(componentSource).toContain('.fade-leave-to')
   })
 })
 

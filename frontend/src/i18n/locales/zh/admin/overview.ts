@@ -963,12 +963,13 @@ affiliates: {
         disabled: '关闭',
         stickyWeighted: '粘性加权',
         subscriptionPriority: '订阅优先',
+        stickyEscapeEnabled: '强制粘性切换',
         weightsTitle: '候选评分与 Top-K',
         weightsHint: '权重越大，该信号对候选排序影响越大。留空表示继承。',
         inheritPlaceholder: '继承',
         inheritHint: '留空即继承',
         reset: '全部恢复继承',
-        invalidValue: '请输入非负数；Top-K 必须是正整数。',
+        invalidValue: '请输入有效数值；alpha 必须在 0 到 1 之间且不为 0，错误率阈值须在 0 到 1 之间，Top-K 和 TTFT 必须为正整数。',
         fields: {
           lbTopK: 'Top-K',
           weightPriority: '优先级',
@@ -979,7 +980,11 @@ affiliates: {
           weightReset: '窗口重置',
           weightQuotaHeadroom: '额度余量',
           weightPreviousResponse: '上一响应粘性',
-          weightSessionSticky: '会话粘性'
+          weightSessionSticky: '会话粘性',
+          ewmaErrorRateAlpha: '错误率 EWMA 因子',
+          ewmaTTFTAlpha: 'TTFT EWMA 因子',
+          stickyEscapeTTFTMs: 'TTFT 切换阈值（毫秒）',
+          stickyEscapeErrorRate: '错误率切换阈值（0-1）'
         }
       },
       platforms: {

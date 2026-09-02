@@ -122,6 +122,10 @@ batchImageGuide: {
       groups: 'service groups',
       modelCount: 'Models'
     },
+    featured: {
+      byProvider: 'by {provider}',
+      discountOff: 'Up to {percent}% off'
+    },
     stats: {
       todayTokens: 'Today Total Tokens',
       totalTokens: 'Historical Total Tokens',

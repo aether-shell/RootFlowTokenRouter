@@ -27,6 +27,7 @@ const (
 )
 
 var explicitOpenAIHeaderSessionNames = []string{
+	"session-id",
 	"session_id",
 	"conversation_id",
 	openCodeSessionAffinityHeader,
@@ -117,16 +118,9 @@ func (s *OpenAIGatewayService) GenerateExplicitSessionHash(c *gin.Context, body 
 	return currentHash
 }
 
-// GenerateSessionHash generates a sticky-session hash for OpenAI requests.
-//
-// Priority:
-//  1. Header: session_id
-//  2. Header: conversation_id
-//  3. Header：x-session-affinity / x-session-id / x-opencode-session（OpenCode）
-//  4. Header：x-conversation-id（CodeBuddy）
-//  5. Header：x-grok-conv-id（仅 Grok 分组）
-//  6. Body：prompt_cache_key
-//  7. Body：基于内容回退（model + system + tools + 第一条用户消息）
+// GenerateSessionHash 为 OpenAI 请求生成粘性会话哈希。
+// 优先级依次为：session-id/session_id、conversation_id、OpenCode 会话头、
+// CodeBuddy 会话头、Grok 分组会话头、prompt_cache_key，最后才使用内容回退。
 func (s *OpenAIGatewayService) GenerateSessionHash(c *gin.Context, body []byte) string {
 	if c == nil {
 		return ""
@@ -1178,6 +1172,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx cont
 		return excluded
 	}
 
+	// 粘性账号的有界等待队列已满时，第二层可以为当前请求临时借用其它账号；
+	// 该容量溢出只对单次请求有效，不能把整段会话的持久绑定迁移到冷缓存账号。
+	stickySpillover := false
 	if sessionHash != "" {
 		accountID := stickyAccountID
 		if accountID > 0 && !isExcluded(accountID) {
@@ -1219,6 +1216,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx cont
 								MaxWaiting:     cfg.StickySessionMaxWaiting,
 							})
 						}
+						stickySpillover = true
 					}
 				}
 			}
@@ -1364,7 +1362,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx cont
 				if selectErr != nil {
 					return nil, true, selectErr
 				}
-				if sessionHash != "" {
+				if sessionHash != "" && !stickySpillover {
 					_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, openaiStickySessionTTL)
 				}
 				return selection, true, nil
@@ -1398,7 +1396,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx cont
 				if selectErr != nil {
 					return nil, selectErr
 				}
-				if sessionHash != "" {
+				if sessionHash != "" && !stickySpillover {
 					_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, openaiStickySessionTTL)
 				}
 				return selection, nil

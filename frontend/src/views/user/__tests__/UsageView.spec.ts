@@ -62,7 +62,7 @@ const messages: Record<string, string> = {
   'usage.stream': 'Stream',
   'usage.sync': 'Sync',
   'usage.exporting': 'Exporting',
-  'usage.exportCsv': 'Export CSV',
+  'usage.exportCsv': 'Export',
   'usage.failedToLoad': 'Failed to load',
   'usage.noDataToExport': 'No data',
   'usage.preparingExport': 'Preparing export',

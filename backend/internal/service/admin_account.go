@@ -945,6 +945,13 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 					normalizedExtra[legacyOpenAIResponsesSupportedExtraKey] = value
 				}
 			}
+			// 新增能力字段对旧版编辑器保持兼容；未回传时保留已有管理员设置。
+			_, continuationProvided := input.Extra[openai_compat.ExtraKeyResponsesContinuationSupported]
+			if !continuationProvided {
+				if value, ok := account.Extra[openai_compat.ExtraKeyResponsesContinuationSupported]; ok {
+					normalizedExtra[openai_compat.ExtraKeyResponsesContinuationSupported] = value
+				}
+			}
 		}
 		normalizedExtra = prepareCodexFingerprintExtraForUpdate(account, normalizedExtra)
 		account.Extra = normalizedExtra
@@ -1112,7 +1119,7 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 		if !isOpenAIAPIKeyAccount(account) {
 			return infraerrors.BadRequest(
 				"OPENAI_CONFIGURATION_TARGET_INVALID",
-				"OpenAI text protocol configuration only applies to OpenAI API Key accounts",
+				"OpenAI text protocol and continuation configuration only applies to OpenAI API Key accounts",
 			)
 		}
 		if err := normalizeOpenAIAPIKeyConfigurationPatch(nil, updates); err != nil {
@@ -1223,7 +1230,7 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			if !isOpenAIAPIKeyAccount(account) {
 				return nil, infraerrors.BadRequest(
 					"OPENAI_CONFIGURATION_TARGET_INVALID",
-					"OpenAI text protocol configuration can only be bulk-updated on OpenAI API Key accounts",
+					"OpenAI text protocol and continuation configuration can only be bulk-updated on OpenAI API Key accounts",
 				)
 			}
 		}

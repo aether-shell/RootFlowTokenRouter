@@ -36,7 +36,8 @@
     <!-- 桌面端顶部对齐，避免数据较少时表格被圆环图垂直居中。 -->
     <div v-else-if="displayGroupStats.length > 0 && chartData" class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6">
       <div class="h-48 w-48 shrink-0">
-        <Doughnut :data="chartData" :options="doughnutOptions" />
+        <Bar v-if="chartType === 'bar'" :data="chartData" :options="barOptions" />
+        <Doughnut v-else :data="doughnutChartData" :options="doughnutOptions" />
       </div>
       <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
         <table class="w-full text-xs">
@@ -110,27 +111,34 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
-import { Doughnut } from 'vue-chartjs'
+import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LogarithmicScale, Tooltip, Legend } from 'chart.js'
+import { Bar, Doughnut } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
+import { toLogarithmicDisplayValues } from '@/utils/chartDisplayScale'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import type { GroupStat, UserBreakdownItem } from '@/types'
 import { getUserBreakdown } from '@/api/admin/dashboard'
 
-ChartJS.register(ArcElement, Tooltip, Legend)
+ChartJS.register(ArcElement, BarElement, CategoryScale, LogarithmicScale, Tooltip, Legend)
+
+onBeforeUnmount(hideExternalTooltip)
 
 const { t } = useI18n()
 const { balanceUnitSymbol, usdUnitSymbol } = useBalanceDisplay()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
+// 图表形态：默认圆环；用户用量页传 bar（水平条形图），避免同页多个卡片都是圆环图。
+type GroupChartType = 'doughnut' | 'bar'
 
 const props = withDefaults(defineProps<{
   groupStats: GroupStat[]
   loading?: boolean
   metric?: DistributionMetric
+  chartType?: GroupChartType
   showMetricToggle?: boolean
   enableBreakdown?: boolean
   showAccountCost?: boolean
@@ -141,6 +149,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   loading: false,
   metric: 'tokens',
+  chartType: 'doughnut',
   showMetricToggle: false,
   enableBreakdown: true,
   showAccountCost: true,
@@ -202,20 +211,53 @@ const displayGroupStats = computed(() => {
   return [...props.groupStats].sort((a, b) => toFiniteNumber(b[metricKey]) - toFiniteNumber(a[metricKey]))
 })
 
+// 图表标签与表格行保持一致：无分组（group_id=0）回退为「No Group」，而不是显示 0。
+const groupLabel = (g: GroupStat): string =>
+  g.group_name || (g.group_id > 0 ? String(g.group_id) : t('admin.dashboard.noGroup'))
+
+// 原始指标值：条形图按原值走对数轴，圆环图按 log 压缩渲染，tooltip 始终按原始值计算真实占比。
+const chartValues = computed(() =>
+  displayGroupStats.value.map((g) => toFiniteNumber(props.metric === 'actual_cost' ? g.actual_cost : g.total_tokens))
+)
+
 const chartData = computed(() => {
   if (!props.groupStats?.length) return null
 
   return {
-    labels: displayGroupStats.value.map((g) => g.group_name || String(g.group_id)),
+    labels: displayGroupStats.value.map(groupLabel),
     datasets: [
       {
-        data: displayGroupStats.value.map((g) => toFiniteNumber(props.metric === 'actual_cost' ? g.actual_cost : g.total_tokens)),
+        data: chartValues.value,
         backgroundColor: chartColors.slice(0, displayGroupStats.value.length),
         borderWidth: 0
       }
     ]
   }
 })
+
+// 与 chartData 同生命周期（无数据时模板分支不会渲染），保持非空类型以通过图表组件的 data 校验。
+const doughnutChartData = computed(() => ({
+  labels: displayGroupStats.value.map(groupLabel),
+  datasets: [
+    {
+      data: toLogarithmicDisplayValues(chartValues.value),
+      backgroundColor: chartColors.slice(0, displayGroupStats.value.length),
+      borderWidth: 0
+    }
+  ]
+}))
+
+// tooltip 统一展示「名称: 数值 (占比)」，圆环图与条形图共用；
+// 圆环扇区可能被 log 压缩，数值与占比一律按原始值（dataIndex 回查）计算。
+const tooltipLabel = (context: any) => {
+  const value = chartValues.value[context.dataIndex] ?? 0
+  const total = chartValues.value.reduce((a: number, b: number) => a + b, 0)
+  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
+  const formattedValue = props.metric === 'actual_cost'
+    ? `${balanceUnitSymbol.value}${formatCost(value)}`
+    : formatTokens(value)
+  return `${context.label}: ${formattedValue} (${percentage}%)`
+}
 
 const doughnutOptions = computed(() => ({
   responsive: true,
@@ -225,16 +267,58 @@ const doughnutOptions = computed(() => ({
       display: false
     },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
-        label: (context: any) => {
-          const value = context.raw as number
-          const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
-          const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
-          const formattedValue = props.metric === 'actual_cost'
-            ? `${balanceUnitSymbol.value}${formatCost(value)}`
-            : formatTokens(value)
-          return `${context.label}: ${formattedValue} (${percentage}%)`
+        label: tooltipLabel
+      }
+    }
+  }
+}))
+
+const barOptions = computed(() => ({
+  indexAxis: 'y' as const,
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    // 分组用量常差几个数量级，对数刻度保证小用量分组也可见；
+    // 精确数值由 tooltip 与右侧表格呈现，x 轴不再显示刻度。
+    x: {
+      type: 'logarithmic' as const,
+      ticks: {
+        display: false
+      },
+      // log 轴默认会为每个次要刻度画网格线，视觉上挤成一团，整体关闭。
+      grid: {
+        display: false
+      }
+    },
+    y: {
+      grid: {
+        display: false
+      },
+      ticks: {
+        autoSkip: false,
+        font: {
+          size: 10
+        },
+        // 分组名可能较长，y 轴标签截断展示，全名见 tooltip 与表格。
+        callback(this: any, value: any) {
+          const label = String(this.getLabelForValue(value) ?? '')
+          return label.length > 12 ? `${label.slice(0, 12)}…` : label
         }
+      }
+    }
+  },
+  plugins: {
+    legend: {
+      display: false
+    },
+    tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
+      callbacks: {
+        label: tooltipLabel
       }
     }
   }

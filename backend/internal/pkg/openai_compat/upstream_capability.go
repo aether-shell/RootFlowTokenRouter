@@ -35,6 +35,8 @@ const (
 	ExtraKeyTextRouteMode = "openai_text_route_mode"
 	// ExtraKeyResponsesProbeStatus 是探测服务维护的 Responses 支持状态。
 	ExtraKeyResponsesProbeStatus = "openai_responses_probe_status"
+	// ExtraKeyResponsesContinuationSupported 是管理员控制的 HTTP continuation 能力开关。
+	ExtraKeyResponsesContinuationSupported = "openai_responses_continuation_supported"
 )
 
 // NormalizeTextRouteMode 将缺失或非法模式归一化为保留客户端协议。
@@ -77,6 +79,16 @@ func ResolveResponsesProbeStatus(extra map[string]any) ResponsesProbeStatus {
 	}
 	status, _ := extra[ExtraKeyResponsesProbeStatus].(string)
 	return NormalizeResponsesProbeStatus(status)
+}
+
+// ResolveResponsesContinuationSupported 从账号 extra 中读取 HTTP continuation 能力开关。
+// 缺失或类型不匹配时按不支持处理，避免把账号类型误当作上游能力证明。
+func ResolveResponsesContinuationSupported(extra map[string]any) bool {
+	if extra == nil {
+		return false
+	}
+	supported, _ := extra[ExtraKeyResponsesContinuationSupported].(bool)
+	return supported
 }
 
 // ResolveUpstreamTextProtocol 综合客户端首选协议、管理员路由模式和探测事实，

@@ -102,9 +102,9 @@ GitHub/Google 与 LinuxDo/OIDC 等共享 `AuthIdentity` 唯一性，但 HTTP 流
 
 ## 身份绑定与解绑
 
-当前用户绑定第三方身份时，先通过受保护入口生成 provider 的后端 authorize URL，start 路由记录 `bind_current_user` 意图，callback 再验证当前会话和外部主体。Email 绑定使用独立验证码与密码设置流程；用户已有本地邮箱身份时还要验证现有密码，不能把修改 profile email 当作绑定。
+当前用户绑定第三方身份时，先通过受保护入口生成 provider 的后端 authorize URL，start 路由记录 `bind_current_user` 意图，callback 再验证当前会话和外部主体。Email 绑定使用独立验证码与密码设置流程；尚无真实邮箱的用户始终可以完成首次绑定，验证并绑定与当前记录相同的邮箱也不算换绑，只有把已有真实邮箱改成另一地址时才要求运行时设置 `user_email_change_enabled` 已开启，并且还要验证现有密码，不能把修改 profile email 当作绑定。服务端在发送验证码和提交换绑两个阶段都执行开关门禁，设置缺失或读取失败时拒绝换绑。邮箱查重同时按精确地址和收件箱 alias 归一身份处理：Gmail/googlemail 忽略本地点号并统一域名，所有域名的本地 `+` 后缀与域名根点按既定策略折叠；允许换绑时当前用户可以更换自己的 alias，其他用户占用同一收件箱时必须拒绝。
 
-绑定必须在事务中确认：目标外部三元组尚未属于其他用户、当前用户和会话仍有效、pending intent 与 provider 一致，并原子写入 identity/channel/接纳决定。管理员直接绑定仍要遵守相同唯一约束和 canonical provider key 规则，不得制造两个用户共享主体。
+绑定必须在事务中确认：目标外部三元组尚未属于其他用户、当前用户和会话仍有效、pending intent 与 provider 一致，并原子写入 identity/channel/接纳决定。Email 换绑还要在同一事务内锁定规范化邮箱与收件箱 alias 身份，复查占用者后再写入用户邮箱和密码哈希，避免并发请求穿透服务层预检。管理员直接绑定仍要遵守相同唯一约束和 canonical provider key 规则，不得制造两个用户共享主体。
 
 解绑前至少保留一个可登录身份。Email 不走第三方解绑；LinuxDo、OIDC、WeChat 和 DingTalk 的自助解绑根据当前身份集合决定是否允许。成功解绑后撤销用户全部 token，会话必须重新登录，避免旧 JWT 继续代表已改变的安全身份。外部 provider 的远端授权是否同时撤销由相应实现决定，不能只凭本地删除宣称远端 token 已失效。
 

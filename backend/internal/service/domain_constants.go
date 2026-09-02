@@ -205,6 +205,7 @@ const (
 	SettingKeyRegistrationEmailNormalization   = "registration_email_normalization"    // 注册邮箱地址归一化唯一性开关
 	// 白名单非空时，是否放行非白名单域名按主域名限量注册；默认关闭并严格执行白名单。
 	SettingKeyRegistrationEmailDomainQuotaEnabled = "registration_email_domain_quota_enabled"
+	SettingKeyUserEmailChangeEnabled              = "user_email_change_enabled"        // 是否允许已有邮箱身份的用户换绑主邮箱
 	SettingKeyPromoCodeEnabled                    = "promo_code_enabled"               // 是否启用优惠码功能
 	SettingKeyPasswordResetEnabled                = "password_reset_enabled"           // 是否启用忘记密码功能（需要先开启邮件验证）
 	SettingKeyFrontendURL                         = "frontend_url"                     // 前端基础URL，用于生成密码重置、团队邀请等邮件外部链接
@@ -217,6 +218,9 @@ const (
 	SettingKeyAffiliateAdminRechargeEnabled       = "affiliate_admin_recharge_enabled" // 管理员充值是否产生返利
 	SettingKeyTeamEnabled                         = "team_enabled"                     // 是否显示团队功能相关页面
 	SettingKeyDataSharingEnabled                  = "data_sharing_enabled"             // 是否显示数据共享相关页面
+	SettingKeyCreativeEnabled                     = "creative_enabled"                 // 创作台功能开关
+	SettingKeyCreativeModelSettings               = "creative_model_settings"          // 创作台生图模型与能力白名单（JSON）
+	SettingKeyCreativeWorkerCount                 = "creative_worker_count"            // 创作台 worker 数量（正整数）
 	SettingKeyRiskControlEnabled                  = "risk_control_enabled"             // 是否启用风控中心入口与内容审计链路
 	SettingKeyCyberSessionBlockEnabled            = "cyber_session_block_enabled"      // cyber_policy 命中后的会话本地屏蔽开关
 	SettingKeyCyberSessionBlockTTLSeconds         = "cyber_session_block_ttl_seconds"  // cyber_policy 会话本地屏蔽时长（秒）
@@ -388,6 +392,7 @@ const (
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 	SettingKeyFooterLinks                 = "footer_links"                  // 首页底栏链接分组（JSON 数组）
 	SettingKeyFooterText                  = "footer_text"                   // 首页底栏附加文本（备案号等，支持多行）
+	SettingKeyHomeFeaturedModels          = "home_featured_models"          // 首页展示的模型 ID 列表（JSON 数组，按顺序展示）
 )
 
 const (
@@ -567,16 +572,26 @@ const (
 	SettingKeyAdvancedSchedulerStickyWeightedEnabled = "advanced_scheduler_sticky_weighted_enabled"
 	// SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled 控制可用时的订阅账号优先级。
 	SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled = "advanced_scheduler_subscription_priority_enabled"
-	SettingKeyAdvancedSchedulerLBTopK                      = "advanced_scheduler_lb_top_k"
-	SettingKeyAdvancedSchedulerWeightPriority              = "advanced_scheduler_weight_priority"
-	SettingKeyAdvancedSchedulerWeightLoad                  = "advanced_scheduler_weight_load"
-	SettingKeyAdvancedSchedulerWeightQueue                 = "advanced_scheduler_weight_queue"
-	SettingKeyAdvancedSchedulerWeightErrorRate             = "advanced_scheduler_weight_error_rate"
-	SettingKeyAdvancedSchedulerWeightTTFT                  = "advanced_scheduler_weight_ttft"
-	SettingKeyAdvancedSchedulerWeightReset                 = "advanced_scheduler_weight_reset"
-	SettingKeyAdvancedSchedulerWeightQuotaHeadroom         = "advanced_scheduler_weight_quota_headroom"
-	SettingKeyAdvancedSchedulerWeightPreviousResponse      = "advanced_scheduler_weight_previous_response"
-	SettingKeyAdvancedSchedulerWeightSessionSticky         = "advanced_scheduler_weight_session_sticky"
+	// SettingKeyAdvancedSchedulerEWMAErrorRateAlpha 控制错误率 EWMA 的平滑系数。
+	SettingKeyAdvancedSchedulerEWMAErrorRateAlpha = "advanced_scheduler_ewma_error_rate_alpha"
+	// SettingKeyAdvancedSchedulerEWMATTFTAlpha 控制首 token 延迟 EWMA 的平滑系数。
+	SettingKeyAdvancedSchedulerEWMATTFTAlpha = "advanced_scheduler_ewma_ttft_alpha"
+	// SettingKeyAdvancedSchedulerStickyEscapeEnabled 控制健康度恶化时是否允许逃逸粘性账号。
+	SettingKeyAdvancedSchedulerStickyEscapeEnabled = "advanced_scheduler_sticky_escape_enabled"
+	// SettingKeyAdvancedSchedulerStickyEscapeTTFTMs 控制触发粘性逃逸的 TTFT 阈值。
+	SettingKeyAdvancedSchedulerStickyEscapeTTFTMs = "advanced_scheduler_sticky_escape_ttft_ms"
+	// SettingKeyAdvancedSchedulerStickyEscapeErrorRate 控制触发粘性逃逸的错误率阈值。
+	SettingKeyAdvancedSchedulerStickyEscapeErrorRate  = "advanced_scheduler_sticky_escape_error_rate"
+	SettingKeyAdvancedSchedulerLBTopK                 = "advanced_scheduler_lb_top_k"
+	SettingKeyAdvancedSchedulerWeightPriority         = "advanced_scheduler_weight_priority"
+	SettingKeyAdvancedSchedulerWeightLoad             = "advanced_scheduler_weight_load"
+	SettingKeyAdvancedSchedulerWeightQueue            = "advanced_scheduler_weight_queue"
+	SettingKeyAdvancedSchedulerWeightErrorRate        = "advanced_scheduler_weight_error_rate"
+	SettingKeyAdvancedSchedulerWeightTTFT             = "advanced_scheduler_weight_ttft"
+	SettingKeyAdvancedSchedulerWeightReset            = "advanced_scheduler_weight_reset"
+	SettingKeyAdvancedSchedulerWeightQuotaHeadroom    = "advanced_scheduler_weight_quota_headroom"
+	SettingKeyAdvancedSchedulerWeightPreviousResponse = "advanced_scheduler_weight_previous_response"
+	SettingKeyAdvancedSchedulerWeightSessionSticky    = "advanced_scheduler_weight_session_sticky"
 
 	// SettingKeyBackendModeEnabled Backend 模式：禁用用户注册和自助服务，仅管理员可登录
 	SettingKeyBackendModeEnabled = "backend_mode_enabled"

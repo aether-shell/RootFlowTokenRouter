@@ -165,6 +165,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		zap.String("billing_model", billingModel),
 		zap.String("upstream_model", upstreamModel),
 		zap.Bool("stream", isStream),
+		zap.Bool("compat_continuation_supported", openai_compat.ResolveResponsesContinuationSupported(account.Extra)),
 	}
 	if compatPromptCacheInjected {
 		logFields = append(logFields,
@@ -451,6 +452,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				zap.Int64("account_id", account.ID),
 				zap.String("previous_response_id", truncateOpenAIWSLogValue(previousResponseID, openAIWSIDValueMaxLen)),
 				zap.String("upstream_model", upstreamModel),
+				zap.Bool("compat_continuation_supported", openai_compat.ResolveResponsesContinuationSupported(account.Extra)),
 			)
 			return s.ForwardAsAnthropic(ctx, c, account, body, promptCacheKey, defaultMappedModel, tlsRouterMatch...)
 		}

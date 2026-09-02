@@ -6,8 +6,8 @@
           class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"
         >
           <!-- 左侧：模糊搜索和筛选项，可自动换行。 -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <div class="relative w-full sm:w-64">
+          <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-3">
+            <div class="relative min-w-0 flex-1 sm:flex-none sm:w-64">
               <Icon
                 name="search"
                 size="md"
@@ -21,20 +21,29 @@
                 @input="handleSearch"
               />
             </div>
-            <Select
-              v-model="filters.platform"
-              :options="platformFilterOptions"
-              :placeholder="t('admin.groups.allPlatforms')"
-              class="w-44"
-              @change="loadGroups"
-            />
-            <Select
-              v-model="filters.status"
-              :options="statusOptions"
-              :placeholder="t('admin.groups.allStatus')"
-              class="w-40"
-              @change="loadGroups"
-            />
+            <div ref="filterDropdownRef" class="relative shrink-0">
+              <button
+                type="button"
+                class="btn btn-secondary relative h-9 w-9 p-0"
+                :aria-expanded="showFilterDropdown"
+                :aria-label="t('common.filter')"
+                :title="t('common.filter')"
+                @click="showFilterDropdown = !showFilterDropdown"
+              >
+                <Icon name="filter" size="sm" />
+                <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">{{ activeFilterCount }}</span>
+              </button>
+              <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
+                <div class="mb-3 flex items-center justify-between">
+                  <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
+                  <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetGroupFilters">{{ t('common.reset') }}</button>
+                </div>
+                <div class="space-y-3">
+                  <Select v-model="filters.platform" :options="platformFilterOptions" :placeholder="t('admin.groups.allPlatforms')" @change="loadGroups" />
+                  <Select v-model="filters.status" :options="statusOptions" :placeholder="t('admin.groups.allStatus')" @change="loadGroups" />
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 右侧：刷新、排序和创建等操作。 -->
@@ -44,7 +53,7 @@
             <button
               @click="loadGroups"
               :disabled="loading"
-              class="btn btn-secondary"
+              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
               :title="t('common.refresh')"
             >
               <Icon
@@ -56,13 +65,11 @@
             <div class="relative" ref="columnDropdownRef">
               <button
                 @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary"
+                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
                 :title="t('admin.groups.columnSettings')"
               >
-                <Icon name="grid" size="md" class="mr-2" />
-                <span class="hidden md:inline">{{
-                  t("admin.groups.columnSettings")
-                }}</span>
+                <Icon name="grid" size="md" />
+                <span class="hidden">{{ t("admin.groups.columnSettings") }}</span>
               </button>
               <div
                 v-if="showColumnDropdown"
@@ -87,15 +94,14 @@
             </div>
             <button
               @click="openSortModal"
-              class="btn btn-secondary"
+              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
               :title="t('admin.groups.sortOrder')"
             >
-              <Icon name="arrowsUpDown" size="md" class="mr-2" />
-              {{ t("admin.groups.sortOrder") }}
+              <Icon name="arrowsUpDown" size="md" />
             </button>
             <button
               @click="openCreateModal"
-              class="btn btn-primary"
+              class="btn btn-primary h-9 whitespace-nowrap"
               data-tour="groups-create-btn"
             >
               <Icon name="plus" size="md" class="mr-2" />
@@ -1825,7 +1831,7 @@
                   <button
                     type="button"
                     @click="addCreateMessagesDispatchMapping"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                    class="flex h-9 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-1.5 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                   >
                     <Icon name="plus" size="sm" />
                     {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -3658,7 +3664,7 @@
                   <button
                     type="button"
                     @click="addEditMessagesDispatchMapping"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                    class="flex h-9 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-1.5 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                   >
                     <Icon name="plus" size="sm" />
                     {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -4398,9 +4404,21 @@ const toggleableColumns = computed(() =>
 const hiddenColumns = reactive<Set<string>>(new Set());
 const showColumnDropdown = ref(false);
 const columnDropdownRef = ref<HTMLElement | null>(null);
+const showFilterDropdown = ref(false);
+const filterDropdownRef = ref<HTMLElement | null>(null);
 
 const getValidHiddenColumnKeys = () =>
   new Set(toggleableColumns.value.map((col) => col.key));
+
+const activeFilterCount = computed(
+  () => [filters.platform, filters.status].filter(Boolean).length,
+);
+
+const resetGroupFilters = () => {
+  filters.platform = "";
+  filters.status = "";
+  loadGroups();
+};
 
 const loadSavedColumns = () => {
   hiddenColumns.clear();
@@ -6422,6 +6440,9 @@ const handleClickOutside = (event: MouseEvent) => {
   }
   if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
     showColumnDropdown.value = false;
+  }
+  if (filterDropdownRef.value && !filterDropdownRef.value.contains(target)) {
+    showFilterDropdown.value = false;
   }
 };
 

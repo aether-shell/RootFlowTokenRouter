@@ -62,6 +62,9 @@ describe('TokenUsageTrend', () => {
     })
 
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
+    const options = (wrapper.vm as any).$?.setupState.lineOptions
+    expect(options.plugins.tooltip.enabled).toBe(false)
+    expect(options.plugins.tooltip.external).toBeTypeOf('function')
     const hitRateDataset = chartData.datasets.find(
       (ds: any) => ds.label === 'Cached Input %'
     )
@@ -195,6 +198,35 @@ describe('TokenUsageTrend', () => {
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
     expect(chartData.labels).toEqual(['08:00'])
     expect(wrapper.find('.tooltip-title').text()).toBe('2026-08-24 08:00')
+  })
+
+  it('uses month-day labels for daily granularity while keeping the full date in the tooltip', () => {
+    const wrapper = mount(TokenUsageTrend, {
+      props: {
+        granularity: 'day',
+        trendData: [
+          {
+            date: '2026-08-24',
+            requests: 1,
+            input_tokens: 100,
+            output_tokens: 20,
+            cache_creation_tokens: 0,
+            cache_read_tokens: 0,
+            cost: 0.01,
+            actual_cost: 0.005
+          }
+        ]
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true
+        }
+      }
+    })
+
+    const chartData = JSON.parse(wrapper.find('.chart-data').text())
+    expect(chartData.labels).toEqual(['08-24'])
+    expect(wrapper.find('.tooltip-title').text()).toBe('2026-08-24')
   })
 
   it('omits standard cost from the tooltip when disabled', () => {

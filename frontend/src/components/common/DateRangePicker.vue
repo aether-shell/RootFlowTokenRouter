@@ -430,7 +430,7 @@ onUnmounted(() => {
 .date-picker-trigger {
   /* 日期控件的结构边框使用中性灰，选中的快捷日期仍保留品牌蓝。 */
   @apply flex items-center gap-2;
-  @apply rounded-control px-3 py-2 text-sm;
+  @apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;
   @apply bg-white dark:bg-dark-950;
   @apply border border-primary-900/10 dark:border-dark-600;
   @apply text-gray-700 dark:text-gray-300;
@@ -524,7 +524,7 @@ onUnmounted(() => {
 }
 
 .date-picker-apply {
-  @apply rounded-control px-4 py-1.5 text-sm font-medium;
+  @apply inline-flex h-9 min-h-9 items-center justify-center rounded-control px-4 py-1.5 text-sm font-medium;
   @apply bg-primary-600 text-white;
   @apply hover:bg-primary-700;
   @apply transition-colors duration-150;

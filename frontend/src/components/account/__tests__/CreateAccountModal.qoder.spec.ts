@@ -159,7 +159,6 @@ function mountModal() {
         Select: true,
         Icon: true,
         ProxySelector: true,
-        ProxyAdBanner: true,
         GroupSelector: true,
         OAuthAuthorizationFlow: OAuthAuthorizationFlowStub,
         QuotaLimitCard: true,

@@ -58,7 +58,7 @@ Group 的 fallback 包括普通 fallback、invalid-request fallback 和 unavaila
 
 `scheduler_type` 仅属于 Group，`basic` 为默认值，`advanced` 表示该分组在硬过滤后使用通用高级评分。高级调度的 Top-K、评分权重、粘性加权和订阅优先是网关通用设置，不存在全局启用开关；设置不能把基础分组隐式切换为高级，也不能让 OpenAI/Grok 特有能力作用于不具备该能力的账号。
 
-高级分组可在 `advanced_scheduler_overrides` 保存稀疏参数覆盖。每个未出现的字段依次继承数据库通用设置和 `gateway.advanced_scheduler` 配置默认值；出现的字段（包括 `false` 和 `0`）以分组值为准。空对象表示全部恢复继承。基础分组即使历史上留有该对象也不读取它，切换为高级后才重新生效。
+高级分组可在 `advanced_scheduler_overrides` 保存稀疏参数覆盖。每个未出现的字段依次继承数据库通用设置和 `gateway.advanced_scheduler` 配置默认值；覆盖范围包括 Top-K、评分权重、粘性/订阅开关、错误率/TTFT 两项 EWMA alpha，以及 sticky escape 开关和两个阈值。出现的字段（包括 `false` 和 `0`）以分组值为准，alpha 必须大于 0 且不超过 1，TTFT 阈值必须为正数，错误率阈值必须在 `0..1`。空对象表示全部恢复继承。基础分组即使历史上留有该对象也不读取它，切换为高级后才重新生效。
 
 ## 认证与隐私
 

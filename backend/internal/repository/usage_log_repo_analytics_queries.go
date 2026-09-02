@@ -378,15 +378,16 @@ func (r *usageLogRepository) getUserUsageTrendFromAnalytics(ctx context.Context,
 	limitPosition := len(query.args)
 	rows, err := r.sql.QueryContext(ctx, query.cte+fmt.Sprintf(`,
 		top_users AS (
-			SELECT user_id
+			SELECT billing_user_id AS user_id
 			FROM combined
-			GROUP BY user_id
+			-- 聚合表同时保留行为用户和付款主体，Top 用户按付款主体合并团队用量。
+			GROUP BY billing_user_id
 			ORDER BY SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) DESC
 			LIMIT $%d
 		)
 		SELECT
 			TO_CHAR(c.occurred_at AT TIME ZONE $%d, '%s'),
-			c.user_id,
+			c.billing_user_id AS user_id,
 			COALESCE(u.email, ''),
 			COALESCE(u.username, ''),
 			COALESCE(SUM(c.total_requests), 0),
@@ -394,9 +395,9 @@ func (r *usageLogRepository) getUserUsageTrendFromAnalytics(ctx context.Context,
 			COALESCE(SUM(c.total_cost), 0),
 			COALESCE(SUM(c.actual_cost), 0)
 		FROM combined c
-		LEFT JOIN users u ON u.id = c.user_id
-		WHERE c.user_id IN (SELECT user_id FROM top_users)
-		GROUP BY 1, c.user_id, u.email, u.username
+		LEFT JOIN users u ON u.id = c.billing_user_id
+		WHERE c.billing_user_id IN (SELECT user_id FROM top_users)
+		GROUP BY 1, c.billing_user_id, u.email, u.username
 		ORDER BY 1 ASC, 6 DESC`, limitPosition, timezonePosition, safeDateFormat(granularity)), query.args...)
 	if err != nil {
 		return nil, false, err
@@ -426,12 +427,13 @@ func (r *usageLogRepository) getUserSpendingRankingFromAnalytics(ctx context.Con
 	limitPosition := len(query.args)
 	rows, err := r.sql.QueryContext(ctx, query.cte+fmt.Sprintf(`,
 		user_spend AS (
-			SELECT user_id,
+			SELECT billing_user_id AS user_id,
 			       COALESCE(SUM(actual_cost), 0) AS actual_cost,
 			       COALESCE(SUM(total_requests), 0) AS requests,
 			       COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) AS tokens
 			FROM combined
-			GROUP BY user_id
+			-- 聚合表同时保留行为用户和付款主体，排行榜按付款主体合并团队用量。
+			GROUP BY billing_user_id
 		),
 		ranked AS (
 			SELECT user_id, actual_cost, requests, tokens,
@@ -491,7 +493,7 @@ func (r *usageLogRepository) getUsageRankingFromAnalytics(ctx context.Context, s
 	eligibility := usageRankingAnalyticsEligibility(sortBy)
 	rows, err := r.sql.QueryContext(ctx, query.cte+fmt.Sprintf(`,
 		user_usage AS (
-			SELECT user_id,
+			SELECT billing_user_id AS user_id,
 			       COALESCE(SUM(total_requests), 0) AS requests,
 			       COALESCE(SUM(input_tokens), 0) AS input_tokens,
 			       COALESCE(SUM(output_tokens), 0) AS output_tokens,
@@ -500,7 +502,8 @@ func (r *usageLogRepository) getUsageRankingFromAnalytics(ctx context.Context, s
 			       COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) AS total_tokens,
 			       COALESCE(SUM(actual_cost), 0) AS actual_cost
 			FROM combined
-			GROUP BY user_id
+			-- 聚合表同时保留行为用户和付款主体，排行榜按付款主体合并团队用量。
+			GROUP BY billing_user_id
 			HAVING %s
 		),
 		ranked AS (
@@ -583,7 +586,7 @@ func (r *usageLogRepository) getUserBreakdownStatsFromAnalytics(ctx context.Cont
 		limitClause = fmt.Sprintf(" LIMIT $%d", len(query.args))
 	}
 	rows, err := r.sql.QueryContext(ctx, query.cte+`
-		SELECT c.user_id, COALESCE(u.email, ''),
+		SELECT c.billing_user_id AS user_id, COALESCE(u.email, ''),
 		       COALESCE(SUM(c.total_requests), 0) AS requests,
 		       COALESCE(SUM(c.input_tokens), 0) AS input_tokens,
 		       COALESCE(SUM(c.output_tokens), 0) AS output_tokens,
@@ -593,8 +596,9 @@ func (r *usageLogRepository) getUserBreakdownStatsFromAnalytics(ctx context.Cont
 		       COALESCE(SUM(c.actual_cost), 0) AS actual_cost,
 		       COALESCE(SUM(c.account_cost), 0) AS account_cost
 		FROM combined c
-		LEFT JOIN users u ON u.id = c.user_id `+query.where+`
-		GROUP BY c.user_id, u.email
+		LEFT JOIN users u ON u.id = c.billing_user_id `+query.where+`
+		-- 管理员排行按付款主体归属，团队成员用团队 Key 的用量归到 Owner。
+		GROUP BY c.billing_user_id, u.email
 		ORDER BY `+orderBy+` DESC`+limitClause, query.args...)
 	if err != nil {
 		return nil, false, err

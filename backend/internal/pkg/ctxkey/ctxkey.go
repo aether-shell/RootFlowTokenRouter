@@ -15,8 +15,26 @@ const (
 	// RequestID 为服务端生成/透传的请求 ID。
 	RequestID Key = "ctx_request_id"
 
-	// ClientRequestID 客户端请求的唯一标识，用于追踪请求全生命周期（用于 Ops 监控与排障）。
+	// ClientRequestID 服务内部生成的请求唯一标识，用于 Ops 监控、结算幂等和排障。
 	ClientRequestID Key = "ctx_client_request_id"
+
+	// ParentClientRequestID 入站调用方提供的关联标识，仅用于跨服务排障，不参与权限或结算幂等。
+	ParentClientRequestID Key = "ctx_parent_client_request_id"
+
+	// RequestStartedAt 网关入口开始处理请求的时间，用于计算槽位和出站阶段耗时。
+	RequestStartedAt Key = "ctx_request_started_at"
+
+	// AccountSlotAcquiredAt 账号并发槽位成功获取的时间。
+	AccountSlotAcquiredAt Key = "ctx_account_slot_acquired_at"
+
+	// FirstSSEDataAt 上游首个原始 SSE data 行被网关解析的时间。
+	FirstSSEDataAt Key = "ctx_first_sse_data_at"
+
+	// FirstDownstreamFlushAt 网关首次向下游 flush 响应数据的时间。
+	FirstDownstreamFlushAt Key = "ctx_first_downstream_flush_at"
+
+	// FirstVisibleOutputAt 网关首次观察到可见输出事件的时间。
+	FirstVisibleOutputAt Key = "ctx_first_visible_output_at"
 
 	// Model 请求模型标识（用于统一请求链路日志字段）。
 	Model Key = "ctx_model"

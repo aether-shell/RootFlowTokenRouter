@@ -32,6 +32,10 @@ vi.mock('vue-chartjs', () => ({
     props: ['data'],
     template: '<div class="chart-data">{{ JSON.stringify(data) }}</div>',
   },
+  Bar: {
+    props: ['data'],
+    template: '<div class="bar-chart-data">{{ JSON.stringify(data) }}</div>',
+  },
 }))
 
 describe('GroupDistributionChart', () => {
@@ -68,7 +72,8 @@ describe('GroupDistributionChart', () => {
 
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
     expect(chartData.labels).toEqual(['group-a', 'group-b'])
-    expect(chartData.datasets[0].data).toEqual([1200, 600])
+    expect(chartData.datasets[0].data[0]).toBeCloseTo(1 + Math.log10(2))
+    expect(chartData.datasets[0].data[1]).toBe(1)
 
     const chartTableLayout = wrapper.find('table').element.parentElement?.parentElement
     expect(chartTableLayout?.className).toContain('sm:items-start')
@@ -78,10 +83,11 @@ describe('GroupDistributionChart', () => {
     expect(rows[1].text()).toContain('group-b')
 
     const options = (wrapper.vm as any).$?.setupState.doughnutOptions
+    expect(options.plugins.tooltip.enabled).toBe(false)
+    expect(options.plugins.tooltip.external).toBeTypeOf('function')
     const label = options.plugins.tooltip.callbacks.label({
       label: 'group-a',
-      raw: 1200,
-      dataset: { data: [1200, 600] },
+      dataIndex: 0,
     })
     expect(label).toBe('group-a: 1.20K (66.7%)')
   })
@@ -101,7 +107,8 @@ describe('GroupDistributionChart', () => {
 
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
     expect(chartData.labels).toEqual(['group-b', 'group-a'])
-    expect(chartData.datasets[0].data).toEqual([0.9, 0.1])
+    expect(chartData.datasets[0].data[0]).toBeCloseTo(1 + Math.log10(9))
+    expect(chartData.datasets[0].data[1]).toBe(1)
 
     const rows = wrapper.findAll('tbody tr')
     expect(rows[0].text()).toContain('group-b')
@@ -110,8 +117,7 @@ describe('GroupDistributionChart', () => {
     const options = (wrapper.vm as any).$?.setupState.doughnutOptions
     const label = options.plugins.tooltip.callbacks.label({
       label: 'group-b',
-      raw: 0.9,
-      dataset: { data: [0.9, 0.1] },
+      dataIndex: 0,
     })
     expect(label).toBe('group-b: $0.900 (90.0%)')
   })
@@ -132,5 +138,89 @@ describe('GroupDistributionChart', () => {
     expect(wrapper.text()).not.toContain('Account Cost')
     expect(wrapper.findAll('thead th')).toHaveLength(5)
     expect(wrapper.findAll('tbody tr')[0].findAll('td')).toHaveLength(5)
+  })
+
+  it('renders a horizontal log-scale bar chart instead of doughnut when chartType is bar', () => {
+    const wrapper = mount(GroupDistributionChart, {
+      props: {
+        groupStats,
+        chartType: 'bar',
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+        },
+      },
+    })
+
+    expect(wrapper.find('.chart-data').exists()).toBe(false)
+    const chartData = JSON.parse(wrapper.find('.bar-chart-data').text())
+    expect(chartData.labels).toEqual(['group-a', 'group-b'])
+    expect(chartData.datasets[0].data).toEqual([1200, 600])
+
+    const options = (wrapper.vm as any).$?.setupState.barOptions
+    expect(options.plugins.tooltip.enabled).toBe(false)
+    expect(options.plugins.tooltip.external).toBeTypeOf('function')
+    expect(options.indexAxis).toBe('y')
+    expect(options.scales.x.type).toBe('logarithmic')
+    expect(options.scales.x.ticks.display).toBe(false)
+    expect(options.scales.x.grid.display).toBe(false)
+
+    const truncate = options.scales.y.ticks.callback
+    expect(truncate.call({ getLabelForValue: () => 'group-a' }, 0)).toBe('group-a')
+    expect(truncate.call({ getLabelForValue: () => 'a-very-long-group-name' }, 0)).toBe('a-very-long-…')
+
+    const label = options.plugins.tooltip.callbacks.label({
+      label: 'group-a',
+      dataIndex: 0,
+    })
+    expect(label).toBe('group-a: 1.20K (66.7%)')
+  })
+
+  it('uses logarithmic doughnut slices while tooltip keeps raw value and real percentage', () => {
+    const wrapper = mount(GroupDistributionChart, {
+      props: {
+        groupStats: [
+          { group_id: 1, group_name: 'big', requests: 1, total_tokens: 1_000_000, cost: 1, actual_cost: 1 },
+          { group_id: 2, group_name: 'small', requests: 1, total_tokens: 100, cost: 1, actual_cost: 1 },
+        ],
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+        },
+      },
+    })
+
+    const chartData = JSON.parse(wrapper.find('.chart-data').text())
+    expect(chartData.labels).toEqual(['big', 'small'])
+    // 扇区按 log10 压缩，小占比分组仍获得可见角度
+    expect(chartData.datasets[0].data).toEqual([5, 1])
+
+    const options = (wrapper.vm as any).$?.setupState.doughnutOptions
+    const label = options.plugins.tooltip.callbacks.label({
+      label: 'small',
+      dataIndex: 1,
+    })
+    expect(label).toBe('small: 100 (0.0%)')
+  })
+
+  it('labels entries without a group as No Group instead of 0', () => {
+    const wrapper = mount(GroupDistributionChart, {
+      props: {
+        groupStats: [
+          { group_id: 0, group_name: '', requests: 1, total_tokens: 10, cost: 0, actual_cost: 0 },
+          { group_id: 1, group_name: 'group-a', requests: 1, total_tokens: 20, cost: 0, actual_cost: 0 },
+        ],
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+        },
+      },
+    })
+
+    const chartData = JSON.parse(wrapper.find('.chart-data').text())
+    expect(chartData.labels).toEqual(['group-a', 'No Group'])
   })
 })

@@ -17,6 +17,40 @@ import (
 //   - Coding Plan 滚动窗口耗尽（429）的冷却终点应是真实的窗口重置时间（已由
 //     用量监控写入统一快照），而非默认的秒级兜底。
 
+// kimiConcurrentRequestLimitMessage 是 Kimi 账号并发限制的精确上游文案。
+const kimiConcurrentRequestLimitMessage = "You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."
+
+// cnConcurrencyLimitReasonPrefix 标记 Kimi 并发限制导致的临时停调，
+// 供恢复任务与其它账号状态来源区分。
+const cnConcurrencyLimitReasonPrefix = "cn_concurrency_limit"
+
+// isCNProviderConcurrencyLimit403 只识别 Kimi 返回的精确并发限制文案，
+// 避免把其它权限错误或其它国产平台的相似文案误判为可恢复状态。
+func isCNProviderConcurrencyLimit403(account *Account, upstreamMsg string) bool {
+	return account != nil && account.Platform == PlatformKimi &&
+		strings.TrimSpace(upstreamMsg) == kimiConcurrentRequestLimitMessage
+}
+
+// handleCNProviderConcurrencyLimit403 将 Kimi 并发限制写为短期临时不可调度，
+// 保留当前请求的切号信号，并确保不会进入累计 403 永久禁用计数。
+func (s *RateLimitService) handleCNProviderConcurrencyLimit403(
+	ctx context.Context,
+	account *Account,
+) {
+	until := time.Now().Add(time.Duration(openAI403CooldownMinutesDefault) * time.Minute)
+	reason := cnConcurrencyLimitReasonPrefix + ": " + kimiConcurrentRequestLimitMessage
+	s.notifyAccountSchedulingBlocked(account, until, cnConcurrencyLimitReasonPrefix)
+	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
+		slog.Warn("cn_concurrency_limit_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
+		return
+	}
+	slog.Info("cn_provider_concurrency_limited",
+		"account_id", account.ID,
+		"platform", account.Platform,
+		"until", until.UTC(),
+	)
+}
+
 // cnProviderResponseIndicatesInsufficientBalance 通过响应体文案识别余额不足
 // （智谱 payg 无独立余额端点，仅能靠响应文案识别）。
 func cnProviderResponseIndicatesInsufficientBalance(body []byte) bool {

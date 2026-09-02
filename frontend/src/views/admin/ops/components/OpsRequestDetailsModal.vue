@@ -166,7 +166,7 @@ const kindBadgeClass = (kind: string) => {
           </div>
           <button
             type="button"
-            class="btn btn-secondary btn-sm"
+            class="btn btn-secondary btn-sm h-9"
             @click="fetchData"
           >
             {{ t('common.refresh') }}
@@ -234,28 +234,28 @@ const kindBadgeClass = (kind: string) => {
               <table v-else class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
                 <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-950">
                 <tr>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.time') }}
                   </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.kind') }}
                   </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.platform') }}
                   </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.model') }}
                   </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.duration') }}
                   </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.status') }}
                   </th>
-                  <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.requestId') }}
                   </th>
-                  <th class="px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-3 text-right text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.actions') }}
                   </th>
                 </tr>

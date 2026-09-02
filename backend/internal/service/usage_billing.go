@@ -242,6 +242,9 @@ type BatchImageBalanceHoldCommand struct {
 	SubscriptionHoldAllocations []domain.BillingAllocation
 	// AllowanceReserved 区分新任务预记和滚动升级期间的旧任务。
 	AllowanceReserved bool
+	// CreativeEntity 标记计费实体是创作台任务（creative_runs）而非批量图片作业（batch_image_jobs）。
+	// 仅影响任务行上的预记标记与预占快照落表位置，不参与幂等指纹计算。
+	CreativeEntity bool
 	// ReservedAt 用于只回退仍属于原窗口的预记额度。
 	ReservedAt time.Time
 }

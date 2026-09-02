@@ -140,7 +140,7 @@
                   type="button"
                   @click="createAdminApiKey"
                   :disabled="adminApiKeyOperating"
-                  class="btn btn-primary btn-sm"
+                  class="btn btn-primary btn-sm h-9"
                 >
                   <svg
                     v-if="adminApiKeyOperating"
@@ -190,7 +190,7 @@
                       type="button"
                       @click="regenerateAdminApiKey"
                       :disabled="adminApiKeyOperating"
-                      class="btn btn-secondary btn-sm"
+                      class="btn btn-secondary btn-sm h-9"
                     >
                       {{
                         adminApiKeyOperating
@@ -202,7 +202,7 @@
                       type="button"
                       @click="deleteAdminApiKey"
                       :disabled="adminApiKeyOperating"
-                      class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+                      class="btn btn-secondary btn-sm h-9 text-red-600 hover:text-red-700 dark:text-red-400"
                     >
                       {{ t("admin.settings.adminApiKey.delete") }}
                     </button>
@@ -228,7 +228,7 @@
                     <button
                       type="button"
                       @click="copyNewKey"
-                      class="btn btn-primary btn-sm flex-shrink-0"
+                      class="btn btn-primary btn-sm h-9 flex-shrink-0"
                     >
                       {{ t("admin.settings.adminApiKey.copyKey") }}
                     </button>
@@ -321,7 +321,7 @@
                     type="button"
                     @click="saveOverloadCooldownSettings"
                     :disabled="overloadCooldownSaving"
-                    class="btn btn-primary btn-sm"
+                    class="btn btn-primary btn-sm h-9"
                   >
                     <svg
                       v-if="overloadCooldownSaving"
@@ -462,7 +462,7 @@
                   type="button"
                   @click="saveOpenAI403CooldownSettings"
                   :disabled="openAI403CooldownSaving"
-                  class="btn btn-primary btn-sm"
+                  class="btn btn-primary btn-sm h-9"
                 >
                   <svg
                     v-if="openAI403CooldownSaving"
@@ -576,7 +576,7 @@
                     type="button"
                     @click="saveRateLimit429CooldownSettings"
                     :disabled="rateLimit429CooldownSaving"
-                    class="btn btn-primary btn-sm"
+                    class="btn btn-primary btn-sm h-9"
                   >
                     <svg
                       v-if="rateLimit429CooldownSaving"
@@ -749,7 +749,7 @@
                     type="button"
                     @click="saveStreamTimeoutSettings"
                     :disabled="streamTimeoutSaving"
-                    class="btn btn-primary btn-sm"
+                    class="btn btn-primary btn-sm h-9"
                   >
                     <svg
                       v-if="streamTimeoutSaving"
@@ -955,7 +955,7 @@
                     type="button"
                     @click="saveRectifierSettings"
                     :disabled="rectifierSaving"
-                    class="btn btn-primary btn-sm"
+                    class="btn btn-primary btn-sm h-9"
                   >
                     <svg
                       v-if="rectifierSaving"
@@ -1238,7 +1238,7 @@
                     type="button"
                     @click="saveBetaPolicySettings"
                     :disabled="betaPolicySaving"
-                    class="btn btn-primary btn-sm"
+                    class="btn btn-primary btn-sm h-9"
                   >
                     <svg
                       v-if="betaPolicySaving"
@@ -1597,7 +1597,7 @@
                 <button
                   type="button"
                   @click="addOpenAIFastPolicyRule"
-                  class="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                  class="btn btn-secondary btn-sm h-9 inline-flex items-center gap-1"
                 >
                   <svg
                     class="h-4 w-4"
@@ -1769,6 +1769,22 @@
                   </p>
                 </div>
                 <Toggle v-model="form.registration_email_normalization" />
+              </div>
+
+              <!-- 用户换绑主邮箱 -->
+              <div
+                data-testid="user-email-change-setting"
+                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">{{
+                    t("admin.settings.registration.userEmailChange")
+                  }}</label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.registration.userEmailChangeHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.user_email_change_enabled" />
               </div>
 
               <!-- Promo Code -->
@@ -2160,7 +2176,7 @@
                     data-testid="panel-rate-limit-save"
                     @click="savePanelRateLimitSettings"
                     :disabled="panelRateLimitSaving"
-                    class="btn btn-primary btn-sm"
+                    class="btn btn-primary btn-sm h-9"
                   >
                     <svg
                       v-if="panelRateLimitSaving"
@@ -2694,7 +2710,7 @@
                     >
                       <button
                         type="button"
-                        class="btn btn-secondary btn-sm w-fit"
+                        class="btn btn-secondary btn-sm h-9 w-fit"
                         @click="setAndCopyLinuxdoRedirectUrl"
                       >
                         {{ t("admin.settings.linuxdo.quickSetCopy") }}
@@ -2816,7 +2832,7 @@
                       <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                         <button
                           type="button"
-                          class="btn btn-secondary btn-sm w-fit"
+                          class="btn btn-secondary btn-sm h-9 w-fit"
                           @click="setAndCopyEmailOAuthRedirectUrl('github')"
                         >
                           {{ localText("生成并复制", "Generate and copy") }}
@@ -2900,7 +2916,7 @@
                           </code>
                           <button
                             type="button"
-                            class="btn btn-secondary btn-sm w-fit"
+                            class="btn btn-secondary btn-sm h-9 w-fit"
                             :disabled="!googleOneTapOriginSuggestion"
                             @click="copyGoogleOneTapOrigin"
                           >
@@ -2957,7 +2973,7 @@
                       <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                         <button
                           type="button"
-                          class="btn btn-secondary btn-sm w-fit"
+                          class="btn btn-secondary btn-sm h-9 w-fit"
                           @click="setAndCopyEmailOAuthRedirectUrl('google')"
                         >
                           {{ localText("生成并复制", "Generate and copy") }}
@@ -3294,7 +3310,7 @@
                     >
                       <button
                         type="button"
-                        class="btn btn-secondary btn-sm w-fit"
+                        class="btn btn-secondary btn-sm h-9 w-fit"
                         @click="setAndCopyWeChatRedirectUrl"
                       >
                         {{ t("admin.settings.wechatConnect.generateAndCopy") }}
@@ -3841,7 +3857,7 @@
                     >
                       <button
                         type="button"
-                        class="btn btn-secondary btn-sm w-fit"
+                        class="btn btn-secondary btn-sm h-9 w-fit"
                         @click="setAndCopyOIDCRedirectUrl"
                       >
                         {{ t("admin.settings.oidc.quickSetCopy") }}
@@ -4127,7 +4143,7 @@
                   </div>
                   <button
                     type="button"
-                    class="btn btn-secondary btn-sm"
+                    class="btn btn-secondary btn-sm h-9"
                     @click="addDefaultSubscription"
                     :disabled="subscriptionPlans.length === 0"
                   >
@@ -4373,7 +4389,7 @@
                       </div>
                       <button
                         type="button"
-                        class="btn btn-secondary btn-sm"
+                        class="btn btn-secondary btn-sm h-9"
                         @click="
                           addAuthSourceDefaultSubscription(authSource.source)
                         "
@@ -4638,7 +4654,7 @@
                 <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
                   <button
                     type="button"
-                    class="btn btn-primary btn-sm"
+                    class="btn btn-primary btn-sm h-9"
                     :disabled="ollamaCloudUsageSaving"
                     data-testid="ollama-cloud-usage-global-save"
                     @click="saveOllamaCloudUsageSettings"
@@ -4774,6 +4790,54 @@
                     </div>
                   </div>
                 </div>
+
+                <div class="mt-5 border-t border-gray-100 pt-5 dark:border-dark-700">
+                  <div>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.scheduling.stickyEscapeTitle") }}
+                    </label>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.scheduling.stickyEscapeDescription") }}
+                    </p>
+                  </div>
+                  <div class="mt-4 flex flex-col gap-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <span class="text-sm text-gray-700 dark:text-gray-300">
+                        {{ t("admin.settings.scheduling.stickyEscapeEnabled") }}
+                      </span>
+                      <Toggle
+                        v-model="form.advanced_scheduler_sticky_escape_enabled"
+                        class="self-end sm:self-auto"
+                      />
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <label class="block">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t("admin.settings.scheduling.stickyEscapeTTFT") }}
+                        </span>
+                        <input
+                          v-model="form.advanced_scheduler_sticky_escape_ttft_ms"
+                          class="input mt-1"
+                          inputmode="numeric"
+                          type="text"
+                          :placeholder="advancedSchedulerPlaceholder('advanced_scheduler_effective_sticky_escape_ttft_ms', '15000')"
+                        />
+                      </label>
+                      <label class="block">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t("admin.settings.scheduling.stickyEscapeErrorRate") }}
+                        </span>
+                        <input
+                          v-model="form.advanced_scheduler_sticky_escape_error_rate"
+                          class="input mt-1"
+                          inputmode="decimal"
+                          type="text"
+                          :placeholder="advancedSchedulerPlaceholder('advanced_scheduler_effective_sticky_escape_error_rate', '0.5')"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <section
@@ -4889,6 +4953,43 @@
                       v-model="form.advanced_scheduler_subscription_priority_enabled"
                       class="self-end sm:self-auto"
                     />
+                  </div>
+
+                  <div class="border-t border-gray-100 pt-5 dark:border-dark-700">
+                    <div>
+                      <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {{ t("admin.settings.scheduling.ewmaTitle") }}
+                      </label>
+                      <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.scheduling.ewmaDescription") }}
+                      </p>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <label class="block">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t("admin.settings.scheduling.ewmaErrorRateAlpha") }}
+                        </span>
+                        <input
+                          v-model="form.advanced_scheduler_ewma_error_rate_alpha"
+                          class="input mt-1"
+                          inputmode="decimal"
+                          type="text"
+                          :placeholder="advancedSchedulerPlaceholder('advanced_scheduler_effective_ewma_error_rate_alpha', '0.2')"
+                        />
+                      </label>
+                      <label class="block">
+                        <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {{ t("admin.settings.scheduling.ewmaTTFTAlpha") }}
+                        </span>
+                        <input
+                          v-model="form.advanced_scheduler_ewma_ttft_alpha"
+                          class="input mt-1"
+                          inputmode="decimal"
+                          type="text"
+                          :placeholder="advancedSchedulerPlaceholder('advanced_scheduler_effective_ewma_ttft_alpha', '0.2')"
+                        />
+                      </label>
+                    </div>
                   </div>
 
                   <div
@@ -5389,14 +5490,14 @@
               <div class="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  class="btn btn-secondary btn-sm"
+                  class="btn btn-secondary btn-sm h-9"
                   @click="addUserPromptReplacementRule"
                 >
                   {{ t("admin.settings.userPromptReplacement.addRule") }}
                 </button>
                 <button
                   type="button"
-                  class="btn btn-secondary btn-sm"
+                  class="btn btn-secondary btn-sm h-9"
                   @click="resetUserPromptReplacementRules"
                 >
                   {{ t("admin.settings.userPromptReplacement.resetDefault") }}
@@ -5429,7 +5530,7 @@
                   </div>
                   <button
                     type="button"
-                    class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+                    class="btn btn-secondary btn-sm h-9 text-red-600 hover:text-red-700 dark:text-red-400"
                     @click="removeUserPromptReplacementRule(index)"
                   >
                     {{ t("common.delete") }}
@@ -5560,7 +5661,7 @@
                   </label>
                   <button
                     type="button"
-                    class="btn btn-secondary btn-sm"
+                    class="btn btn-secondary btn-sm h-9"
                     @click="addWebSearchProvider"
                   >
                     {{ t("admin.settings.webSearchEmulation.addProvider") }}
@@ -5863,7 +5964,7 @@
                       </div>
                       <button
                         type="button"
-                        class="btn btn-secondary btn-sm whitespace-nowrap"
+                        class="btn btn-secondary btn-sm h-9 whitespace-nowrap"
                         @click="openTestDialog()"
                       >
                         {{ t("admin.settings.webSearchEmulation.test") }}
@@ -5901,7 +6002,7 @@
                 />
                 <button
                   type="button"
-                  class="btn btn-primary btn-sm"
+                  class="btn btn-primary btn-sm h-9"
                   :disabled="wsTestLoading"
                   @click="testWebSearchProvider()"
                 >
@@ -5949,7 +6050,7 @@
               <div class="mt-4 flex justify-end">
                 <button
                   type="button"
-                  class="btn btn-secondary btn-sm"
+                  class="btn btn-secondary btn-sm h-9"
                   @click="wsTestDialogOpen = false"
                 >
                   {{ t("common.close") }}
@@ -6587,7 +6688,7 @@
 
                 <button
                   type="button"
-                  class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-2.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                  class="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                   @click="addEndpoint"
                 >
                   <svg
@@ -6862,7 +6963,7 @@
               <!-- Add button -->
               <button
                 type="button"
-                class="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                class="flex h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                 @click="addMenuItem"
               >
                 <svg
@@ -6880,6 +6981,101 @@
                 </svg>
                 {{ t("admin.settings.customMenu.add") }}
               </button>
+            </div>
+          </div>
+
+          <!-- Home Featured Models -->
+          <div class="card">
+            <div
+              class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ localText("首页模型展示", "Home featured models") }}
+                </h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{
+                    localText(
+                      "配置首页「已支持的 AI 模型」板块展示的单模型卡片，按此处顺序展示，最多 12 个。留空时首页保持按服务商类别聚合的默认展示。",
+                      'Configure the individual model cards shown in the "Supported AI Models" section of the homepage, displayed in this order, up to 12. When empty, the homepage keeps the default provider-category cards.',
+                    )
+                  }}
+                </p>
+              </div>
+              <button
+                v-if="form.home_featured_models.length > 0"
+                type="button"
+                class="btn btn-secondary btn-sm h-9 shrink-0"
+                @click="form.home_featured_models = []"
+              >
+                {{ localText("清空", "Clear") }}
+              </button>
+            </div>
+            <div class="space-y-4 p-6">
+              <div
+                v-for="(modelId, mIndex) in form.home_featured_models"
+                :key="modelId || mIndex"
+                class="flex items-center gap-2"
+              >
+                <Select
+                  v-model="form.home_featured_models[mIndex]"
+                  :options="homeFeaturedModelOptions"
+                  searchable
+                  class="flex-1"
+                  :placeholder="localText('选择模型', 'Select a model')"
+                />
+                <button
+                  v-if="mIndex > 0"
+                  type="button"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                  :title="t('admin.settings.customMenu.moveUp')"
+                  @click="moveHomeFeaturedModel(mIndex, -1)"
+                >
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                  </svg>
+                </button>
+                <button
+                  v-if="mIndex < form.home_featured_models.length - 1"
+                  type="button"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                  :title="t('admin.settings.customMenu.moveDown')"
+                  @click="moveHomeFeaturedModel(mIndex, 1)"
+                >
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                  :title="localText('删除模型', 'Remove model')"
+                  @click="removeHomeFeaturedModel(mIndex)"
+                >
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Add model button -->
+              <button
+                type="button"
+                class="flex h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                :disabled="form.home_featured_models.length >= homeFeaturedModelsMax"
+                @click="form.home_featured_models.push('')"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {{ localText("添加模型", "Add model") }}
+              </button>
+              <p
+                v-if="homeFeaturedModelOptions.length === 0"
+                class="text-xs text-gray-400 dark:text-gray-500"
+              >
+                {{ localText("暂无可选模型（模型广场没有公开分组）", "No models available (no public groups in the marketplace)") }}
+              </p>
             </div>
           </div>
 
@@ -6903,7 +7099,7 @@
               </div>
               <button
                 type="button"
-                class="btn btn-secondary btn-sm shrink-0"
+                class="btn btn-secondary btn-sm h-9 shrink-0"
                 @click="applyDefaultFooterLinks"
               >
                 {{ localText("使用默认模板", "Use default template") }}
@@ -7004,7 +7200,7 @@
               <!-- Add group button -->
               <button
                 type="button"
-                class="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                class="flex h-9 w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-1.5 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                 @click="addFooterGroup"
               >
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -7132,7 +7328,7 @@
                   </div>
                   <button
                     type="button"
-                    class="btn btn-primary btn-sm inline-flex items-center gap-1.5"
+                    class="btn btn-primary btn-sm h-9 inline-flex items-center gap-1.5"
                     @click="addLoginAgreementDocument"
                   >
                     <Icon name="plus" size="sm" />
@@ -7278,6 +7474,169 @@
                   </p>
                 </div>
                 <Toggle v-model="form.data_sharing_enabled" />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.features.creative.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.features.creative.description") }}
+              </p>
+            </div>
+            <div class="p-6">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">
+                    {{ t("admin.settings.features.creative.enabled") }}
+                  </label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.features.creative.enabledHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.creative_enabled" />
+              </div>
+
+              <div class="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-gray-100 pt-5 dark:border-dark-700">
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white" for="creative-worker-count">
+                    {{ t("admin.settings.features.creative.workerCount") }}
+                  </label>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.features.creative.workerCountHint") }}
+                  </p>
+                </div>
+                <input
+                  id="creative-worker-count"
+                  v-model.number="form.creative_worker_count"
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  class="input w-32"
+                />
+              </div>
+
+              <!-- 当前 worker 使用情况：进度条 + 忙碌/总数，数据来自运行时状态轮询。 -->
+              <div class="mt-4">
+                <p class="mb-1.5 text-sm text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.features.creative.workerUsage") }}
+                </p>
+                <div class="flex items-center gap-3">
+                  <div class="h-2.5 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
+                    <div
+                      class="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                      :style="{ width: `${creativeWorkerUsagePercent}%` }"
+                    ></div>
+                  </div>
+                  <span class="shrink-0 text-sm tabular-nums text-gray-900 dark:text-white">
+                    {{ creativeWorkerUsageText }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="mt-6 border-t border-gray-100 pt-5 dark:border-dark-700">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 class="font-medium text-gray-900 dark:text-white">
+                      {{ t("admin.settings.features.creative.modelSettings.title") }}
+                    </h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.features.creative.modelSettings.description") }}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-primary inline-flex items-center gap-1.5"
+                    :disabled="creativeModelCandidatesLoading || !creativeModelCandidates.some((candidate) => !form.creative_model_settings.some((item) => creativeModelSettingKey(item) === creativeModelSettingKey(candidate)))"
+                    @click="addCreativeModelSetting"
+                  >
+                    <Icon name="plus" size="sm" />
+                    {{ t("admin.settings.features.creative.modelSettings.add") }}
+                  </button>
+                </div>
+
+                <p v-if="creativeModelCandidatesLoading" class="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.features.creative.modelSettings.loading") }}
+                </p>
+                <p v-else-if="creativeModelCandidatesError" class="mt-4 text-sm text-amber-600 dark:text-amber-400">
+                  {{ t("admin.settings.features.creative.modelSettings.loadError") }}
+                </p>
+
+                <!-- 模型能力列表：列头与行共用同一网格分栏，模型选择、能力开关、删除操作对齐，避免行内松散留白。 -->
+                <div
+                  v-if="form.creative_model_settings.length > 0"
+                  class="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-dark-600"
+                >
+                  <div
+                    class="hidden items-center gap-4 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 sm:grid sm:grid-cols-[minmax(0,1fr)_auto_auto] dark:border-dark-700 dark:bg-dark-800/60 dark:text-dark-300"
+                  >
+                    <span>{{ t("admin.settings.features.creative.modelSettings.modelColumn") }}</span>
+                    <span>{{ t("admin.settings.features.creative.modelSettings.operationsColumn") }}</span>
+                    <span class="w-9" aria-hidden="true"></span>
+                  </div>
+                  <div class="divide-y divide-gray-100 dark:divide-dark-700">
+                    <div
+                      v-for="(item, index) in form.creative_model_settings"
+                      :key="`${creativeModelSettingKey(item)}-${index}`"
+                      class="grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-4 dark:hover:bg-dark-800/40"
+                    >
+                      <div class="min-w-0">
+                        <Select
+                          :model-value="creativeModelSettingKey(item)"
+                          :options="creativeModelOptionsForRow(index)"
+                          :placeholder="t('admin.settings.features.creative.modelSettings.selectModel')"
+                          :searchable="'auto'"
+                          class="w-full sm:max-w-xs"
+                          @change="onCreativeModelSelected(index, $event)"
+                        />
+                        <p v-if="!creativeCandidateForSetting(item)" class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          {{ t("admin.settings.features.creative.modelSettings.unavailableHint") }}
+                        </p>
+                      </div>
+                      <!-- 能力开关：胶囊按钮替代原生复选框，选中态带对勾，禁用态沿用“至少保留一项能力”等约束。 -->
+                      <div class="flex flex-wrap items-center gap-2">
+                        <button
+                          v-for="operation in creativeOperationChoices"
+                          :key="operation"
+                          type="button"
+                          class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors"
+                          :class="[
+                            item.operations.includes(operation)
+                              ? 'border-primary-500/60 bg-primary-50 text-primary-700 dark:border-primary-500/50 dark:bg-primary-500/10 dark:text-primary-300'
+                              : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:border-dark-600 dark:text-dark-300 dark:hover:border-dark-400 dark:hover:text-dark-100',
+                            creativeOperationCheckboxDisabled(index, operation) && 'cursor-not-allowed opacity-50',
+                          ]"
+                          :disabled="creativeOperationCheckboxDisabled(index, operation)"
+                          :aria-pressed="item.operations.includes(operation)"
+                          @click="toggleCreativeOperation(index, operation, !item.operations.includes(operation))"
+                        >
+                          <Icon v-if="item.operations.includes(operation)" name="check" size="xs" />
+                          {{ t(`admin.settings.features.creative.modelSettings.operations.${operation}`) }}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        class="btn-icon justify-self-start text-gray-500 hover:text-red-600 sm:justify-self-end dark:text-dark-300 dark:hover:text-red-400"
+                        :aria-label="t('admin.settings.features.creative.modelSettings.remove')"
+                        :title="t('admin.settings.features.creative.modelSettings.remove')"
+                        @click="removeCreativeModelSetting(index)"
+                      >
+                        <Icon name="trash" size="sm" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <p
+                  v-else
+                  class="mt-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-500 dark:border-dark-600 dark:text-dark-300"
+                >
+                  <Icon name="infoCircle" size="sm" />
+                  {{ t("admin.settings.features.creative.modelSettings.empty") }}
+                </p>
               </div>
             </div>
           </div>
@@ -7772,7 +8131,7 @@
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                class="input h-10 w-full pl-8"
+                                class="input h-9 w-full pl-8"
                                 :disabled="!methodFeeEnabled(method.value)"
                                 :value="methodFeeValue(method.value, 'fixed_fee')"
                                 @input="setMethodFeeValue(method.value, 'fixed_fee', ($event.target as HTMLInputElement).value)"
@@ -7790,7 +8149,7 @@
                                 step="0.01"
                                 min="0"
                                 max="100"
-                                class="input h-10 w-full pr-8"
+                                class="input h-9 w-full pr-8"
                                 :disabled="!methodFeeEnabled(method.value)"
                                 :value="methodFeeValue(method.value, 'fee_rate')"
                                 @input="setMethodFeeValue(method.value, 'fee_rate', ($event.target as HTMLInputElement).value)"
@@ -8031,7 +8390,7 @@
                       :class="[
                         'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
                         isPaymentTypeEnabled(pt.value)
-                          ? 'border-primary-500 bg-primary-500 text-white shadow-sm'
+                          ? 'border-primary-600 bg-primary-600 text-white shadow-sm'
                           : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500',
                       ]"
                     >
@@ -8158,7 +8517,7 @@
                 type="button"
                 @click="testSmtpConnection"
                 :disabled="testingSmtp || loadFailed"
-                class="btn btn-secondary btn-sm"
+                class="btn btn-secondary btn-sm h-9"
               >
                 <svg
                   v-if="testingSmtp"
@@ -8524,7 +8883,7 @@
                   </div>
                   <button
                     @click="addQuotaNotifyEmail"
-                    class="btn btn-secondary btn-sm"
+                    class="btn btn-secondary btn-sm h-9"
                     type="button"
                   >
                     + {{ t("admin.settings.quotaNotify.addEmail") }}
@@ -8611,7 +8970,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick, watch } from "vue";
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { adminAPI } from "@/api";
@@ -8646,8 +9005,12 @@ import type {
   UserPromptReplacementRule,
   UserPromptReplacementType,
   UsageRankingSortBy,
+  CreativeModelCandidate,
+  CreativeModelSetting,
+  CreativeWorkerStatus,
 } from "@/api/admin/settings";
-import type { LoginAgreementDocument, NotifyEmailEntry, Proxy } from "@/types";
+import type { CreativeOperation } from "@/api/creative";
+import type { LoginAgreementDocument, MarketplaceGroup, NotifyEmailEntry, Proxy } from "@/types";
 import type { ProviderInstance, SubscriptionPlan } from "@/types/payment";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import Icon from "@/components/icons/Icon.vue";
@@ -8678,6 +9041,7 @@ import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
+import { getMarketplaceModels } from "@/api/marketplace";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import { MAX_USER_API_KEY_LIMIT } from "@/constants/user";
 import {
@@ -9256,6 +9620,11 @@ type SettingsForm = Omit<
   force_email_on_third_party_signup: boolean;
   advanced_scheduler_sticky_weighted_enabled: boolean;
   advanced_scheduler_subscription_priority_enabled: boolean;
+  advanced_scheduler_ewma_error_rate_alpha: string;
+  advanced_scheduler_ewma_ttft_alpha: string;
+  advanced_scheduler_sticky_escape_enabled: boolean;
+  advanced_scheduler_sticky_escape_ttft_ms: string;
+  advanced_scheduler_sticky_escape_error_rate: string;
   advanced_scheduler_lb_top_k: string;
   advanced_scheduler_weight_priority: string;
   advanced_scheduler_weight_load: string;
@@ -9280,6 +9649,7 @@ const form = reactive<SettingsForm>({
   registration_email_suffix_whitelist: [],
   registration_email_normalization: false,
   registration_email_domain_quota_enabled: false,
+  user_email_change_enabled: false,
   promo_code_enabled: true,
   invitation_code_enabled: false,
   password_reset_enabled: false,
@@ -9380,6 +9750,7 @@ const form = reactive<SettingsForm>({
     links: Array<{ label: string; url: string }>;
   }>,
   footer_text: "",
+  home_featured_models: [] as string[],
   frontend_url: "",
   smtp_host: "",
   smtp_port: 587,
@@ -9517,6 +9888,11 @@ const form = reactive<SettingsForm>({
   allow_ungrouped_key_scheduling: false,
   advanced_scheduler_sticky_weighted_enabled: false,
   advanced_scheduler_subscription_priority_enabled: false,
+  advanced_scheduler_ewma_error_rate_alpha: "",
+  advanced_scheduler_ewma_ttft_alpha: "",
+  advanced_scheduler_sticky_escape_enabled: true,
+  advanced_scheduler_sticky_escape_ttft_ms: "",
+  advanced_scheduler_sticky_escape_error_rate: "",
   advanced_scheduler_lb_top_k: "",
   advanced_scheduler_weight_priority: "",
   advanced_scheduler_weight_load: "",
@@ -9544,6 +9920,9 @@ const form = reactive<SettingsForm>({
   // 页面功能开关默认开启，兼容升级前行为。
   team_enabled: true,
   data_sharing_enabled: true,
+  creative_enabled: true,
+  creative_model_settings: [] as CreativeModelSetting[],
+  creative_worker_count: 128,
   risk_control_enabled: false,
   cyber_session_block_enabled: false,
   cyber_session_block_ttl_seconds: 3600,
@@ -9560,6 +9939,230 @@ const form = reactive<SettingsForm>({
   account_quota_notify_emails: [] as NotifyEmailEntry[],
   allow_user_view_error_requests: false,
 });
+
+const creativeOperationChoices: CreativeOperation[] = [
+  "generate",
+  "edit",
+  "inpaint",
+];
+const creativeModelCandidates = ref<CreativeModelCandidate[]>([]);
+const creativeModelCandidatesLoading = ref(false);
+const creativeModelCandidatesError = ref(false);
+
+// 创作台 worker 使用情况：进入功能标签页时轮询运行时状态，离开时停止，避免后台空转。
+const creativeWorkerStatus = ref<CreativeWorkerStatus | null>(null);
+let creativeWorkerStatusTimer: number | null = null;
+
+const creativeWorkerUsageTotal = computed(() => {
+  const status = creativeWorkerStatus.value;
+  if (status?.running && status.worker_count > 0) {
+    return status.worker_count;
+  }
+  return Math.max(0, Math.floor(Number(form.creative_worker_count)) || 0);
+});
+const creativeWorkerUsageBusy = computed(() => {
+  const status = creativeWorkerStatus.value;
+  if (!status?.running) {
+    return 0;
+  }
+  return Math.min(Math.max(status.busy_workers, 0), creativeWorkerUsageTotal.value);
+});
+const creativeWorkerUsagePercent = computed(() => {
+  const total = creativeWorkerUsageTotal.value;
+  if (total <= 0) {
+    return 0;
+  }
+  return Math.min(Math.round((creativeWorkerUsageBusy.value / total) * 100), 100);
+});
+const creativeWorkerUsageText = computed(
+  () => `${creativeWorkerUsageBusy.value}/${creativeWorkerUsageTotal.value}`,
+);
+
+async function loadCreativeWorkerStatus() {
+  try {
+    creativeWorkerStatus.value = await adminAPI.settings.getCreativeWorkerStatus();
+  } catch {
+    // 轮询失败静默处理：保留上一次成功快照，不打断设置页操作。
+  }
+}
+
+function startCreativeWorkerStatusPolling() {
+  if (creativeWorkerStatusTimer !== null) {
+    return;
+  }
+  void loadCreativeWorkerStatus();
+  creativeWorkerStatusTimer = window.setInterval(() => {
+    void loadCreativeWorkerStatus();
+  }, 5000);
+}
+
+function stopCreativeWorkerStatusPolling() {
+  if (creativeWorkerStatusTimer === null) {
+    return;
+  }
+  window.clearInterval(creativeWorkerStatusTimer);
+  creativeWorkerStatusTimer = null;
+}
+
+watch(
+  activeTab,
+  (tab) => {
+    if (tab === "features") {
+      startCreativeWorkerStatusPolling();
+    } else {
+      stopCreativeWorkerStatusPolling();
+    }
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  stopCreativeWorkerStatusPolling();
+});
+
+function creativeModelSettingKey(item: Pick<CreativeModelSetting, "group_id" | "model">): string {
+  return `${item.group_id}::${item.model}`;
+}
+
+const creativeModelCandidateOptions = computed(() => {
+  const options: Array<{ value: string; label: string; kind?: string; disabled?: boolean; candidate?: CreativeModelCandidate }> = [];
+  const groups = new Map<number, CreativeModelCandidate[]>();
+  for (const candidate of creativeModelCandidates.value) {
+    const items = groups.get(candidate.group_id) ?? [];
+    items.push(candidate);
+    groups.set(candidate.group_id, items);
+  }
+  for (const [groupID, candidates] of groups) {
+    const groupName = candidates[0]?.group_name || String(groupID);
+    options.push({ value: `__creative_group_${groupID}`, label: groupName, kind: "group", disabled: true });
+    for (const candidate of candidates) {
+      options.push({
+        value: creativeModelSettingKey(candidate),
+        label: `${candidate.model} / ${candidate.platform}`,
+        candidate,
+      });
+    }
+  }
+  return options;
+});
+
+function creativeModelOptionsForRow(index: number) {
+  const current = form.creative_model_settings[index];
+  const used = new Set(
+    form.creative_model_settings
+      .filter((_, itemIndex) => itemIndex !== index)
+      .map((item) => creativeModelSettingKey(item)),
+  );
+  const currentKey = current ? creativeModelSettingKey(current) : "";
+  const options = creativeModelCandidateOptions.value.filter(
+    (option) => option.kind === "group" || option.value === currentKey || !used.has(option.value),
+  );
+  if (current && !creativeModelCandidates.value.some((candidate) => creativeModelSettingKey(candidate) === currentKey)) {
+    options.unshift({
+      value: currentKey,
+      label: `${current.group_id} / ${current.model} (${t("admin.settings.features.creative.modelSettings.unavailable")})`,
+      kind: "stale",
+      disabled: true,
+    });
+  }
+  return options;
+}
+
+function creativeCandidateForSetting(item: CreativeModelSetting): CreativeModelCandidate | undefined {
+  const key = creativeModelSettingKey(item);
+  return creativeModelCandidates.value.find((candidate) => creativeModelSettingKey(candidate) === key);
+}
+
+function creativeOperationSupported(index: number, operation: CreativeOperation): boolean {
+  const item = form.creative_model_settings[index];
+  if (!item) return false;
+  return creativeCandidateForSetting(item)?.operations.includes(operation) ?? false;
+}
+
+function creativeOperationCheckboxDisabled(index: number, operation: CreativeOperation): boolean {
+  const item = form.creative_model_settings[index];
+  if (!item || !creativeOperationSupported(index, operation)) return true;
+  return item.operations.length <= 1 && item.operations.includes(operation);
+}
+
+function onCreativeModelSelected(index: number, value: string | number | boolean | null) {
+  if (typeof value !== "string") return;
+  const candidate = creativeModelCandidates.value.find(
+    (item) => creativeModelSettingKey(item) === value,
+  );
+  if (!candidate) return;
+  const row = form.creative_model_settings[index];
+  if (!row) return;
+  row.group_id = candidate.group_id;
+  row.model = candidate.model;
+  row.operations = [...candidate.operations];
+}
+
+function addCreativeModelSetting() {
+  const candidate = creativeModelCandidates.value.find(
+    (item) => !form.creative_model_settings.some((setting) => creativeModelSettingKey(setting) === creativeModelSettingKey(item)),
+  );
+  if (!candidate) return;
+  form.creative_model_settings.push({
+    group_id: candidate.group_id,
+    model: candidate.model,
+    operations: [...candidate.operations],
+  });
+}
+
+function removeCreativeModelSetting(index: number) {
+  form.creative_model_settings.splice(index, 1);
+}
+
+function toggleCreativeOperation(index: number, operation: CreativeOperation, checked: boolean) {
+  const item = form.creative_model_settings[index];
+  if (!item || !creativeOperationSupported(index, operation)) return;
+  const next = new Set(item.operations);
+  if (checked) next.add(operation);
+  else next.delete(operation);
+  item.operations = creativeOperationChoices.filter((choice) => next.has(choice));
+}
+
+function normalizeCreativeModelSettingsForSave(): CreativeModelSetting[] | null {
+  const seen = new Set<string>();
+  const normalized: CreativeModelSetting[] = [];
+  for (const item of form.creative_model_settings) {
+    const groupID = Number(item.group_id);
+    const model = String(item.model || "").trim();
+    const candidate = creativeModelCandidates.value.find(
+      (entry) => creativeModelSettingKey(entry) === creativeModelSettingKey({ group_id: groupID, model }),
+    );
+    // 候选已知时只提交平台实际支持的能力，避免旧 Gemini inpaint 被重新写回。
+    const operations = creativeOperationChoices.filter(
+      (operation) => item.operations.includes(operation) && (candidate?.operations.includes(operation) ?? true),
+    );
+    if (!Number.isSafeInteger(groupID) || groupID <= 0 || !model) {
+      return null;
+    }
+    if (operations.length === 0) {
+      // 已知候选但没有任何可用能力时删除该条目；未知历史分组仍按 fail-closed 保留原值。
+      if (candidate) continue;
+      return null;
+    }
+    const key = creativeModelSettingKey({ group_id: groupID, model });
+    if (seen.has(key)) return null;
+    seen.add(key);
+    normalized.push({ group_id: groupID, model, operations });
+  }
+  return normalized;
+}
+
+async function loadCreativeModelCandidates() {
+  creativeModelCandidatesLoading.value = true;
+  creativeModelCandidatesError.value = false;
+  try {
+    creativeModelCandidates.value = await adminAPI.settings.getCreativeModelCandidates();
+  } catch {
+    creativeModelCandidatesError.value = true;
+  } finally {
+    creativeModelCandidatesLoading.value = false;
+  }
+}
 
 // 排名依据必须始终显示，避免用户无法解释排行名次。
 function ensureUsageRankingSortMetricVisible() {
@@ -9811,7 +10414,24 @@ type AdvancedSchedulerEffectiveKey =
   | "advanced_scheduler_effective_weight_reset"
   | "advanced_scheduler_effective_weight_quota_headroom"
   | "advanced_scheduler_effective_weight_previous_response"
-  | "advanced_scheduler_effective_weight_session_sticky";
+  | "advanced_scheduler_effective_weight_session_sticky"
+  | "advanced_scheduler_effective_ewma_error_rate_alpha"
+  | "advanced_scheduler_effective_ewma_ttft_alpha"
+  | "advanced_scheduler_effective_sticky_escape_enabled"
+  | "advanced_scheduler_effective_sticky_escape_ttft_ms"
+  | "advanced_scheduler_effective_sticky_escape_error_rate";
+
+const advancedSchedulerPlaceholder = (
+  effectiveKey: AdvancedSchedulerEffectiveKey,
+  fallbackValue: string,
+) => {
+  const effectiveValue = String(
+    (form as Record<string, unknown>)[effectiveKey] ?? "",
+  ).trim();
+  return t("admin.settings.scheduling.defaultPlaceholder", {
+    value: effectiveValue || fallbackValue,
+  });
+};
 
 const advancedSchedulerWeightFields = computed<
   Array<{
@@ -9820,68 +10440,56 @@ const advancedSchedulerWeightFields = computed<
     placeholder: string;
   }>
 >(() => {
-  const placeholder = (
-    effectiveKey: AdvancedSchedulerEffectiveKey,
-    fallbackValue: string,
-  ) => {
-    const effectiveValue = String(
-      (form as Record<string, unknown>)[effectiveKey] ?? "",
-    ).trim();
-    return t("admin.settings.scheduling.defaultPlaceholder", {
-      value: effectiveValue || fallbackValue,
-    });
-  };
-
   return [
     {
       key: "advanced_scheduler_lb_top_k",
       label: t("admin.settings.scheduling.topKLabel"),
-      placeholder: placeholder("advanced_scheduler_effective_lb_top_k", "7"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_lb_top_k", "7"),
     },
     {
       key: "advanced_scheduler_weight_priority",
       label: t("admin.settings.scheduling.priorityWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_priority", "1"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_priority", "1"),
     },
     {
       key: "advanced_scheduler_weight_load",
       label: t("admin.settings.scheduling.loadWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_load", "1"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_load", "1"),
     },
     {
       key: "advanced_scheduler_weight_queue",
       label: t("admin.settings.scheduling.queueWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_queue", "0.7"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_queue", "0.7"),
     },
     {
       key: "advanced_scheduler_weight_error_rate",
       label: t("admin.settings.scheduling.errorRateWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_error_rate", "0.8"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_error_rate", "0.8"),
     },
     {
       key: "advanced_scheduler_weight_ttft",
       label: t("admin.settings.scheduling.ttftWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_ttft", "0.5"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_ttft", "0.5"),
     },
     {
       key: "advanced_scheduler_weight_reset",
       label: t("admin.settings.scheduling.resetWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_reset", "0"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_reset", "0"),
     },
     {
       key: "advanced_scheduler_weight_quota_headroom",
       label: t("admin.settings.scheduling.quotaHeadroomWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_quota_headroom", "0"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_quota_headroom", "0"),
     },
     {
       key: "advanced_scheduler_weight_previous_response",
       label: t("admin.settings.scheduling.previousResponseWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_previous_response", "5"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_previous_response", "5"),
     },
     {
       key: "advanced_scheduler_weight_session_sticky",
       label: t("admin.settings.scheduling.sessionStickyWeight"),
-      placeholder: placeholder("advanced_scheduler_effective_weight_session_sticky", "3"),
+      placeholder: advancedSchedulerPlaceholder("advanced_scheduler_effective_weight_session_sticky", "3"),
     },
   ];
 });
@@ -10591,6 +11199,60 @@ function normalizeFooterLinksForSave() {
     .filter((group) => group.title && group.links.length > 0);
 }
 
+// 首页展示模型上限，与后端校验保持一致
+const homeFeaturedModelsMax = 12;
+
+// 首页模型展示卡片：选项来自公开模型广场接口，按分组分片展示
+const homeFeaturedModelOptions = ref<
+  Array<{ value: string; label: string; kind?: string; disabled?: boolean }>
+>([]);
+
+async function loadHomeFeaturedModelOptions() {
+  try {
+    const groups: MarketplaceGroup[] = await getMarketplaceModels();
+    const options: Array<{ value: string; label: string; kind?: string; disabled?: boolean }> = [];
+    for (const group of groups) {
+      if (!group.models?.length) continue;
+      options.push({ value: `__group_${group.id}`, label: group.name, kind: "group", disabled: true });
+      for (const model of group.models) {
+        options.push({
+          value: model.id,
+          label: model.display_name ? `${model.display_name}（${model.id}）` : model.id,
+        });
+      }
+    }
+    homeFeaturedModelOptions.value = options;
+  } catch {
+    // 选项加载失败不阻塞设置页，已配置的模型 ID 仍会原样保存
+    homeFeaturedModelOptions.value = [];
+  }
+}
+
+function removeHomeFeaturedModel(index: number) {
+  form.home_featured_models.splice(index, 1);
+}
+
+function moveHomeFeaturedModel(index: number, direction: -1 | 1) {
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= form.home_featured_models.length) return;
+  const models = form.home_featured_models;
+  const temp = models[index];
+  models[index] = models[targetIndex];
+  models[targetIndex] = temp;
+}
+
+// 保存前清理:去掉空白项并去重，保持管理员配置的顺序
+function normalizeHomeFeaturedModelsForSave() {
+  const seen = new Set<string>();
+  return form.home_featured_models
+    .map((id) => id.trim())
+    .filter((id) => {
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+}
+
 function addLoginAgreementDocument() {
   form.login_agreement_documents.push({
     id: `custom-${Date.now().toString(36)}`,
@@ -10833,6 +11495,7 @@ async function loadSettings() {
 
     // Load web search emulation config separately
     await loadWebSearchConfig();
+    await loadCreativeModelCandidates();
   } catch (error: unknown) {
     loadFailed.value = true;
     appStore.showError(
@@ -10912,6 +11575,13 @@ function findDuplicateDefaultSubscription(
 async function saveSettings() {
   saving.value = true;
   try {
+    const normalizedCreativeWorkerCount = Math.floor(Number(form.creative_worker_count));
+    if (!Number.isSafeInteger(normalizedCreativeWorkerCount) || normalizedCreativeWorkerCount <= 0) {
+      appStore.showError(t("admin.settings.features.creative.workerCountInvalid"));
+      return;
+    }
+    form.creative_worker_count = normalizedCreativeWorkerCount;
+
     const rawDefaultUserAPIKeyLimit = String(
       form.default_user_api_key_limit,
     ).trim();
@@ -11008,6 +11678,13 @@ async function saveSettings() {
         ),
       ),
     );
+    const normalizedCreativeModelSettings = normalizeCreativeModelSettingsForSave();
+    if (!normalizedCreativeModelSettings) {
+      appStore.showError(
+        t("admin.settings.features.creative.modelSettings.validationError"),
+      );
+      return;
+    }
     if (
       form.openai_account_quota_auto_pause.default_threshold_5h < 0 ||
       form.openai_account_quota_auto_pause.default_threshold_5h > 1 ||
@@ -11136,6 +11813,7 @@ async function saveSettings() {
         form.registration_email_normalization,
       registration_email_domain_quota_enabled:
         form.registration_email_domain_quota_enabled,
+      user_email_change_enabled: form.user_email_change_enabled,
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
       password_reset_enabled: form.password_reset_enabled,
@@ -11212,6 +11890,7 @@ async function saveSettings() {
       custom_endpoints: form.custom_endpoints,
       footer_links: normalizeFooterLinksForSave(),
       footer_text: form.footer_text,
+      home_featured_models: normalizeHomeFeaturedModelsForSave(),
       frontend_url: form.frontend_url,
       smtp_host: form.smtp_host,
       smtp_port: form.smtp_port,
@@ -11369,6 +12048,9 @@ async function saveSettings() {
       // 页面功能开关
       team_enabled: form.team_enabled,
       data_sharing_enabled: form.data_sharing_enabled,
+      creative_enabled: form.creative_enabled,
+      creative_model_settings: normalizedCreativeModelSettings,
+      creative_worker_count: normalizedCreativeWorkerCount,
       risk_control_enabled: form.risk_control_enabled,
       cyber_session_block_enabled: form.cyber_session_block_enabled,
       cyber_session_block_ttl_seconds: Math.max(
@@ -11409,6 +12091,16 @@ async function saveSettings() {
         form.advanced_scheduler_sticky_weighted_enabled,
       advanced_scheduler_subscription_priority_enabled:
         form.advanced_scheduler_subscription_priority_enabled,
+      advanced_scheduler_ewma_error_rate_alpha:
+        form.advanced_scheduler_ewma_error_rate_alpha.trim(),
+      advanced_scheduler_ewma_ttft_alpha:
+        form.advanced_scheduler_ewma_ttft_alpha.trim(),
+      advanced_scheduler_sticky_escape_enabled:
+        form.advanced_scheduler_sticky_escape_enabled,
+      advanced_scheduler_sticky_escape_ttft_ms:
+        form.advanced_scheduler_sticky_escape_ttft_ms.trim(),
+      advanced_scheduler_sticky_escape_error_rate:
+        form.advanced_scheduler_sticky_escape_error_rate.trim(),
       advanced_scheduler_lb_top_k:
         form.advanced_scheduler_lb_top_k.trim(),
       advanced_scheduler_weight_priority:
@@ -12600,6 +13292,7 @@ async function handleDeleteProvider() {
 
 onMounted(() => {
   loadSettings();
+  loadHomeFeaturedModelOptions();
   loadSubscriptionPlans();
   loadAdminApiKey();
   loadOllamaCloudUsageSettings();
@@ -12631,11 +13324,11 @@ watch(
 
 <style scoped>
 .default-sub-group-select :deep(.select-trigger) {
-  @apply h-[42px];
+  @apply h-9 min-h-9;
 }
 
 .default-sub-delete-btn {
-  @apply h-[42px];
+  @apply h-9 min-h-9;
 }
 
 /* ============ 系统设置 Tab 导航 ============ */
@@ -12661,7 +13354,7 @@ watch(
 }
 
 .settings-tab {
-  @apply relative isolate flex h-10 min-w-[6.75rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-compact border border-transparent px-3 text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out dark:text-gray-300;
+  @apply relative isolate flex h-9 min-w-[6.75rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-compact border border-transparent px-3 text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out dark:text-gray-300;
 }
 
 @media (min-width: 768px) {

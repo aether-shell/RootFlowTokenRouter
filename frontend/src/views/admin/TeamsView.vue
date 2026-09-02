@@ -19,15 +19,14 @@
 
           <div class="flex w-full items-center justify-end gap-2 sm:w-auto">
             <button
-              class="btn btn-secondary px-3"
+              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
               :disabled="loading"
               :title="t('common.refresh')"
               @click="loadTeams"
             >
               <Icon name="refresh" size="sm" :class="{ 'animate-spin': loading }" />
-              <span class="hidden sm:inline">{{ t('common.refresh') }}</span>
             </button>
-            <button class="btn btn-primary" @click="showCreate = true">
+            <button class="btn btn-primary h-9 whitespace-nowrap" @click="showCreate = true">
               <Icon name="plus" size="sm" />
               {{ t('team.create') }}
             </button>

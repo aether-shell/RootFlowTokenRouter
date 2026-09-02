@@ -26,7 +26,7 @@
           class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
         >
           <div class="border-b border-gray-100 p-4 dark:border-dark-700">
-            <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <h3 class="truncate font-semibold text-gray-900 dark:text-white">
@@ -57,12 +57,25 @@
                 </p>
               </div>
 
-              <button
-                class="btn btn-primary px-3 py-1.5 text-xs font-semibold"
-                @click="router.push({ path: '/purchase', query: { tab: 'subscription', plan: String(chain.plan_id) } })"
-              >
-                {{ t('payment.renewNow') }}
-              </button>
+              <div class="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
+                <button
+                  class="btn btn-primary flex-1 px-3 py-1.5 text-xs font-semibold sm:flex-none"
+                  @click="router.push({ path: '/purchase', query: { tab: 'subscription', plan: String(chain.plan_id) } })"
+                >
+                  {{ t('payment.renewNow') }}
+                </button>
+                <button
+                  v-if="canRevokeChain(chain)"
+                  type="button"
+                  data-testid="revoke-subscription"
+                  class="btn btn-danger inline-flex flex-1 items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold sm:flex-none"
+                  :disabled="revoking"
+                  @click="openRevokeDialog(chain)"
+                >
+                  <Icon name="ban" size="sm" />
+                  {{ t('userSubscriptions.revoke') }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -175,6 +188,17 @@
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      :show="revokeTarget !== null"
+      :title="t('userSubscriptions.revokeTitle')"
+      :message="revokeDialogMessage"
+      :confirm-text="t('userSubscriptions.revoke')"
+      :cancel-text="t('common.cancel')"
+      :danger="true"
+      :loading="revoking"
+      @confirm="confirmRevoke"
+      @cancel="closeRevokeDialog"
+    />
   </AppLayout>
 </template>
 
@@ -183,16 +207,19 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
-import subscriptionsAPI from '@/api/subscriptions'
+import { useSubscriptionStore } from '@/stores/subscriptions'
+import subscriptionsAPI, { type RevokeSubscriptionResponse } from '@/api/subscriptions'
 import type { SubscriptionPlan, UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { formatDateOnly, formatDateTimeToMinute } from '@/utils/format'
 import {
   getExpirationDateRelation,
   getRemainingDurationParts,
   isOneTimeDailyQuota,
+  highestQuotaExhausted,
   type RemainingDurationParts
 } from '@/utils/subscriptionQuota'
 
@@ -209,10 +236,13 @@ type PlanChain = {
 const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
+const subscriptionStore = useSubscriptionStore()
 const { formatBalanceAmount } = useBalanceDisplay()
 
 const subscriptions = ref<UserSubscription[]>([])
 const loading = ref(true)
+const revokeTarget = ref<PlanChain | null>(null)
+const revoking = ref(false)
 
 const planChains = computed<PlanChain[]>(() => {
   const map = new Map<number, UserSubscription[]>()
@@ -286,6 +316,70 @@ function usageWindows(subscription: UserSubscription) {
       hours: 720
     }
   ].filter((window) => window.limit != null && window.limit > 0)
+}
+
+function canRevokeChain(chain: PlanChain): boolean {
+  return chain.active != null && highestQuotaExhausted(chain.active)
+}
+
+const revokeDialogMessage = computed(() => {
+  const target = revokeTarget.value
+  if (!target) return ''
+  if (target.pending_count > 0) {
+    return t('userSubscriptions.revokeConfirmWithReplacement')
+  }
+  return t('userSubscriptions.revokeConfirmWithoutReplacement')
+})
+
+function openRevokeDialog(chain: PlanChain) {
+  if (revoking.value || !canRevokeChain(chain)) return
+  revokeTarget.value = chain
+}
+
+function closeRevokeDialog() {
+  if (revoking.value) return
+  revokeTarget.value = null
+}
+
+async function confirmRevoke() {
+  const target = revokeTarget.value
+  const subscriptionID = target?.active?.id
+  if (!subscriptionID || revoking.value) return
+
+  revoking.value = true
+  try {
+    let result: RevokeSubscriptionResponse
+    try {
+      result = await subscriptionsAPI.revokeExhaustedSubscription(subscriptionID)
+    } catch (error) {
+      console.error('Failed to revoke subscription:', error)
+      revokeTarget.value = null
+      appStore.showError(t('userSubscriptions.revokeFailed'))
+      await loadSubscriptions()
+      return
+    }
+
+    revokeTarget.value = null
+    showRevokeSuccess(result)
+    await loadSubscriptions()
+    await subscriptionStore.fetchActiveSubscriptions(true).catch((error) => {
+      console.error('Failed to refresh active subscriptions after revoke:', error)
+    })
+  } finally {
+    revoking.value = false
+  }
+}
+
+function showRevokeSuccess(result: RevokeSubscriptionResponse) {
+  if (result.replacement_subscription_id != null) {
+    appStore.showSuccess(
+      t('userSubscriptions.revokeSuccessWithReplacement', {
+        count: result.rebound_api_key_count
+      })
+    )
+    return
+  }
+  appStore.showSuccess(t('userSubscriptions.revokeSuccess'))
 }
 
 function getProgressWidth(used: number, limit: number | null): string {

@@ -281,7 +281,9 @@ describe('admin GroupsView column settings', () => {
   it('omits the exclusive-group filter from the toolbar and list request', async () => {
     const wrapper = await mountView()
 
-    // 顶部只保留平台和状态筛选，专属属性仍可在表格与编辑表单中管理。
+    // 筛选项已聚合到按钮，展开后只保留平台和状态筛选。
+    await wrapper.get('button[aria-label="common.filter"]').trigger('click')
+    await flushPromises()
     expect(wrapper.findAll('select')).toHaveLength(2)
     expect(listGroups.mock.calls[0]?.[2]).not.toHaveProperty('is_exclusive')
   })

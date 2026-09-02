@@ -25,6 +25,7 @@ type UsageHandler struct {
 	apiKeyService  *service.APIKeyService
 	adminService   service.AdminService
 	cleanupService *service.UsageCleanupService
+	opsService     *service.OpsService
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -33,12 +34,14 @@ func NewUsageHandler(
 	apiKeyService *service.APIKeyService,
 	adminService service.AdminService,
 	cleanupService *service.UsageCleanupService,
+	opsService *service.OpsService,
 ) *UsageHandler {
 	return &UsageHandler{
 		usageService:   usageService,
 		apiKeyService:  apiKeyService,
 		adminService:   adminService,
 		cleanupService: cleanupService,
+		opsService:     opsService,
 	}
 }
 
@@ -211,7 +214,43 @@ func (h *UsageHandler) List(c *gin.Context) {
 	for i := range records {
 		out = append(out, *dto.UsageLogFromServiceAdmin(&records[i]))
 	}
+	h.enrichDetailedTimings(c.Request.Context(), records, out)
 	response.Paginated(c, out, result.Total, page, pageSize)
+}
+
+// enrichDetailedTimings 将已落库的 usage log 与同一内部请求 ID 的 http.access 日志批量关联。
+// 观测数据缺失或查询失败时保留主列表结果，不影响管理员查看使用记录。
+func (h *UsageHandler) enrichDetailedTimings(ctx context.Context, records []service.UsageLog, out []dto.AdminUsageLog) {
+	if h == nil || h.opsService == nil || len(records) == 0 || len(records) != len(out) {
+		return
+	}
+	clientRequestIDs := make([]string, 0, len(records))
+	for i := range records {
+		if clientRequestID := usageLogClientRequestID(records[i].RequestID); clientRequestID != "" {
+			clientRequestIDs = append(clientRequestIDs, clientRequestID)
+		}
+	}
+	if len(clientRequestIDs) == 0 {
+		return
+	}
+	timings, err := h.opsService.LookupRequestTimings(ctx, clientRequestIDs)
+	if err != nil {
+		logger.LegacyPrintf("handler.admin.usage", "[UsageTiming] 查询请求阶段耗时失败: err=%v", err)
+		return
+	}
+	for i := range records {
+		if clientRequestID := usageLogClientRequestID(records[i].RequestID); clientRequestID != "" {
+			out[i].DetailedTiming = dto.UsageLogTimingFromService(timings[clientRequestID])
+		}
+	}
+}
+
+func usageLogClientRequestID(requestID string) string {
+	id := strings.TrimSpace(requestID)
+	if !strings.HasPrefix(id, "client:") {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(id, "client:"))
 }
 
 // Stats handles getting usage statistics with filters

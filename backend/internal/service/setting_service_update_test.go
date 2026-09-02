@@ -239,10 +239,42 @@ func TestSettingService_PageFeatureFlagsArePersisted(t *testing.T) {
 	err := svc.UpdateSettings(context.Background(), &SystemSettings{
 		TeamEnabled:        true,
 		DataSharingEnabled: false,
+		CreativeEnabled:    false,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "true", repo.updates[SettingKeyTeamEnabled])
 	require.Equal(t, "false", repo.updates[SettingKeyDataSharingEnabled])
+	require.Equal(t, "false", repo.updates[SettingKeyCreativeEnabled])
+}
+
+// TestSettingService_CreativeWorkerCountIsPersisted 验证 worker 数量随系统设置持久化。
+func TestSettingService_CreativeWorkerCountIsPersisted(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{CreativeWorkerCount: 7})
+	require.NoError(t, err)
+	require.Equal(t, "7", repo.updates[SettingKeyCreativeWorkerCount])
+}
+
+// TestSettingService_CreativeWorkerCountCallbackOnlyAfterWrite 验证失败写入不会改变运行时 worker 数量。
+func TestSettingService_CreativeWorkerCountCallbackOnlyAfterWrite(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+	var callbackValue int
+	callbackCalls := 0
+	svc.SetCreativeWorkerCountCallback(func(value int) {
+		callbackValue = value
+		callbackCalls++
+	})
+
+	require.NoError(t, svc.UpdateSettings(context.Background(), &SystemSettings{CreativeWorkerCount: 9}))
+	require.Equal(t, 9, callbackValue)
+	require.Equal(t, 1, callbackCalls)
+
+	repo.setMultipleErr = errors.New("database unavailable")
+	require.Error(t, svc.UpdateSettings(context.Background(), &SystemSettings{CreativeWorkerCount: 11}))
+	require.Equal(t, 1, callbackCalls)
 }
 
 func (s *defaultSubPlanReaderStub) GetByID(ctx context.Context, id int64) (*SubscriptionPlan, error) {
@@ -374,6 +406,15 @@ func TestSettingService_UpdateSettings_RegistrationEmailSuffixWhitelist_Normaliz
 	require.Equal(t, `["@example.com","@foo.bar","*.edu.cn"]`, repo.updates[SettingKeyRegistrationEmailSuffixWhitelist])
 }
 
+func TestSettingService_UpdateSettings_PersistsUserEmailChangeSwitch(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{UserEmailChangeEnabled: true})
+	require.NoError(t, err)
+	require.Equal(t, "true", repo.updates[SettingKeyUserEmailChangeEnabled])
+}
+
 func TestSettingService_UpdateSettings_RegistrationEmailSuffixWhitelist_Invalid(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	svc := NewSettingService(repo, &config.Config{})
@@ -429,6 +470,12 @@ func TestSettingService_UpdateSettings_PaymentVisibleMethodsAndAdvancedScheduler
 		PaymentVisibleMethodWxpayEnabled:             false,
 		AdvancedSchedulerStickyWeightedEnabled:       true,
 		AdvancedSchedulerSubscriptionPriorityEnabled: true,
+		AdvancedSchedulerEWMAErrorRateAlpha:          "0.4",
+		AdvancedSchedulerEWMATTFTAlpha:               "0.7",
+		AdvancedSchedulerStickyEscapeEnabled:         false,
+		AdvancedSchedulerStickyEscapeEnabledSet:      true,
+		AdvancedSchedulerStickyEscapeTTFTMs:          "9000",
+		AdvancedSchedulerStickyEscapeErrorRate:       "0.25",
 		AdvancedSchedulerLBTopK:                      " 3 ",
 		AdvancedSchedulerWeightPriority:              "2.50",
 		AdvancedSchedulerWeightLoad:                  "0",
@@ -447,6 +494,11 @@ func TestSettingService_UpdateSettings_PaymentVisibleMethodsAndAdvancedScheduler
 	require.Equal(t, "false", repo.updates[SettingPaymentVisibleMethodWxpayEnabled])
 	require.Equal(t, "true", repo.updates[SettingKeyAdvancedSchedulerStickyWeightedEnabled])
 	require.Equal(t, "true", repo.updates[SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled])
+	require.Equal(t, "0.4", repo.updates[SettingKeyAdvancedSchedulerEWMAErrorRateAlpha])
+	require.Equal(t, "0.7", repo.updates[SettingKeyAdvancedSchedulerEWMATTFTAlpha])
+	require.Equal(t, "false", repo.updates[SettingKeyAdvancedSchedulerStickyEscapeEnabled])
+	require.Equal(t, "9000", repo.updates[SettingKeyAdvancedSchedulerStickyEscapeTTFTMs])
+	require.Equal(t, "0.25", repo.updates[SettingKeyAdvancedSchedulerStickyEscapeErrorRate])
 	require.Equal(t, "3", repo.updates[SettingKeyAdvancedSchedulerLBTopK])
 	require.Equal(t, "2.5", repo.updates[SettingKeyAdvancedSchedulerWeightPriority])
 	require.Equal(t, "0", repo.updates[SettingKeyAdvancedSchedulerWeightLoad])
@@ -457,6 +509,21 @@ func TestSettingService_UpdateSettings_PaymentVisibleMethodsAndAdvancedScheduler
 	require.Equal(t, "0.2", repo.updates[SettingKeyAdvancedSchedulerWeightQuotaHeadroom])
 	require.Equal(t, "8", repo.updates[SettingKeyAdvancedSchedulerWeightPreviousResponse])
 	require.Equal(t, "4", repo.updates[SettingKeyAdvancedSchedulerWeightSessionSticky])
+}
+
+func TestSettingServiceRefreshCachedSettingsKeepsIndependentEWMAProcessDefaults(t *testing.T) {
+	resetAdvancedSchedulerSettingCacheForTest()
+	defer resetAdvancedSchedulerSettingCacheForTest()
+
+	cfg := &config.Config{}
+	cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha = 0.35
+	cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha = 0.8
+	svc := NewSettingService(&settingUpdateRepoStub{}, cfg)
+	svc.refreshCachedSettings(&SystemSettings{})
+
+	runtime := (&OpenAIGatewayService{cfg: cfg}).advancedSchedulerRuntimeSettings(context.Background())
+	require.InDelta(t, 0.35, runtime.ewmaErrorRateAlpha, 0.000001)
+	require.InDelta(t, 0.8, runtime.ewmaTTFTAlpha, 0.000001)
 }
 
 func TestSettingService_UpdateSettings_AdvancedSchedulerWeightSums(t *testing.T) {
@@ -690,6 +757,43 @@ func TestSettingService_ParseSettings_APIKeyACLTrustForwardedIPUsesStoredValue(t
 	got := svc.parseSettings(map[string]string{SettingKeyAPIKeyACLTrustForwardedIP: "false"})
 
 	require.False(t, got.APIKeyACLTrustForwardedIP)
+}
+
+// 创作台开关与 TeamEnabled 同款"缺省 true"语义：键缺失时开启，显式 "false" 才关闭。
+func TestSettingService_ParseSettings_CreativeEnabledDefaultsTrue(t *testing.T) {
+	svc := NewSettingService(&settingUpdateRepoStub{}, &config.Config{})
+
+	got := svc.parseSettings(map[string]string{})
+	require.True(t, got.CreativeEnabled)
+
+	got = svc.parseSettings(map[string]string{SettingKeyCreativeEnabled: "false"})
+	require.False(t, got.CreativeEnabled)
+}
+
+// TestSettingService_ParseSettings_CreativeWorkerCount 验证创作台 worker 设置的默认与脏值回退。
+func TestSettingService_ParseSettings_CreativeWorkerCount(t *testing.T) {
+	svc := NewSettingService(&settingUpdateRepoStub{}, &config.Config{})
+
+	got := svc.parseSettings(map[string]string{})
+	require.Equal(t, DefaultCreativeWorkerCount, got.CreativeWorkerCount)
+	got = svc.parseSettings(map[string]string{SettingKeyCreativeWorkerCount: "7"})
+	require.Equal(t, 7, got.CreativeWorkerCount)
+	got = svc.parseSettings(map[string]string{SettingKeyCreativeWorkerCount: "0"})
+	require.Equal(t, DefaultCreativeWorkerCount, got.CreativeWorkerCount)
+	got = svc.parseSettings(map[string]string{SettingKeyCreativeWorkerCount: "invalid"})
+	require.Equal(t, DefaultCreativeWorkerCount, got.CreativeWorkerCount)
+}
+
+// IsCreativeEnabled 是创作台请求期门控读取：显式 "false" 关闭，键缺失或读取失败默认开启。
+func TestSettingService_IsCreativeEnabled(t *testing.T) {
+	repo := &settingUpdateRepoStub{values: map[string]string{SettingKeyCreativeEnabled: "false"}}
+	svc := NewSettingService(repo, &config.Config{})
+	require.False(t, svc.IsCreativeEnabled(context.Background()))
+
+	// 键缺失（旧版本库未写入）时默认开启。
+	repo = &settingUpdateRepoStub{values: map[string]string{}}
+	svc = NewSettingService(repo, &config.Config{})
+	require.True(t, svc.IsCreativeEnabled(context.Background()))
 }
 
 func TestSettingService_ParseSettings_ForwardedClientIPHeaders(t *testing.T) {

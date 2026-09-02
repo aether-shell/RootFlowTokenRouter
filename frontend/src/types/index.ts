@@ -224,6 +224,7 @@ export interface PublicSettings {
   force_email_on_third_party_signup: boolean
   registration_email_suffix_whitelist: string[]
   registration_email_domain_quota_enabled: boolean
+  user_email_change_enabled: boolean // 是否允许已有邮箱的用户换绑主邮箱
   promo_code_enabled: boolean
   password_reset_enabled: boolean
   invitation_code_enabled: boolean
@@ -262,6 +263,8 @@ export interface PublicSettings {
   team_self_service_enabled?: boolean
   // 旧版公开设置可能缺少该字段，调用方应仅在明确为 false 时关闭入口。
   data_sharing_enabled?: boolean
+  // 旧版公开设置可能缺少该字段，调用方应仅在明确为 false 时关闭创作台入口。
+  creative_enabled?: boolean
   table_default_page_size: number
   table_page_size_options: number[]
   usage_ranking_limit: number
@@ -275,6 +278,7 @@ export interface PublicSettings {
   custom_endpoints: CustomEndpoint[]
   footer_links?: FooterLinkGroup[]
   footer_text?: string
+  home_featured_models?: string[]
   linuxdo_oauth_enabled: boolean
   dingtalk_oauth_enabled?: boolean
   wechat_oauth_enabled: boolean
@@ -571,6 +575,11 @@ export type VideoModelPrices = Record<string, Record<string, number>>
 export interface GroupAdvancedSchedulerOverrides {
   sticky_weighted_enabled?: boolean
   subscription_priority_enabled?: boolean
+  ewma_error_rate_alpha?: number
+  ewma_ttft_alpha?: number
+  sticky_escape_enabled?: boolean
+  sticky_escape_ttft_ms?: number
+  sticky_escape_error_rate?: number
   lb_top_k?: number
   weight_priority?: number
   weight_load?: number
@@ -628,10 +637,15 @@ export interface MarketplaceModelPricing {
   image_price_4k?: number
 }
 
+// 模型能力模态：模型广场接口从定价元数据下发，缺省时前端按模型 ID 规则兜底。
+export type ModelModality = 'text' | 'image' | 'audio' | 'video'
+
 export interface MarketplaceModel {
   id: string
   display_name: string
   pricing: MarketplaceModelPricing
+  input_modalities?: ModelModality[]
+  output_modalities?: ModelModality[]
 }
 
 // 用户与市场接口可携带的分组容量快照，仅包含聚合后的负载数字。
@@ -1688,6 +1702,7 @@ export interface OpenAINativeCompactionV2State {
 export interface OpenAITextProtocolState {
   openai_text_route_mode?: OpenAITextRouteMode
   openai_responses_probe_status?: OpenAIResponsesProbeStatus
+  openai_responses_continuation_supported?: boolean
 }
 
 export interface CreateAccountRequest {
@@ -1978,6 +1993,7 @@ export interface UsageLogAccountSummary {
 }
 
 export interface AdminUsageLog extends UsageLog {
+  detailed_timing?: UsageLogTiming | null
   upstream_model?: string | null
   model_mapping_chain?: string | null
 
@@ -1992,6 +2008,24 @@ export interface AdminUsageLog extends UsageLog {
 
   // 最小账号信息（仅管理员接口返回）
   account?: UsageLogAccountSummary
+}
+
+export interface UsageLogTiming {
+  request_content_length?: number | null
+  account_slot_acquired_ms?: number | null
+  upstream_get_conn_ms?: number | null
+  upstream_got_conn_ms?: number | null
+  upstream_wrote_request_ms?: number | null
+  upstream_first_response_byte_ms?: number | null
+  upstream_first_sse_data_ms?: number | null
+  first_visible_output_ms?: number | null
+  first_downstream_flush_ms?: number | null
+  upstream_get_conn_count?: number | null
+  upstream_got_conn_count?: number | null
+  upstream_attempt_count?: number | null
+  upstream_first_response_byte_count?: number | null
+  upstream_connection_reused?: boolean
+  upstream_wrote_request_error?: boolean
 }
 
 export interface UsageCleanupFilters {

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,17 +19,62 @@ type adminUsageRepoCapture struct {
 	listParams   pagination.PaginationParams
 	listFilters  usagestats.UsageLogFilters
 	statsFilters usagestats.UsageLogFilters
+	logs         []service.UsageLog
 }
 
 func (s *adminUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
 	s.listParams = params
 	s.listFilters = filters
-	return []service.UsageLog{}, &pagination.PaginationResult{
-		Total:    0,
+	return s.logs, &pagination.PaginationResult{
+		Total:    int64(len(s.logs)),
 		Page:     params.Page,
 		PageSize: params.PageSize,
 		Pages:    0,
 	}, nil
+}
+
+type adminUsageTimingOpsRepo struct {
+	service.OpsRepository
+	timings map[string]*service.OpsRequestTiming
+}
+
+func (r *adminUsageTimingOpsRepo) ListRequestTimings(_ context.Context, ids []string) (map[string]*service.OpsRequestTiming, error) {
+	return r.timings, nil
+}
+
+func TestAdminUsageListIncludesDetailedTiming(t *testing.T) {
+	firstByte := int64(120000)
+	usageRepo := &adminUsageRepoCapture{logs: []service.UsageLog{{
+		RequestID: "client:req-internal-1",
+		Model:     "gpt-5",
+	}}}
+	opsRepo := &adminUsageTimingOpsRepo{timings: map[string]*service.OpsRequestTiming{
+		"req-internal-1": {UpstreamFirstResponseByteMs: &firstByte},
+	}}
+	usageSvc := service.NewUsageService(usageRepo)
+	opsSvc := service.NewOpsService(opsRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewUsageHandler(usageSvc, nil, nil, nil, opsSvc)
+	router := gin.New()
+	router.GET("/admin/usage", handler.List)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/usage", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var response struct {
+		Data struct {
+			Items []struct {
+				DetailedTiming *struct {
+					UpstreamFirstResponseByteMs *int64 `json:"upstream_first_response_byte_ms,omitempty"`
+				} `json:"detailed_timing,omitempty"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+	require.Len(t, response.Data.Items, 1)
+	require.NotNil(t, response.Data.Items[0].DetailedTiming)
+	require.Equal(t, int64(120000), *response.Data.Items[0].DetailedTiming.UpstreamFirstResponseByteMs)
 }
 
 func (s *adminUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, error) {
@@ -39,7 +85,7 @@ func (s *adminUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters
 func newAdminUsageRequestTypeTestRouter(repo *adminUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	usageSvc := service.NewUsageService(repo)
-	handler := NewUsageHandler(usageSvc, nil, nil, nil)
+	handler := NewUsageHandler(usageSvc, nil, nil, nil, nil)
 	router := gin.New()
 	router.GET("/admin/usage", handler.List)
 	router.GET("/admin/usage/stats", handler.Stats)

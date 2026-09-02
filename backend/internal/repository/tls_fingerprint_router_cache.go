@@ -22,6 +22,12 @@ type tlsFingerprintRouterCache struct {
 	rdb        *redis.Client
 	localCache []*model.TLSFingerprintRouter
 	localMu    sync.RWMutex
+
+	// 订阅协程由缓存自身持有取消句柄，关闭时必须在 Redis 之前完成退出。
+	subscriptionMu      sync.Mutex
+	subscriptionCancel  context.CancelFunc
+	subscriptionWG      sync.WaitGroup
+	subscriptionStopped bool
 }
 
 // NewTLSFingerprintRouterCache 创建 TLS 路由器缓存。
@@ -89,17 +95,33 @@ func (c *tlsFingerprintRouterCache) NotifyUpdate(ctx context.Context) error {
 
 // SubscribeUpdates 订阅 TLS 路由器缓存更新通知。
 func (c *tlsFingerprintRouterCache) SubscribeUpdates(ctx context.Context, handler func()) {
+	subscriberCtx, cancel := context.WithCancel(ctx)
+	c.subscriptionMu.Lock()
+	if c.subscriptionCancel != nil || c.subscriptionStopped {
+		c.subscriptionMu.Unlock()
+		cancel()
+		return
+	}
+	c.subscriptionCancel = cancel
+	c.subscriptionWG.Add(1)
+	c.subscriptionMu.Unlock()
+
 	go func() {
-		sub := c.rdb.Subscribe(ctx, tlsFPRouterPubSubKey)
+		defer c.subscriptionWG.Done()
+		sub := c.rdb.Subscribe(subscriberCtx, tlsFPRouterPubSubKey)
 		defer func() { _ = sub.Close() }()
 		ch := sub.Channel()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-subscriberCtx.Done():
 				slog.Debug("tls_fp_router_cache_subscriber_stopped", "reason", "context_done")
 				return
-			case msg := <-ch:
-				if msg == nil {
+			case msg, ok := <-ch:
+				if !ok || msg == nil {
+					if subscriberCtx.Err() != nil {
+						slog.Debug("tls_fp_router_cache_subscriber_stopped", "reason", "context_done")
+						return
+					}
 					slog.Warn("tls_fp_router_cache_subscriber_stopped", "reason", "channel_closed")
 					return
 				}
@@ -110,4 +132,17 @@ func (c *tlsFingerprintRouterCache) SubscribeUpdates(ctx context.Context, handle
 			}
 		}
 	}()
+}
+
+// StopSubscription 取消并等待缓存订阅协程退出。
+func (c *tlsFingerprintRouterCache) StopSubscription() {
+	c.subscriptionMu.Lock()
+	cancel := c.subscriptionCancel
+	c.subscriptionStopped = true
+	c.subscriptionMu.Unlock()
+	if cancel == nil {
+		return
+	}
+	cancel()
+	c.subscriptionWG.Wait()
 }

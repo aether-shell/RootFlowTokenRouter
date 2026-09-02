@@ -95,6 +95,7 @@ func provideCleanup(
 	idempotencyCleanup *service.IdempotencyCleanupService,
 	batchImageCleanup *service.BatchImageCleanupService,
 	batchImageWorker *service.BatchImageWorkerRuntime,
+	creativeWorker *service.CreativeWorkerRuntime,
 	pricing *service.PricingService,
 	emailQueue *service.EmailQueueService,
 	billingCache *service.BillingCacheService,
@@ -115,6 +116,8 @@ func provideCleanup(
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	tlsFingerprintCollector *service.TLSFingerprintCollectorService,
+	tlsFingerprintProfile *service.TLSFingerprintProfileService,
+	tlsFingerprintRouter *service.TLSFingerprintRouterService,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	auditLog *service.AuditLogService,
 	cnUsageMonitor *service.CNProviderBalanceCheckService,
@@ -232,6 +235,12 @@ func provideCleanup(
 				}
 				return nil
 			}},
+			{"CreativeWorkerRuntime", func() error {
+				if creativeWorker != nil {
+					creativeWorker.Stop()
+				}
+				return nil
+			}},
 			{"TokenRefreshService", func() error {
 				tokenRefresh.Stop()
 				return nil
@@ -329,6 +338,18 @@ func provideCleanup(
 			{"PaymentOrderExpiryService", func() error {
 				if paymentOrderExpiry != nil {
 					paymentOrderExpiry.Stop()
+				}
+				return nil
+			}},
+			{"TLSFingerprintProfileService", func() error {
+				if tlsFingerprintProfile != nil {
+					tlsFingerprintProfile.Stop()
+				}
+				return nil
+			}},
+			{"TLSFingerprintRouterService", func() error {
+				if tlsFingerprintRouter != nil {
+					tlsFingerprintRouter.Stop()
 				}
 				return nil
 			}},

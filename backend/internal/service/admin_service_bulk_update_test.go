@@ -105,6 +105,44 @@ func TestAdminServiceBulkUpdateAccountsNormalizesOpenAIWorkloadAndTextRoute(t *t
 	require.Equal(t, "force_responses", repo.lastBulkUpdate.Extra[openai_compat.ExtraKeyTextRouteMode])
 }
 
+func TestAdminServiceBulkUpdateAccountsNormalizesOpenAIContinuationCapability(t *testing.T) {
+	repo := &accountRepoStubForBulkUpdate{getByIDsAccounts: []*Account{
+		{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+	}}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	result, err := svc.BulkUpdateAccounts(context.Background(), &BulkUpdateAccountsInput{
+		AccountIDs: []int64{1},
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesContinuationSupported: true,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.Success)
+	require.Equal(t, true, repo.lastBulkUpdate.Extra[openai_compat.ExtraKeyResponsesContinuationSupported])
+}
+
+func TestAdminServiceBulkUpdateAccountsRejectsContinuationForNonOpenAIAPIKey(t *testing.T) {
+	repo := &accountRepoStubForBulkUpdate{getByIDsAccounts: []*Account{
+		{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+	}}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	result, err := svc.BulkUpdateAccounts(context.Background(), &BulkUpdateAccountsInput{
+		AccountIDs: []int64{1},
+		Extra: map[string]any{
+			openai_compat.ExtraKeyResponsesContinuationSupported: true,
+		},
+	})
+
+	require.Nil(t, result)
+	var appErr *infraerrors.ApplicationError
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, "OPENAI_CONFIGURATION_TARGET_INVALID", appErr.Reason)
+	require.Empty(t, repo.bulkUpdateIDs)
+}
+
 func TestAdminServiceBulkUpdateAccountsRejectsInvalidOpenAITargetBeforeWrite(t *testing.T) {
 	repo := &accountRepoStubForBulkUpdate{getByIDsAccounts: []*Account{
 		{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth},

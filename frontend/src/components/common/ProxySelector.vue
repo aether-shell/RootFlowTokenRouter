@@ -322,7 +322,7 @@ onUnmounted(() => {
 .select-trigger {
   /* 普通选择器在浅色模式使用中性描边，暗色模式继续使用品牌强调。 */
   @apply flex w-full items-center justify-between gap-2;
-  @apply rounded-control px-4 py-2.5 text-sm;
+  @apply h-9 min-h-9 rounded-control px-4 py-1.5 text-sm;
   @apply bg-white dark:bg-dark-950;
   @apply border border-primary-900/10 dark:border-dark-600;
   @apply text-gray-900 dark:text-gray-100;

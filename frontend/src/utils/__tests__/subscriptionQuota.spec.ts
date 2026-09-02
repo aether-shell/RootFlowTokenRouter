@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getExpirationDateRelation, getRemainingExpiryDuration } from '../subscriptionQuota'
+import { getExpirationDateRelation, getRemainingExpiryDuration, highestQuotaExhausted } from '../subscriptionQuota'
 
 describe('subscription expiry timing', () => {
   it('uses local calendar dates for today and tomorrow', () => {
@@ -60,5 +60,23 @@ describe('subscription expiry timing', () => {
       unit: 'days',
       days: 2
     })
+  })
+})
+
+describe('highest subscription quota exhaustion', () => {
+  it('checks monthly quota before lower windows', () => {
+    expect(highestQuotaExhausted({ monthly_limit_usd: 100, monthly_usage_usd: 99, weekly_limit_usd: 10, weekly_usage_usd: 10, daily_limit_usd: 1, daily_usage_usd: 1 })).toBe(false)
+    expect(highestQuotaExhausted({ monthly_limit_usd: 100, monthly_usage_usd: 100, weekly_limit_usd: 10, weekly_usage_usd: 0, daily_limit_usd: 1, daily_usage_usd: 0 })).toBe(true)
+  })
+
+  it('falls back to weekly and daily quotas when higher windows are absent', () => {
+    expect(highestQuotaExhausted({ monthly_limit_usd: null, monthly_usage_usd: 100, weekly_limit_usd: 10, weekly_usage_usd: 10, daily_limit_usd: 1, daily_usage_usd: 0 })).toBe(true)
+    expect(highestQuotaExhausted({ monthly_limit_usd: null, monthly_usage_usd: 100, weekly_limit_usd: null, weekly_usage_usd: 10, daily_limit_usd: 1, daily_usage_usd: 1 })).toBe(true)
+  })
+
+  it('does not mark unlimited or lower-only exhaustion as revocable', () => {
+    expect(highestQuotaExhausted({ monthly_limit_usd: null, monthly_usage_usd: 0, weekly_limit_usd: 10, weekly_usage_usd: 9, daily_limit_usd: 1, daily_usage_usd: 1 })).toBe(false)
+    expect(highestQuotaExhausted({ monthly_limit_usd: 0, monthly_usage_usd: 10, weekly_limit_usd: 0, weekly_usage_usd: 10, daily_limit_usd: null, daily_usage_usd: 1 })).toBe(false)
+    expect(highestQuotaExhausted({ monthly_limit_usd: Number.POSITIVE_INFINITY, monthly_usage_usd: Number.POSITIVE_INFINITY, weekly_limit_usd: null, weekly_usage_usd: 0, daily_limit_usd: null, daily_usage_usd: 0 })).toBe(false)
   })
 })

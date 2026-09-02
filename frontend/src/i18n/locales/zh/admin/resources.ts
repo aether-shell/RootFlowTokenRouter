@@ -138,6 +138,7 @@ export default {
       qualityCheck: '质量检测',
       batchQualityCheck: '批量质量检测',
       batchTest: '批量测试',
+      moreActions: '更多操作',
       testFailed: '失败',
       latencyFailed: '链接失败',
       batchTestEmpty: '暂无可测试的代理',

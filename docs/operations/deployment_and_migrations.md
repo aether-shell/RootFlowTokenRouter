@@ -137,6 +137,9 @@
 
 迁移完成后，认证缓存版本会使旧快照失效并重建，避免缓存缺少结算字段。SQL 列本身与旧二进制兼容，但在同一部署中不能让旧实例继续处理用户新配置的指定订阅或仅余额 Key；应先完成全部后端实例升级，再在面板开放该配置。升级后至少抽样验证个人和团队 Key 的订阅选择、套餐受限分组拒绝、指定订阅额度耗尽不扣余额、仅余额不使用订阅，以及批量图片提交后修改 Key 配置仍按提交快照冻结/结算/释放。
 
+<a id="api_key_billing_cache_invalidation"></a>
+迁移 `258_extend_api_key_auth_cache_invalidation.sql` 通过 `CREATE OR REPLACE FUNCTION` 扩展既有 API Key 鉴权缓存 outbox 触发器，将 `billing_mode` 和 `preferred_subscription_id` 的变化纳入失效条件。它依赖迁移 237 已存在的列，不修改历史迁移文件；旧实例可继续运行，但完成新版本升级后应确认自动改绑产生的 Key 快照在多实例间及时失效，并抽样检查 outbox 只保存哈希而不保存明文 Key。
+
 ### 自研异步图片任务下线
 
 包含迁移 `234_remove_async_image_storage_setting.sql` 的版本会立即移除自研 OpenAI/Grok 异步图片路由、后台对象存储设置和 `image_storage_config` 数据库记录。这是破坏性升级，不提供任务排空、兼容查询或旧任务恢复。发布 tag notes 必须明确列出这项变化。
@@ -148,6 +151,10 @@
 旧任务 ID 在新版本上直接返回普通 `404`，在途进程内任务随旧实例停止而终止。回滚旧二进制不会恢复已删除的后台设置；只有显式恢复旧配置才能重新启用旧版本功能。
 
 在线更新和安装脚本可以保留上一版二进制或镜像，但这只是应用回退。数据库迁移不会因镜像回退自动撤销；上线前必须确认新迁移对旧版本是否向后兼容。若 schema 已不兼容，应使用经过演练的数据库备份恢复或新增前向修复迁移，而不是手工删除 `schema_migrations` 记录。
+
+### 创作台 durable 状态与 outbox 迁移
+
+迁移 `257_creative_run_durable_settlement.sql` 为 `creative_runs` 增加 provisioning、provider 成功记录、settlement/release 重试与 reconciler 字段，创建 `creative_run_outbox`，并为每个用户/分组的 active `creative_studio` 托管 Key 增加部分唯一索引。它把既有 queued/running 任务回填为可继续入队的阶段，不改变 Redis 图片 TTL 边界。发布时应先执行迁移，再部署兼容旧状态的应用版本并启动 outbox/transient reconciler；观察 `settlement_pending`、`release_pending`、lease lost、result lost 和 outbox lag 后，再调高恢复告警阈值。
 
 升级完成后至少检查 `/health`、登录/API Key 鉴权、一个非流和流式网关请求、用量结算、关键后台任务及迁移表。保留旧产物和升级前备份，直到这些检查完成。
 

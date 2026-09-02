@@ -67,13 +67,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, type TooltipItem } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import type { DashboardStats } from '@/types/payment'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
+
+onBeforeUnmount(hideExternalTooltip)
 
 const { t } = useI18n()
 
@@ -139,6 +142,8 @@ function makeChartOptions(formatValue: (value: number) => string) {
         display: false
       },
       tooltip: {
+        enabled: false,
+        external: externalTooltipHandler,
         callbacks: {
           label: (context: TooltipItem<'doughnut'>) => {
             const value = Number(context.raw || 0)

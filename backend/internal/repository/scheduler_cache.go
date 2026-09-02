@@ -1005,6 +1005,7 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"enable_tls_fingerprint",
 		"tls_fingerprint_profile_id",
 		"tls_fingerprint_router_id",
+		"openai_responses_continuation_supported",
 		"codex_fingerprint_mode",
 		"codex_fingerprint_seed",
 		"codex_5h_used_percent",

@@ -148,6 +148,7 @@ describe('feature route guard', () => {
     ['team', { requiresTeam: true }, '/team'],
     ['data sharing', { requiresDataSharing: true }, '/data-sharing'],
     ['usage ranking', { requiresUsageRanking: true }, '/usage-ranking'],
+    ['creative', { requiresCreative: true }, '/creative'],
   ])('does not treat a failed %s settings load as explicitly disabled', async (_name, meta, path) => {
     authStore.isAdmin = path.startsWith('/admin/')
     appStore.fetchPublicSettings.mockResolvedValue(null)
@@ -174,6 +175,8 @@ describe('feature route guard', () => {
     ['data sharing', { requiresDataSharing: true }, { data_sharing_enabled: false }, '/dashboard', false],
     ['admin data sharing', { requiresDataSharing: true }, { data_sharing_enabled: false }, '/admin/settings', true],
     ['usage ranking', { requiresUsageRanking: true }, { usage_ranking_enabled: false }, '/dashboard', false],
+    ['creative', { requiresCreative: true }, { creative_enabled: false }, '/dashboard', false],
+    ['admin creative', { requiresCreative: true }, { creative_enabled: false }, '/admin/settings', true],
   ])('redirects when loaded settings explicitly disable %s', async (_name, meta, settings, target, isAdmin) => {
     authStore.isAdmin = isAdmin
     appStore.cachedPublicSettings = settings

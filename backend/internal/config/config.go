@@ -102,6 +102,7 @@ type Config struct {
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
+	Creative                CreativeConfig                `mapstructure:"creative"`
 	Team                    TeamConfig                    `mapstructure:"team"`
 }
 
@@ -240,6 +241,42 @@ type BatchImageConfig struct {
 	VertexOutputRetentionHours   int    `mapstructure:"vertex_output_retention_hours"`
 	VertexBatchPredictionBaseURL string `mapstructure:"vertex_batch_prediction_base_url"`
 	VertexGCSBaseURL             string `mapstructure:"vertex_gcs_base_url"`
+}
+
+type CreativeConfig struct {
+	// Enabled 控制创作台 HTTP API 是否可用。
+	Enabled bool `mapstructure:"enabled"`
+	// QueueEnabled 控制创作台队列是否启用（第二阶段 worker runtime 使用）。
+	QueueEnabled bool `mapstructure:"queue_enabled"`
+	// TransientTTLSeconds 输入载荷与临时输出的保留时间（秒）。
+	TransientTTLSeconds int `mapstructure:"transient_ttl_seconds"`
+	// MaxAssetBytes 单个上传文件（源图/mask）的大小上限（字节）。
+	MaxAssetBytes int64 `mapstructure:"max_asset_bytes"`
+	// MaxTotalInputBytes 单次任务输入总大小上限（字节）。
+	MaxTotalInputBytes int64 `mapstructure:"max_total_input_bytes"`
+	// MaxPromptChars prompt 最大字符数。
+	MaxPromptChars              int    `mapstructure:"max_prompt_chars"`
+	DefaultResponseMimeType     string `mapstructure:"default_response_mime_type"`
+	DefaultImageSize            string `mapstructure:"default_image_size"`
+	QueueReadyKey               string `mapstructure:"queue_ready_key"`
+	QueueDelayedKey             string `mapstructure:"queue_delayed_key"`
+	QueueActiveKey              string `mapstructure:"queue_active_key"`
+	InflightKeyPrefix           string `mapstructure:"inflight_key_prefix"`
+	LockKeyPrefix               string `mapstructure:"lock_key_prefix"`
+	InflightTTLSeconds          int    `mapstructure:"inflight_ttl_seconds"`
+	JobLockTTLSeconds           int    `mapstructure:"job_lock_ttl_seconds"`
+	DefaultRequeueDelaySeconds  int    `mapstructure:"default_requeue_delay_seconds"`
+	ErrorRetryDelaySeconds      int    `mapstructure:"error_retry_delay_seconds"`
+	LockConflictDelaySeconds    int    `mapstructure:"lock_conflict_delay_seconds"`
+	StaleActiveAfterSeconds     int    `mapstructure:"stale_active_after_seconds"`
+	DelayedMoverIntervalSeconds int    `mapstructure:"delayed_mover_interval_seconds"`
+	RecoveryIntervalSeconds     int    `mapstructure:"recovery_interval_seconds"`
+	DelayedMoveLimit            int    `mapstructure:"delayed_move_limit"`
+	RecoverLimit                int    `mapstructure:"recover_limit"`
+	// ExecuteTimeoutSeconds 是单次上游执行调用的超时时间（秒）。
+	ExecuteTimeoutSeconds int `mapstructure:"execute_timeout_seconds"`
+	// MaxExecuteAttempts 是 provider 瞬时错误的最大执行次数（含首次）。
+	MaxExecuteAttempts int `mapstructure:"max_execute_attempts"`
 }
 
 type LinuxDoConnectConfig struct {
@@ -1303,6 +1340,10 @@ type GatewayAdvancedSchedulerConfig struct {
 	LBTopK int `mapstructure:"lb_top_k"`
 	// ScoreWeights 是通用高级调度器的候选评分权重。
 	ScoreWeights GatewayAdvancedSchedulerScoreWeights `mapstructure:"score_weights"`
+	// EWMAErrorRateAlpha 是错误率反馈的 EWMA 平滑系数，取值越大越重视最新样本。
+	EWMAErrorRateAlpha float64 `mapstructure:"ewma_error_rate_alpha"`
+	// EWMATTFTAlpha 是首 token 延迟反馈的 EWMA 平滑系数，取值越大越重视最新样本。
+	EWMATTFTAlpha float64 `mapstructure:"ewma_ttft_alpha"`
 	// StickyEscapeEnabled: 是否允许 session_hash sticky 在账号健康度劣化时临时逃逸
 	StickyEscapeEnabled bool `mapstructure:"sticky_escape_enabled"`
 	// StickyEscapeTTFTMs: TTFT EWMA 超过该阈值时跳过 sticky
@@ -2224,6 +2265,33 @@ func setDefaults() {
 	viper.SetDefault("batch_image.vertex_batch_prediction_base_url", "")
 	viper.SetDefault("batch_image.vertex_gcs_base_url", "")
 
+	// Creative Studio（创作台）
+	viper.SetDefault("creative.enabled", true)
+	viper.SetDefault("creative.queue_enabled", true)
+	viper.SetDefault("creative.transient_ttl_seconds", 1800)
+	viper.SetDefault("creative.max_asset_bytes", 33554432)
+	viper.SetDefault("creative.max_total_input_bytes", 67108864)
+	viper.SetDefault("creative.max_prompt_chars", 8000)
+	viper.SetDefault("creative.default_response_mime_type", "image/png")
+	viper.SetDefault("creative.default_image_size", "1K")
+	viper.SetDefault("creative.queue_ready_key", "creative:queue:ready")
+	viper.SetDefault("creative.queue_delayed_key", "creative:queue:delayed")
+	viper.SetDefault("creative.queue_active_key", "creative:queue:active")
+	viper.SetDefault("creative.inflight_key_prefix", "creative:queue:inflight:")
+	viper.SetDefault("creative.lock_key_prefix", "creative:queue:lock:")
+	viper.SetDefault("creative.inflight_ttl_seconds", 604800)
+	viper.SetDefault("creative.job_lock_ttl_seconds", 300)
+	viper.SetDefault("creative.default_requeue_delay_seconds", 30)
+	viper.SetDefault("creative.error_retry_delay_seconds", 60)
+	viper.SetDefault("creative.lock_conflict_delay_seconds", 5)
+	viper.SetDefault("creative.stale_active_after_seconds", 600)
+	viper.SetDefault("creative.delayed_mover_interval_seconds", 5)
+	viper.SetDefault("creative.recovery_interval_seconds", 300)
+	viper.SetDefault("creative.delayed_move_limit", 100)
+	viper.SetDefault("creative.recover_limit", 100)
+	viper.SetDefault("creative.execute_timeout_seconds", 300)
+	viper.SetDefault("creative.max_execute_attempts", 3)
+
 	// Ops (vNext)
 	viper.SetDefault("ops.enabled", true)
 	viper.SetDefault("ops.cleanup.enabled", true)
@@ -2391,6 +2459,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.retry_total_budget_ms", 5000)
 	viper.SetDefault("gateway.openai_ws.payload_log_sample_rate", 0.2)
 	viper.SetDefault("gateway.advanced_scheduler.lb_top_k", 7)
+	viper.SetDefault("gateway.advanced_scheduler.ewma_error_rate_alpha", 0.2)
+	viper.SetDefault("gateway.advanced_scheduler.ewma_ttft_alpha", 0.2)
 	viper.SetDefault("gateway.openai_ws.sticky_session_ttl_seconds", 3600)
 	viper.SetDefault("gateway.openai_ws.session_hash_read_old_fallback", true)
 	viper.SetDefault("gateway.openai_ws.session_hash_dual_write_old", true)
@@ -3095,6 +3165,64 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("batch_image.vertex_output_retention_hours must be positive")
 		}
 	}
+	// 创作台配置校验。
+	if c.Creative.Enabled {
+		if c.Creative.TransientTTLSeconds <= 0 {
+			return fmt.Errorf("creative.transient_ttl_seconds must be positive")
+		}
+		if c.Creative.MaxAssetBytes <= 0 {
+			return fmt.Errorf("creative.max_asset_bytes must be positive")
+		}
+		if c.Creative.MaxTotalInputBytes <= 0 {
+			return fmt.Errorf("creative.max_total_input_bytes must be positive")
+		}
+		if c.Creative.MaxTotalInputBytes < c.Creative.MaxAssetBytes {
+			return fmt.Errorf("creative.max_total_input_bytes cannot be smaller than creative.max_asset_bytes")
+		}
+		if c.Creative.MaxPromptChars <= 0 {
+			return fmt.Errorf("creative.max_prompt_chars must be positive")
+		}
+	}
+	if c.Creative.QueueEnabled {
+		if strings.TrimSpace(c.Creative.QueueReadyKey) == "" {
+			return fmt.Errorf("creative.queue_ready_key must not be empty")
+		}
+		if strings.TrimSpace(c.Creative.QueueDelayedKey) == "" {
+			return fmt.Errorf("creative.queue_delayed_key must not be empty")
+		}
+		if strings.TrimSpace(c.Creative.QueueActiveKey) == "" {
+			return fmt.Errorf("creative.queue_active_key must not be empty")
+		}
+		if strings.TrimSpace(c.Creative.InflightKeyPrefix) == "" {
+			return fmt.Errorf("creative.inflight_key_prefix must not be empty")
+		}
+		if strings.TrimSpace(c.Creative.LockKeyPrefix) == "" {
+			return fmt.Errorf("creative.lock_key_prefix must not be empty")
+		}
+		if c.Creative.InflightTTLSeconds <= 0 {
+			return fmt.Errorf("creative.inflight_ttl_seconds must be positive")
+		}
+		if c.Creative.JobLockTTLSeconds <= 0 {
+			return fmt.Errorf("creative.job_lock_ttl_seconds must be positive")
+		}
+		if c.Creative.StaleActiveAfterSeconds <= 0 {
+			return fmt.Errorf("creative.stale_active_after_seconds must be positive")
+		}
+		if c.Creative.DelayedMoveLimit <= 0 {
+			return fmt.Errorf("creative.delayed_move_limit must be positive")
+		}
+		if c.Creative.RecoverLimit <= 0 {
+			return fmt.Errorf("creative.recover_limit must be positive")
+		}
+	}
+	if c.Creative.Enabled {
+		if c.Creative.ExecuteTimeoutSeconds <= 0 {
+			return fmt.Errorf("creative.execute_timeout_seconds must be positive")
+		}
+		if c.Creative.MaxExecuteAttempts < 1 {
+			return fmt.Errorf("creative.max_execute_attempts must be at least 1")
+		}
+	}
 	if c.Dashboard.Enabled {
 		if c.Dashboard.StatsFreshTTLSeconds <= 0 {
 			return fmt.Errorf("dashboard_cache.stats_fresh_ttl_seconds must be positive")
@@ -3453,6 +3581,14 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.AdvancedScheduler.LBTopK <= 0 {
 		return fmt.Errorf("gateway.advanced_scheduler.lb_top_k must be positive")
+	}
+	if c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha <= 0 || c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha > 1 ||
+		math.IsNaN(c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha) || math.IsInf(c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha, 0) {
+		return fmt.Errorf("gateway.advanced_scheduler.ewma_error_rate_alpha must be between 0 and 1")
+	}
+	if c.Gateway.AdvancedScheduler.EWMATTFTAlpha <= 0 || c.Gateway.AdvancedScheduler.EWMATTFTAlpha > 1 ||
+		math.IsNaN(c.Gateway.AdvancedScheduler.EWMATTFTAlpha) || math.IsInf(c.Gateway.AdvancedScheduler.EWMATTFTAlpha, 0) {
+		return fmt.Errorf("gateway.advanced_scheduler.ewma_ttft_alpha must be between 0 and 1")
 	}
 	if c.Gateway.OpenAIWS.StickySessionTTLSeconds <= 0 {
 		return fmt.Errorf("gateway.openai_ws.sticky_session_ttl_seconds must be positive")

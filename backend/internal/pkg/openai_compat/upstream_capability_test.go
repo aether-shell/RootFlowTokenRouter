@@ -65,3 +65,24 @@ func TestNormalizeTextProtocolConfiguration(t *testing.T) {
 		t.Fatalf("非法探测状态得到 %q", got)
 	}
 }
+
+func TestResolveResponsesContinuationSupported(t *testing.T) {
+	if ResolveResponsesContinuationSupported(nil) {
+		t.Fatal("缺失配置必须按不支持处理")
+	}
+	if ResolveResponsesContinuationSupported(map[string]any{
+		ExtraKeyResponsesContinuationSupported: "true",
+	}) {
+		t.Fatal("非布尔配置必须按不支持处理")
+	}
+	if !ResolveResponsesContinuationSupported(map[string]any{
+		ExtraKeyResponsesContinuationSupported: true,
+	}) {
+		t.Fatal("显式 true 必须启用 continuation")
+	}
+	if ResolveResponsesContinuationSupported(map[string]any{
+		ExtraKeyResponsesContinuationSupported: false,
+	}) {
+		t.Fatal("显式 false 必须关闭 continuation")
+	}
+}

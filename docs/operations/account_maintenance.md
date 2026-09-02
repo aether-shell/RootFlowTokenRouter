@@ -46,9 +46,9 @@ Kimi、Zhipu、DeepSeek 的连接测试按账号 `api_protocol` 选择原生 Ant
 
 OpenAI 重置次数查询把带到期时间的完整结果保存为账号展示快照；上游只返回正数次数却缺少到期明细时，实时结果仍返回给调用方，但旧快照必须保留。直接调用重置 API 成功消费次数后，服务先在脱离客户端取消信号的有界上下文中恢复账号 error、限流和临时不可调度状态，再回读额度快照与最新账号投影；恢复不修改人工 `schedulable` 开关。后续步骤部分失败时响应使用 `cache_refreshed`、`account_state_recovered` 和 `warning_code` 明确区分，调用方不得把已消费的次数当作可重试失败。
 
-OpenAI API Key 的 Responses 探测只维护 `extra.openai_responses_probe_status`，取值为 `supported`、`unsupported`、`unknown`；管理员路由策略 `extra.openai_text_route_mode` 不属于探测服务，任何探测结果都不得覆盖它。2xx 响应若仍因 `max_output_tokens` 未完成，或响应状态为 `failed`，应保持 `unknown`；完成但没有 `function_call` 的响应判定为 `unsupported`。网络错误、响应读取失败和其它结论不足的结果保留最近状态。账号默认连接测试以 Responses 为首选协议，路由策略显式强制 Chat 时才使用 Chat 测试路径。
+OpenAI API Key 的 Responses 探测只维护 `extra.openai_responses_probe_status`，取值为 `supported`、`unsupported`、`unknown`；管理员路由策略 `extra.openai_text_route_mode` 和 HTTP continuation 能力开关 `extra.openai_responses_continuation_supported` 不属于探测服务，任何探测结果都不得覆盖它们。2xx 响应若仍因 `max_output_tokens` 未完成，或响应状态为 `failed`，应保持 `unknown`；完成但没有 `function_call` 的响应判定为 `unsupported`。网络错误、响应读取失败和其它结论不足的结果保留最近状态。账号默认连接测试以 Responses 为首选协议，路由策略显式强制 Chat 时才使用 Chat 测试路径。HTTP continuation 缺失时按关闭处理；嵌套 Sub2API 账号应显式关闭，直连且确认支持的 API Key 账号才开启。
 
-账号创建、编辑、批量更新和导入会把旧 OpenAI 配置规范化为新字段；复制账号保留 `credentials.openai_workload_capabilities` 与 `openai_text_route_mode`，丢弃已有探测状态并重新探测。调度投影必须同时包含工作负载集合、路由策略和探测状态，探测状态变化要触发投影失效。Ollama Cloud 等兼容 API Key 上游可以保存其管理会话和用量快照，但只有明确匹配的账号才进入探测，不能把探测协议推广到所有 `apikey`。Grok 计费与媒体资格、各平台额度探测也继续使用各自独立协议。
+账号创建、编辑、批量更新和导入会把旧 OpenAI 配置规范化为新字段；复制账号保留 `credentials.openai_workload_capabilities`、`openai_text_route_mode` 与 continuation 能力开关，丢弃已有探测状态并重新探测。调度投影必须同时包含工作负载集合、路由策略、探测状态和 continuation 能力开关，探测状态变化要触发投影失效。Ollama Cloud 等兼容 API Key 上游可以保存其管理会话和用量快照，但只有明确匹配的账号才进入探测，不能把探测协议推广到所有 `apikey`。Grok 计费与媒体资格、各平台额度探测也继续使用各自独立协议。
 
 通用的上游声明倍率探测已移除，不再有定时任务、手动操作、快照或公开账单自省接口。账号创建、编辑、批量更新、复制、CRS 同步和仓储写入都会丢弃历史 `upstream_billing_probe` 与 `upstream_billing_probe_enabled` 键；这项清理不得影响 Ollama Cloud 会话/用量、endpoint capability 或其它额度状态。
 

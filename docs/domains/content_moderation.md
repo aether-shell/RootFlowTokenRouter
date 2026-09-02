@@ -45,12 +45,14 @@
 
 审核记录可能包含命中文本或媒体引用，留存策略区分命中与未命中。普通 Ops/system log 只记录必要元数据、摘要和错误，不写完整 prompt、图片、审核密钥或上游原始响应。管理端展示和删除 hash/媒体时必须保持授权范围。
 
+`ContentModerationCheckInput.NoMediaRetention` 为 true 时进入“无媒体留存”模式（创作台等敏感场景强制开启）：不做命中媒体快照，不落 `input_excerpt` 与正文输入项，审核日志只保留输入 hash、分类、分数和决策等元数据；请求报文中的 base64 媒体与 prompt 明文不会因此落库。创作台（Creative Studio）送审必须开启该字段，通用约定见[创作台](creative_studio.md)。
+
 返回客户端的安全消息只说明请求被本地策略拒绝，不泄露关键词表、hash、阈值、供应商凭据或可用于绕过规则的细节。上游自身内容政策错误仍由平台错误分类处理，不能冒充本地审核命中。
 
 ## 失败语义
 
 Observe 的异步队列满、worker 缺失或持久化失败不得阻断已允许的主请求，但必须累计 dropped/error 健康信号。Pre-block 的外部审核有总超时和重试上限；上下文取消立即停止。代理不可用属于外部审核错误，沿用当前模式的 fail-open 记录语义，但绝不能绕过代理改走直连。更新审核配置、API Key 池或规则缓存失败时，管理端响应不能宣称所有实例已生效。
 
-测试至少覆盖 off/observe/pre-block、关键词/hash/API 组合、include/exclude、部分失败仍阻断、团队行为用户归属、缓存失效、多实例通知和日志脱敏。
+测试至少覆盖 off/observe/pre-block、关键词/hash/API 组合、include/exclude、部分失败仍阻断、团队行为用户归属、缓存失效、多实例通知、日志脱敏和无媒体留存（不快照命中媒体、不落正文摘录但仍记录输入 hash）。
 
 相关文档：[网关策略控制](gateway_policy_controls.md)、[网关错误响应策略](../interfaces/gateway_error_policy.md)、[可观测性与数据生命周期](../operations/observability_and_data_lifecycle.md)。

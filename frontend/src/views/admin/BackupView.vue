@@ -99,10 +99,10 @@
           </div>
         </div>
         <div class="mt-4 flex flex-wrap gap-2">
-          <button type="button" class="btn btn-secondary btn-sm" :disabled="testingStorage" @click="testStorage">
+          <button type="button" class="btn btn-secondary btn-sm h-9" :disabled="testingStorage" @click="testStorage">
             {{ testingStorage ? t('common.loading') : t('admin.backup.storage.testConnection') }}
           </button>
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingStorage" @click="saveStorageConfig">
+          <button type="button" class="btn btn-primary btn-sm h-9" :disabled="savingStorage" @click="saveStorageConfig">
             {{ savingStorage ? t('common.loading') : t('common.save') }}
           </button>
         </div>
@@ -135,7 +135,7 @@
           {{ t('admin.backup.content.excludedCount', { count: contentExcludedCount }) }}
         </p>
         <div class="mt-4">
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingContent" @click="saveContentConfig">
+          <button type="button" class="btn btn-primary btn-sm h-9" :disabled="savingContent" @click="saveContentConfig">
             {{ savingContent ? t('common.loading') : t('common.save') }}
           </button>
         </div>
@@ -173,7 +173,7 @@
           </div>
         </div>
         <div class="mt-4">
-          <button type="button" class="btn btn-primary btn-sm" :disabled="savingSchedule" @click="saveSchedule">
+          <button type="button" class="btn btn-primary btn-sm h-9" :disabled="savingSchedule" @click="saveSchedule">
             {{ savingSchedule ? t('common.loading') : t('common.save') }}
           </button>
         </div>
@@ -195,10 +195,10 @@
               <label class="text-xs text-gray-600 dark:text-gray-400">{{ t('admin.backup.operations.expireDays') }}</label>
               <input v-model.number="manualExpireDays" type="number" min="0" class="input w-20 text-xs" />
             </div>
-            <button type="button" class="btn btn-primary btn-sm" :disabled="creatingBackup" @click="createBackup">
+            <button type="button" class="btn btn-primary btn-sm h-9" :disabled="creatingBackup" @click="createBackup">
               {{ creatingBackup ? t('admin.backup.operations.backing') : t('admin.backup.operations.createBackup') }}
             </button>
-            <button type="button" class="btn btn-secondary btn-sm" :disabled="loadingBackups" @click="loadBackups">
+            <button type="button" class="btn btn-secondary btn-sm h-9" :disabled="loadingBackups" @click="loadBackups">
               {{ loadingBackups ? t('common.loading') : t('common.refresh') }}
             </button>
           </div>
@@ -207,7 +207,7 @@
         <div class="overflow-x-auto">
           <table class="w-full min-w-[800px] text-sm">
             <thead>
-              <tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:text-gray-400">
+              <tr class="border-b border-gray-200 text-left text-xs tracking-wide text-gray-500 dark:border-dark-700 dark:text-gray-400">
                 <th class="py-2 pr-4">ID</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.status') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.storage') }}</th>

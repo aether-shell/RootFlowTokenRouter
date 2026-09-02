@@ -173,6 +173,13 @@ type LiteLLMModelPricing struct {
 	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
 	InputCostPerImageToken              float64 `json:"input_cost_per_image_token"`  // 图片输入 token 价格（如 gpt-image-2 图片编辑）
 
+	// 模型能力元数据：由模型广场下发给前端展示输入/输出模态，不参与计费。
+	SupportedModalities       []string `json:"supported_modalities"`
+	SupportedOutputModalities []string `json:"supported_output_modalities"`
+	SupportsVision            bool     `json:"supports_vision"`
+	SupportsAudioInput        bool     `json:"supports_audio_input"`
+	SupportsAudioOutput       bool     `json:"supports_audio_output"`
+
 	// TokenPricingAbsent 表示源数据中 input/output token 价格均缺失（仅有图片价）。
 	// 此类条目只可用于图片计费，token 计费必须回退到 fallback 或 fail-closed，
 	// 否则 token 流量会被按 $0 计费。零值（false）表示条目具备 token 价格。
@@ -206,6 +213,11 @@ type LiteLLMRawEntry struct {
 	OutputCostPerImage                  *float64 `json:"output_cost_per_image"`
 	OutputCostPerImageToken             *float64 `json:"output_cost_per_image_token"`
 	InputCostPerImageToken              *float64 `json:"input_cost_per_image_token"`
+	SupportedModalities                 []string `json:"supported_modalities"`
+	SupportedOutputModalities           []string `json:"supported_output_modalities"`
+	SupportsVision                      bool     `json:"supports_vision"`
+	SupportsAudioInput                  bool     `json:"supports_audio_input"`
+	SupportsAudioOutput                 bool     `json:"supports_audio_output"`
 }
 
 // PricingService 动态价格服务
@@ -493,11 +505,16 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 		}
 
 		pricing := &LiteLLMModelPricing{
-			LiteLLMProvider:       entry.LiteLLMProvider,
-			Mode:                  entry.Mode,
-			SupportsPromptCaching: entry.SupportsPromptCaching,
-			SupportsServiceTier:   entry.SupportsServiceTier,
-			TokenPricingAbsent:    entry.InputCostPerToken == nil && entry.OutputCostPerToken == nil,
+			LiteLLMProvider:           entry.LiteLLMProvider,
+			Mode:                      entry.Mode,
+			SupportsPromptCaching:     entry.SupportsPromptCaching,
+			SupportsServiceTier:       entry.SupportsServiceTier,
+			SupportedModalities:       entry.SupportedModalities,
+			SupportedOutputModalities: entry.SupportedOutputModalities,
+			SupportsVision:            entry.SupportsVision,
+			SupportsAudioInput:        entry.SupportsAudioInput,
+			SupportsAudioOutput:       entry.SupportsAudioOutput,
+			TokenPricingAbsent:        entry.InputCostPerToken == nil && entry.OutputCostPerToken == nil,
 		}
 
 		if entry.InputCostPerToken != nil {
@@ -747,6 +764,118 @@ func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing 
 	}
 
 	return nil
+}
+
+// GetModelModalities 查询模型的输入/输出模态元数据（供模型广场下发能力标签）。
+// 与 GetModelPricing 不同，能力数据只做精确（及别名）匹配：系列模糊回退会把旧模型
+// 的能力错配给新模型，价格可以接受这种近似，能力不行。查询不到时返回 nil，
+// 由展示层降级为本地规则。
+func (s *PricingService) GetModelModalities(modelName string) ([]string, []string) {
+	if s == nil {
+		return nil, nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	modelLower := strings.ToLower(strings.TrimSpace(modelName))
+	if modelLower == "" {
+		return nil, nil
+	}
+
+	lookupCandidates := s.buildModelLookupCandidates(modelLower)
+	for _, candidate := range lookupCandidates {
+		if candidate == "" {
+			continue
+		}
+		if pricing, ok := s.pricingData[candidate]; ok {
+			return deriveModalities(pricing)
+		}
+	}
+
+	// 版本写法变体：claude-opus-4-5-20251101 -> claude-opus-4.5-20251101
+	for _, candidate := range lookupCandidates {
+		normalized := strings.ReplaceAll(candidate, "-4-5-", "-4.5-")
+		if pricing, ok := s.pricingData[normalized]; ok {
+			return deriveModalities(pricing)
+		}
+	}
+
+	return nil, nil
+}
+
+// 模型广场可下发的模态取值白名单与固定输出顺序。
+var marketplaceModalityOrder = []string{"text", "image", "audio", "video"}
+
+// sanitizeModalities 过滤定价文件中的非模态取值并去重，按固定顺序输出。
+func sanitizeModalities(values []string) []string {
+	present := make(map[string]bool, len(values))
+	for _, value := range values {
+		present[strings.ToLower(strings.TrimSpace(value))] = true
+	}
+	out := make([]string, 0, len(marketplaceModalityOrder))
+	for _, modality := range marketplaceModalityOrder {
+		if present[modality] {
+			out = append(out, modality)
+		}
+	}
+	return out
+}
+
+// deriveModalities 从定价条目合成输入/输出模态：supported_modalities 缺失的一侧
+// 用 mode 兜底，再用 supports_* 标记和图片输入价补充（图片编辑体现为图片输入价）。
+func deriveModalities(p *LiteLLMModelPricing) ([]string, []string) {
+	if p == nil {
+		return nil, nil
+	}
+
+	// 复制后再追加，避免并发查询时写共享底层数组（pricingData 里的切片被多个请求复用）。
+	input := append([]string{}, p.SupportedModalities...)
+	output := append([]string{}, p.SupportedOutputModalities...)
+	if len(input) == 0 || len(output) == 0 {
+		modeInput, modeOutput := modalitiesFromMode(p.Mode)
+		if len(input) == 0 {
+			input = modeInput
+		}
+		if len(output) == 0 {
+			output = modeOutput
+		}
+	}
+	if p.SupportsVision {
+		input = append(input, "image")
+	}
+	if p.SupportsAudioInput {
+		input = append(input, "audio")
+	}
+	if p.SupportsAudioOutput {
+		output = append(output, "audio")
+	}
+	if p.InputCostPerImageToken > 0 {
+		input = append(input, "image")
+	}
+
+	in := sanitizeModalities(input)
+	out := sanitizeModalities(output)
+	if len(in) == 0 || len(out) == 0 {
+		return nil, nil
+	}
+	return in, out
+}
+
+// modalitiesFromMode 按 LiteLLM mode 推断基础模态；未知 mode 一律按文字模型处理。
+func modalitiesFromMode(mode string) ([]string, []string) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "image_generation":
+		return []string{"text"}, []string{"image"}
+	case "audio_transcription":
+		return []string{"audio"}, []string{"text"}
+	case "audio_speech":
+		return []string{"text"}, []string{"audio"}
+	case "realtime":
+		return []string{"text", "audio"}, []string{"text", "audio"}
+	default:
+		// chat/responses/completion 等对话类模式至少支持文字输入输出。
+		return []string{"text"}, []string{"text"}
+	}
 }
 
 func isClaudeOpus48Model(model string) bool {

@@ -20,6 +20,8 @@
 
 账号健康分类发生在这些展示规则之前。OpenAI、Kimi、Zhipu、DeepSeek 收到 HTML 外形的 403 时，视为 CDN、代理或端点级阻断证据，不递增账号 403 计数，也不写临时/永久处罚；结构化 403 则进入同一累计策略，阈值前临时冷却，达到阈值后才标记账号错误。后续成功且进入用量记录的请求会清零该账号计数，保证阈值只表达连续失败。其它平台继续使用各自既有 403 分类，管理员透传规则不能改变这些状态决定。
 
+Kimi 返回精确文案 `You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again.` 时属于账号级并发限制：请求仍返回可故障转移信号，但账号只写入默认 10 分钟临时不可调度，不进入累计 403 永久禁用计数；其它相似文案仍按普通结构化 403 处理。
+
 <a id="error_passthrough_rule_matching"></a>
 ## 规则匹配
 

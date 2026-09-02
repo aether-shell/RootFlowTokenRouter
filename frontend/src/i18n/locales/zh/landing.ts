@@ -122,6 +122,10 @@ batchImageGuide: {
       groups: '个服务组',
       modelCount: '模型'
     },
+    featured: {
+      byProvider: 'by {provider}',
+      discountOff: '最高优惠{percent}%'
+    },
     stats: {
       todayTokens: '今日总 Token 量',
       totalTokens: '历史总 Token 量',

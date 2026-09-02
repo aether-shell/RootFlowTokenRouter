@@ -141,6 +141,42 @@ func (f BatchImageJobFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Valu
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.BatchImageJobMutation", m)
 }
 
+// The CreativeRunFunc type is an adapter to allow the use of ordinary
+// function as CreativeRun mutator.
+type CreativeRunFunc func(context.Context, *ent.CreativeRunMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CreativeRunFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CreativeRunMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CreativeRunMutation", m)
+}
+
+// The CreativeRunOutboxFunc type is an adapter to allow the use of ordinary
+// function as CreativeRunOutbox mutator.
+type CreativeRunOutboxFunc func(context.Context, *ent.CreativeRunOutboxMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CreativeRunOutboxFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CreativeRunOutboxMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CreativeRunOutboxMutation", m)
+}
+
+// The CreativeRunOutputFunc type is an adapter to allow the use of ordinary
+// function as CreativeRunOutput mutator.
+type CreativeRunOutputFunc func(context.Context, *ent.CreativeRunOutputMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CreativeRunOutputFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CreativeRunOutputMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CreativeRunOutputMutation", m)
+}
+
 // The DataShareSessionFunc type is an adapter to allow the use of ordinary
 // function as DataShareSession mutator.
 type DataShareSessionFunc func(context.Context, *ent.DataShareSessionMutation) (ent.Value, error)

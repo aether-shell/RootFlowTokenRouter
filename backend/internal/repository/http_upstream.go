@@ -214,6 +214,10 @@ func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID i
 	// 执行请求
 	client := httpClientForUpstreamRequest(entry.client, req)
 	client = httpClientWithGrokAccessDeniedFallback(client)
+	// 首次上游尝试前清除其它依赖的 trace 回调，后续重试沿用同一请求状态。
+	if req != nil {
+		req = req.WithContext(servertiming.BeginHTTPTrace(req.Context()))
+	}
 	resp, err := servertiming.Do(client, req)
 	if err != nil {
 		s.recordOpenAIHTTP2Failure(profile, entry.protocolMode, entry.proxyKey, err)
@@ -277,6 +281,10 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 
 	client := httpClientForUpstreamRequest(entry.client, req)
 	client = httpClientWithGrokAccessDeniedFallback(client)
+	// 首次上游尝试前清除其它依赖的 trace 回调，后续重试沿用同一请求状态。
+	if req != nil {
+		req = req.WithContext(servertiming.BeginHTTPTrace(req.Context()))
+	}
 	resp, err := servertiming.Do(client, req)
 	if err != nil {
 		s.recordOpenAIHTTP2Failure(upstreamProfile, entry.protocolMode, entry.proxyKey, err)

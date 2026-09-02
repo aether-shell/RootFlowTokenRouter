@@ -2,9 +2,10 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <!-- Left: Search + Filters -->
-          <div class="relative w-full sm:w-64">
+          <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-3">
+            <div class="relative min-w-0 flex-1 sm:flex-none sm:w-64">
             <Icon
               name="search"
               size="md"
@@ -17,69 +18,105 @@
               class="input pl-10"
               @input="handleSearch"
             />
-          </div>
-
-          <div class="w-full sm:w-40">
-            <Select
-              v-model="filters.protocol"
-              :options="protocolOptions"
-              :placeholder="t('admin.proxies.allProtocols')"
-              @change="loadProxies"
-            />
-          </div>
-          <div class="w-full sm:w-36">
-            <Select
-              v-model="filters.status"
-              :options="statusOptions"
-              :placeholder="t('admin.proxies.allStatus')"
-              @change="loadProxies"
-            />
+            </div>
+            <div ref="filterDropdownRef" class="relative shrink-0">
+              <button
+                type="button"
+                class="btn btn-secondary relative h-9 w-9 p-0"
+                :aria-expanded="showFilterDropdown"
+                :aria-label="t('common.filter')"
+                :title="t('common.filter')"
+                @click="showFilterDropdown = !showFilterDropdown"
+              >
+                <Icon name="filter" size="sm" />
+                <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">{{ activeFilterCount }}</span>
+              </button>
+              <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-[60] mt-2 w-72 rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
+                <div class="mb-3 flex items-center justify-between">
+                  <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
+                  <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetProxyFilters">{{ t('common.reset') }}</button>
+                </div>
+                <div class="space-y-3">
+                  <Select v-model="filters.protocol" :options="protocolOptions" :placeholder="t('admin.proxies.allProtocols')" @change="loadProxies" />
+                  <Select v-model="filters.status" :options="statusOptions" :placeholder="t('admin.proxies.allStatus')" @change="loadProxies" />
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Right: All action buttons -->
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+          <div class="flex w-full flex-wrap items-center justify-end gap-2 xl:w-auto">
             <button
               @click="loadProxies"
               :disabled="loading"
-              class="btn btn-secondary"
+              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <button
-              @click="handleBatchTest"
-              :disabled="batchTesting || loading"
-              class="btn btn-secondary"
-              :title="t('admin.proxies.testConnection')"
-            >
-              <Icon name="play" size="md" class="mr-2" />
-              {{ t('admin.proxies.testConnection') }}
-            </button>
-            <button
-              @click="handleBatchQualityCheck"
-              :disabled="batchQualityChecking || loading"
-              class="btn btn-secondary"
-              :title="t('admin.proxies.batchQualityCheck')"
-            >
-              <Icon name="shield" size="md" class="mr-2" :class="batchQualityChecking ? 'animate-pulse' : ''" />
-              {{ t('admin.proxies.batchQualityCheck') }}
-            </button>
+            <div ref="moreActionsDropdownRef" class="relative shrink-0">
+              <button
+                type="button"
+                class="btn btn-secondary shrink-0 whitespace-nowrap"
+                :aria-expanded="showMoreActionsDropdown"
+                :title="t('admin.proxies.moreActions')"
+                @click="showMoreActionsDropdown = !showMoreActionsDropdown"
+              >
+                <Icon name="more" size="md" />
+                {{ t('admin.proxies.moreActions') }}
+                <Icon name="chevronDown" size="xs" />
+              </button>
+              <div
+                v-if="showMoreActionsDropdown"
+                class="absolute right-0 top-full z-[60] mt-2 w-56 rounded-lg border border-gray-200 bg-white p-1 shadow-xl dark:border-dark-600 dark:bg-dark-900"
+                @click.stop
+              >
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-dark-800"
+                  :disabled="batchTesting || loading"
+                  @click="showMoreActionsDropdown = false; handleBatchTest()"
+                >
+                  <Icon name="play" size="sm" />
+                  {{ t('admin.proxies.testConnection') }}
+                </button>
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-200 dark:hover:bg-dark-800"
+                  :disabled="batchQualityChecking || loading"
+                  @click="showMoreActionsDropdown = false; handleBatchQualityCheck()"
+                >
+                  <Icon name="shield" size="sm" :class="batchQualityChecking ? 'animate-pulse' : ''" />
+                  {{ t('admin.proxies.batchQualityCheck') }}
+                </button>
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-800"
+                  @click="showMoreActionsDropdown = false; showImportData = true"
+                >
+                  <Icon name="upload" size="sm" />
+                  {{ t('admin.proxies.dataImport') }}
+                </button>
+                <button
+                  type="button"
+                  class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-dark-800"
+                  @click="showMoreActionsDropdown = false; showExportDataDialog = true"
+                >
+                  <Icon name="download" size="sm" />
+                  {{ selectedCount > 0 ? t('admin.proxies.dataExportSelected') : t('admin.proxies.dataExport') }}
+                </button>
+              </div>
+            </div>
             <button
               @click="openBatchDelete"
               :disabled="selectedCount === 0"
-              class="btn btn-danger"
+              class="btn btn-danger shrink-0 whitespace-nowrap"
               :title="t('admin.proxies.batchDeleteAction')"
             >
               <Icon name="trash" size="md" class="mr-2" />
               {{ t('admin.proxies.batchDeleteAction') }}
             </button>
-            <button @click="showImportData = true" class="btn btn-secondary">
-              {{ t('admin.proxies.dataImport') }}
-            </button>
-            <button @click="showExportDataDialog = true" class="btn btn-secondary">
-              {{ selectedCount > 0 ? t('admin.proxies.dataExportSelected') : t('admin.proxies.dataExport') }}
-            </button>
-            <button @click="showCreateModal = true" class="btn btn-primary">
+            <button @click="showCreateModal = true" class="btn btn-primary shrink-0 whitespace-nowrap">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.proxies.createProxy') }}
             </button>
@@ -879,7 +916,7 @@
 
         <div class="max-h-80 overflow-auto rounded-lg border border-gray-200 dark:border-dark-600">
           <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
-            <thead class="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-dark-800 dark:text-dark-400">
+            <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
               <tr>
                 <th class="whitespace-nowrap px-3 py-2 text-left">{{ t('admin.proxies.qualityTableTarget') }}</th>
                 <th class="whitespace-nowrap px-3 py-2 text-left">{{ t('admin.proxies.qualityTableStatus') }}</th>
@@ -932,7 +969,7 @@
       </div>
       <div v-else class="max-h-80 overflow-auto">
         <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-700">
-          <thead class="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-dark-800 dark:text-dark-400">
+          <thead class="bg-gray-50 text-xs text-gray-500 dark:bg-dark-800 dark:text-dark-400">
             <tr>
               <th class="px-4 py-2 text-left">{{ t('admin.proxies.accountName') }}</th>
               <th class="px-4 py-2 text-left">{{ t('admin.accounts.columns.platformType') }}</th>
@@ -1050,6 +1087,10 @@ const filters = reactive({
   protocol: '',
   status: ''
 })
+const showFilterDropdown = ref(false)
+const filterDropdownRef = ref<HTMLElement | null>(null)
+const showMoreActionsDropdown = ref(false)
+const moreActionsDropdownRef = ref<HTMLElement | null>(null)
 const pagination = reactive({
   page: 1,
   page_size: getPersistedPageSize(),
@@ -1060,6 +1101,15 @@ const sortState = reactive({
   sort_by: 'id',
   sort_order: 'desc' as 'asc' | 'desc'
 })
+
+const activeFilterCount = computed(() => [filters.protocol, filters.status].filter(Boolean).length)
+
+const resetProxyFilters = () => {
+  filters.protocol = ''
+  filters.status = ''
+  pagination.page = 1
+  loadProxies()
+}
 
 const showCreateModal = ref(false)
 const createPasswordVisible = ref(false)
@@ -2075,15 +2125,23 @@ function closeCopyMenu() {
   copyMenuProxyId.value = null
 }
 
+function handleProxyClickOutside(event: MouseEvent) {
+  const target = event.target
+  closeCopyMenu()
+  if (target instanceof Node && (filterDropdownRef.value?.contains(target) || moreActionsDropdownRef.value?.contains(target))) return
+  showFilterDropdown.value = false
+  showMoreActionsDropdown.value = false
+}
+
 onMounted(() => {
   loadProxies()
   loadBackupProxyOptions()
-  document.addEventListener('click', closeCopyMenu)
+  document.addEventListener('click', handleProxyClickOutside)
 })
 
 onUnmounted(() => {
   clearTimeout(searchTimeout)
   abortController?.abort()
-  document.removeEventListener('click', closeCopyMenu)
+  document.removeEventListener('click', handleProxyClickOutside)
 })
 </script>

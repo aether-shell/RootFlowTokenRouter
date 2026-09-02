@@ -17,6 +17,7 @@ type SystemSettings struct {
 	RegistrationEmailSuffixWhitelist    []string
 	RegistrationEmailNormalization      bool
 	RegistrationEmailDomainQuotaEnabled bool // 非白名单域名按主域名限量注册，默认关闭
+	UserEmailChangeEnabled              bool // 已有邮箱身份的用户是否可以换绑主邮箱，默认关闭
 	PromoCodeEnabled                    bool
 	PasswordResetEnabled                bool
 	FrontendURL                         string
@@ -178,12 +179,19 @@ type SystemSettings struct {
 	CustomEndpoints             string // JSON array of custom endpoints
 	FooterLinks                 string // JSON array of footer link groups
 	FooterText                  string // Extra footer text (ICP number etc.)
+	HomeFeaturedModels          string // JSON array of model IDs featured on the home page
+	// CreativeModelSettings 是创作台允许使用的全局分组+模型+能力白名单 JSON。
+	CreativeModelSettings []CreativeModelSetting
+	// CreativeWorkerCount 是创作台任务 worker 数量，缺失时回退默认值。
+	CreativeWorkerCount int
 
 	DefaultConcurrency int
 	DefaultBalance     float64
 	// TeamEnabled 和 DataSharingEnabled 控制对应功能页面的入口与访问。
 	TeamEnabled        bool
 	DataSharingEnabled bool
+	// CreativeEnabled 控制创作台页面入口与 API 访问（进程配置 creative.enabled 仍为前置条件）。
+	CreativeEnabled bool
 	// RiskControlEnabled 控制风控中心入口和网关内容审计总开关。
 	RiskControlEnabled                   bool
 	CyberSessionBlockEnabled             bool
@@ -261,8 +269,15 @@ type SystemSettings struct {
 	PaymentVisibleMethodWxpayEnabled  bool
 
 	// 通用高级调度器参数；是否启用由分组 scheduler_type 决定。
-	AdvancedSchedulerStickyWeightedEnabled           bool
-	AdvancedSchedulerSubscriptionPriorityEnabled     bool
+	AdvancedSchedulerStickyWeightedEnabled       bool
+	AdvancedSchedulerSubscriptionPriorityEnabled bool
+	AdvancedSchedulerEWMAErrorRateAlpha          string
+	AdvancedSchedulerEWMATTFTAlpha               string
+	AdvancedSchedulerStickyEscapeEnabled         bool
+	// AdvancedSchedulerStickyEscapeEnabledSet 标记开关是否由数据库显式设置，用于诊断继承来源。
+	AdvancedSchedulerStickyEscapeEnabledSet          bool
+	AdvancedSchedulerStickyEscapeTTFTMs              string
+	AdvancedSchedulerStickyEscapeErrorRate           string
 	AdvancedSchedulerLBTopK                          string
 	AdvancedSchedulerWeightPriority                  string
 	AdvancedSchedulerWeightLoad                      string
@@ -283,6 +298,11 @@ type SystemSettings struct {
 	AdvancedSchedulerEffectiveWeightQuotaHeadroom    string
 	AdvancedSchedulerEffectiveWeightPreviousResponse string
 	AdvancedSchedulerEffectiveWeightSessionSticky    string
+	AdvancedSchedulerEffectiveEWMAErrorRateAlpha     string
+	AdvancedSchedulerEffectiveEWMATTFTAlpha          string
+	AdvancedSchedulerEffectiveStickyEscapeEnabled    bool
+	AdvancedSchedulerEffectiveStickyEscapeTTFTMs     string
+	AdvancedSchedulerEffectiveStickyEscapeErrorRate  string
 	// OpenAIQuotaAutoPauseSettings 是 OpenAI 账号配额自动暂停的全局默认阈值，存储在 ops_advanced_settings 中。
 	OpenAIQuotaAutoPauseSettings OpsOpenAIAccountQuotaAutoPauseSettings
 	// OpenAIQuotaAutoPauseSettingsSet 标记本次系统设置更新是否显式带了配额自动暂停配置，避免旧客户端误覆盖。
@@ -320,6 +340,7 @@ type PublicSettings struct {
 	ForceEmailOnThirdPartySignup        bool
 	RegistrationEmailSuffixWhitelist    []string
 	RegistrationEmailDomainQuotaEnabled bool
+	UserEmailChangeEnabled              bool // 是否允许已有邮箱的用户换绑主邮箱
 	PromoCodeEnabled                    bool
 	PasswordResetEnabled                bool
 	InvitationCodeEnabled               bool
@@ -368,6 +389,7 @@ type PublicSettings struct {
 	CustomEndpoints             string // JSON array of custom endpoints
 	FooterLinks                 string // JSON array of footer link groups
 	FooterText                  string // Extra footer text (ICP number etc.)
+	HomeFeaturedModels          string // JSON array of model IDs featured on the home page
 
 	LinuxDoOAuthEnabled      bool
 	DingTalkOAuthEnabled     bool
@@ -380,16 +402,18 @@ type PublicSettings struct {
 	TeamEnabled              bool
 	TeamSelfServiceEnabled   bool
 	DataSharingEnabled       bool // 暴露给前端用于控制数据共享页面入口
-	OIDCOAuthEnabled         bool
-	OIDCOAuthProviderName    string
-	GitHubOAuthEnabled       bool
-	GoogleOAuthEnabled       bool
-	GoogleOneTapEnabled      bool
-	GoogleOAuthClientID      string
-	Version                  string
-	BalanceUnitName          string
-	BalanceUnitSymbol        string
-	BalanceIconSVG           string
+	// CreativeEnabled 暴露给前端用于控制创作台页面入口与路由守卫。
+	CreativeEnabled       bool
+	OIDCOAuthEnabled      bool
+	OIDCOAuthProviderName string
+	GitHubOAuthEnabled    bool
+	GoogleOAuthEnabled    bool
+	GoogleOneTapEnabled   bool
+	GoogleOAuthClientID   string
+	Version               string
+	BalanceUnitName       string
+	BalanceUnitSymbol     string
+	BalanceIconSVG        string
 
 	BalanceLowNotifyEnabled   bool
 	AccountQuotaNotifyEnabled bool

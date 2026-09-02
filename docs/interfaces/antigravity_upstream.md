@@ -57,6 +57,8 @@ Chat Completions / Responses
 
 每次 failover attempt 都必须从原始请求重新转换，并刷新工具名回程映射。流开始后遵守共同不可切换边界。Gemini v1beta 专用入口保持 Google 错误/流形状，不经过 OpenAI envelope。
 
+兼容层把 Chat 请求中的正数 `max_completion_tokens`（缺省时使用 `max_tokens`）在转换为 Anthropic 请求前封顶为 64000；零、负数或缺省值不会覆盖转换器已有的默认上限，避免超大客户端参数被上游拒绝。
+
 ## 混合调度
 
 Antigravity 账号 `extra.mixed_scheduling` 为布尔 `true` 时，可以作为 Anthropic 或 Gemini 原生分组的候选账号。缺失、`false` 或字符串 `"true"` 都视为未启用。候选账号还必须属于目标分组、状态 active/schedulable，并满足模型、额度、并发、资格和 endpoint 能力。

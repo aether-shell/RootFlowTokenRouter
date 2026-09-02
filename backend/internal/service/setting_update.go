@@ -184,6 +184,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyEmailVerifyEnabled] = strconv.FormatBool(settings.EmailVerifyEnabled)
 	updates[SettingKeyRegistrationEmailNormalization] = strconv.FormatBool(settings.RegistrationEmailNormalization)
 	updates[SettingKeyRegistrationEmailDomainQuotaEnabled] = strconv.FormatBool(settings.RegistrationEmailDomainQuotaEnabled)
+	updates[SettingKeyUserEmailChangeEnabled] = strconv.FormatBool(settings.UserEmailChangeEnabled)
 	registrationEmailSuffixWhitelistJSON, err := json.Marshal(settings.RegistrationEmailSuffixWhitelist)
 	if err != nil {
 		return nil, fmt.Errorf("marshal registration email suffix whitelist: %w", err)
@@ -405,6 +406,17 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyCustomEndpoints] = settings.CustomEndpoints
 	updates[SettingKeyFooterLinks] = settings.FooterLinks
 	updates[SettingKeyFooterText] = strings.TrimSpace(settings.FooterText)
+	updates[SettingKeyHomeFeaturedModels] = settings.HomeFeaturedModels
+	creativeModelSettingsJSON, normalizedCreativeModelSettings, err := marshalCreativeModelSettings(settings.CreativeModelSettings)
+	if err != nil {
+		return nil, infraerrors.BadRequest("INVALID_CREATIVE_MODEL_SETTINGS", err.Error())
+	}
+	settings.CreativeModelSettings = normalizedCreativeModelSettings
+	updates[SettingKeyCreativeModelSettings] = creativeModelSettingsJSON
+	if settings.CreativeWorkerCount <= 0 {
+		settings.CreativeWorkerCount = DefaultCreativeWorkerCount
+	}
+	updates[SettingKeyCreativeWorkerCount] = strconv.Itoa(settings.CreativeWorkerCount)
 
 	// 默认配置
 	updates[SettingKeyDefaultConcurrency] = strconv.Itoa(settings.DefaultConcurrency)
@@ -513,6 +525,16 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingPaymentVisibleMethodWxpayEnabled] = strconv.FormatBool(settings.PaymentVisibleMethodWxpayEnabled)
 	updates[SettingKeyAdvancedSchedulerStickyWeightedEnabled] = strconv.FormatBool(settings.AdvancedSchedulerStickyWeightedEnabled)
 	updates[SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled] = strconv.FormatBool(settings.AdvancedSchedulerSubscriptionPriorityEnabled)
+	updates[SettingKeyAdvancedSchedulerEWMAErrorRateAlpha] = settings.AdvancedSchedulerEWMAErrorRateAlpha
+	updates[SettingKeyAdvancedSchedulerEWMATTFTAlpha] = settings.AdvancedSchedulerEWMATTFTAlpha
+	if settings.AdvancedSchedulerStickyEscapeEnabledSet {
+		updates[SettingKeyAdvancedSchedulerStickyEscapeEnabled] = strconv.FormatBool(settings.AdvancedSchedulerStickyEscapeEnabled)
+	} else {
+		// 开关缺省时保留空值，让进程配置继续提供默认值。
+		updates[SettingKeyAdvancedSchedulerStickyEscapeEnabled] = ""
+	}
+	updates[SettingKeyAdvancedSchedulerStickyEscapeTTFTMs] = settings.AdvancedSchedulerStickyEscapeTTFTMs
+	updates[SettingKeyAdvancedSchedulerStickyEscapeErrorRate] = settings.AdvancedSchedulerStickyEscapeErrorRate
 	updates[SettingKeyAdvancedSchedulerLBTopK] = settings.AdvancedSchedulerLBTopK
 	updates[SettingKeyAdvancedSchedulerWeightPriority] = settings.AdvancedSchedulerWeightPriority
 	updates[SettingKeyAdvancedSchedulerWeightLoad] = settings.AdvancedSchedulerWeightLoad
@@ -543,9 +565,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAccountQuotaNotifyEnabled] = strconv.FormatBool(settings.AccountQuotaNotifyEnabled)
 	updates[SettingKeyAccountQuotaNotifyEmails] = MarshalNotifyEmails(settings.AccountQuotaNotifyEmails)
 
-	// 页面功能开关：控制团队和数据共享相关页面的入口与访问。
+	// 页面功能开关：控制团队、数据共享和创作台相关页面的入口与访问。
 	updates[SettingKeyTeamEnabled] = strconv.FormatBool(settings.TeamEnabled)
 	updates[SettingKeyDataSharingEnabled] = strconv.FormatBool(settings.DataSharingEnabled)
+	updates[SettingKeyCreativeEnabled] = strconv.FormatBool(settings.CreativeEnabled)
 
 	// 风控中心总开关：控制菜单入口和网关内容审计是否执行。
 	updates[SettingKeyRiskControlEnabled] = strconv.FormatBool(settings.RiskControlEnabled)
@@ -580,6 +603,51 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAllowUserViewErrorRequests] = strconv.FormatBool(settings.AllowUserViewErrorRequests)
 
 	return updates, nil
+}
+
+func resolveAdvancedSchedulerAlphaForSettings(raw string, s *SettingService) float64 {
+	defaults := (&OpenAIGatewayService{cfg: func() *config.Config {
+		if s == nil {
+			return nil
+		}
+		return s.cfg
+	}()}).advancedSchedulerProcessRuntimeSettings()
+	value, _ := parseAdvancedSchedulerAlphaOverride(raw, defaults.ewmaErrorRateAlpha)
+	return value
+}
+
+// resolveAdvancedSchedulerTTFTAlphaForSettings 使用 TTFT 进程默认值解析运行时覆盖，避免复用错误率默认值。
+func resolveAdvancedSchedulerTTFTAlphaForSettings(raw string, s *SettingService) float64 {
+	defaults := (&OpenAIGatewayService{cfg: func() *config.Config {
+		if s == nil {
+			return nil
+		}
+		return s.cfg
+	}()}).advancedSchedulerProcessRuntimeSettings()
+	value, _ := parseAdvancedSchedulerAlphaOverride(raw, defaults.ewmaTTFTAlpha)
+	return value
+}
+
+func resolveAdvancedSchedulerPositiveFloatForSettings(raw string, s *SettingService) float64 {
+	defaults := (&OpenAIGatewayService{cfg: func() *config.Config {
+		if s == nil {
+			return nil
+		}
+		return s.cfg
+	}()}).advancedSchedulerProcessRuntimeSettings()
+	value, _ := parseAdvancedSchedulerPositiveFloatOverride(raw, defaults.stickyEscape.ttftMs)
+	return value
+}
+
+func resolveAdvancedSchedulerRateForSettings(raw string, s *SettingService) float64 {
+	defaults := (&OpenAIGatewayService{cfg: func() *config.Config {
+		if s == nil {
+			return nil
+		}
+		return s.cfg
+	}()}).advancedSchedulerProcessRuntimeSettings()
+	value, _ := parseAdvancedSchedulerRateOverride(raw, defaults.stickyEscape.errorRate)
+	return value
 }
 
 func defaultAccountSchedulingThresholds() map[string]int {
@@ -772,6 +840,17 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		stickyWeightedEnabled:       settings.AdvancedSchedulerStickyWeightedEnabled,
 		subscriptionPriorityEnabled: settings.AdvancedSchedulerSubscriptionPriorityEnabled,
 		lbTopKOverride:              parsePositiveIntOverride(settings.AdvancedSchedulerLBTopK),
+		ewmaErrorRateAlpha:          resolveAdvancedSchedulerAlphaForSettings(settings.AdvancedSchedulerEWMAErrorRateAlpha, s),
+		ewmaErrorRateAlphaSet:       strings.TrimSpace(settings.AdvancedSchedulerEWMAErrorRateAlpha) != "",
+		ewmaTTFTAlpha:               resolveAdvancedSchedulerTTFTAlphaForSettings(settings.AdvancedSchedulerEWMATTFTAlpha, s),
+		ewmaTTFTAlphaSet:            strings.TrimSpace(settings.AdvancedSchedulerEWMATTFTAlpha) != "",
+		stickyEscapeEnabled:         settings.AdvancedSchedulerStickyEscapeEnabled,
+		stickyEscapeEnabledSet:      settings.AdvancedSchedulerStickyEscapeEnabledSet,
+		stickyEscapeTTFTMs:          resolveAdvancedSchedulerPositiveFloatForSettings(settings.AdvancedSchedulerStickyEscapeTTFTMs, s),
+		stickyEscapeTTFTMsSet:       strings.TrimSpace(settings.AdvancedSchedulerStickyEscapeTTFTMs) != "",
+		stickyEscapeErrorRate:       resolveAdvancedSchedulerRateForSettings(settings.AdvancedSchedulerStickyEscapeErrorRate, s),
+		stickyEscapeErrorRateSet:    strings.TrimSpace(settings.AdvancedSchedulerStickyEscapeErrorRate) != "",
+		stickyEscape:                advancedStickyEscapeConfig{enabled: settings.AdvancedSchedulerStickyEscapeEnabled, ttftMs: resolveAdvancedSchedulerPositiveFloatForSettings(settings.AdvancedSchedulerStickyEscapeTTFTMs, s), errorRate: resolveAdvancedSchedulerRateForSettings(settings.AdvancedSchedulerStickyEscapeErrorRate, s)},
 		weightOverrides: parseAdvancedSchedulerWeightOverrides(map[string]string{
 			SettingKeyAdvancedSchedulerWeightPriority:         settings.AdvancedSchedulerWeightPriority,
 			SettingKeyAdvancedSchedulerWeightLoad:             settings.AdvancedSchedulerWeightLoad,
@@ -822,6 +901,9 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 	})
 	if s.onUpdate != nil {
 		s.onUpdate() // Invalidate cache after settings update
+	}
+	if s.creativeWorkerCountCallback != nil {
+		s.creativeWorkerCountCallback(settings.CreativeWorkerCount)
 	}
 }
 

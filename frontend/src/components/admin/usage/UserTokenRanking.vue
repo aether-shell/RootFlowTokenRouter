@@ -19,8 +19,8 @@
       <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
         <thead class="bg-gray-50 dark:bg-dark-800">
           <tr>
-            <th class="w-16 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400 sm:px-6">#</th>
-            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400">
+            <th class="w-16 px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-dark-400 sm:px-6">#</th>
+            <th class="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-dark-400">
               {{ t('admin.usage.tokenRanking.columns.user') }}
             </th>
             <th

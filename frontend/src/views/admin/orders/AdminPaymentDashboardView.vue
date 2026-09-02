@@ -1,19 +1,18 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <div class="flex items-center justify-end">
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          <DateRangePicker
-            v-model:start-date="startDate"
-            v-model:end-date="endDate"
-            @change="onDateRangeChange"
-          />
-          <button @click="loadDashboard" :disabled="loading" class="btn btn-secondary" :title="t('common.refresh')">
-            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-          </button>
-        </div>
+    <template #page-heading-actions>
+      <div class="flex items-center justify-end gap-2">
+        <DateRangePicker
+          v-model:start-date="startDate"
+          v-model:end-date="endDate"
+          @change="onDateRangeChange"
+        />
+        <button @click="loadDashboard" :disabled="loading" class="btn btn-secondary h-9 w-9 shrink-0 p-0" :title="t('common.refresh')">
+          <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+        </button>
       </div>
-
+    </template>
+    <div class="space-y-6">
       <!-- Dashboard Content -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />

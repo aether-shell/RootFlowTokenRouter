@@ -459,19 +459,19 @@ function cancelDelete() {
         <table v-else class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
           <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-950">
             <tr>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertRules.table.name') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertRules.table.metric') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertRules.table.severity') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertRules.table.enabled') }}
               </th>
-              <th class="px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-right text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertRules.table.actions') }}
               </th>
             </tr>

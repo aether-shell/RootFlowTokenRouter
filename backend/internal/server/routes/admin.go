@@ -588,6 +588,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		adminSettings.GET("", h.Admin.Setting.GetSettings)
 		adminSettings.PUT("", h.Admin.Setting.UpdateSettings)
+		adminSettings.GET("/creative-model-candidates", h.Admin.Setting.ListCreativeModelCandidates)
+		adminSettings.GET("/creative-worker-status", h.Admin.Setting.GetCreativeWorkerStatus)
 		adminSettings.GET("/pre-aggregation", h.Admin.Setting.GetPreAggregationSettings)
 		adminSettings.PUT("/pre-aggregation", h.Admin.Setting.UpdatePreAggregationSettings)
 		adminSettings.POST("/pre-aggregation/backfill", h.Admin.Setting.BackfillPreAggregation)

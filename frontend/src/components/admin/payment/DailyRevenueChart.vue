@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Chart as ChartJS,
@@ -33,9 +33,12 @@ import {
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import type { DailyPaymentStats } from '@/types/payment'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
+
+onBeforeUnmount(hideExternalTooltip)
 
 const { t } = useI18n()
 
@@ -106,6 +109,10 @@ const chartOptions = {
   },
   plugins: {
     legend: { position: 'top' as const },
+    tooltip: {
+      enabled: false,
+      external: externalTooltipHandler
+    }
   }
 }
 </script>

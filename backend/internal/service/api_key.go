@@ -129,6 +129,9 @@ type APIKey struct {
 	FallbackToDefaultGroupWhenUnavailable bool
 	// CurrentConcurrency 表示当前 API Key 的实时活跃请求数。
 	CurrentConcurrency int
+	// ManagedBy 标记服务端托管的隐藏 Key（如创作台执行 Key 'creative_studio'），
+	// 普通用户接口不得暴露或操作此类 Key；nil 表示普通用户 Key。
+	ManagedBy *string
 
 	// Quota fields
 	Quota     float64    // Quota limit in USD (0 = unlimited)

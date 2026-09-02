@@ -119,12 +119,13 @@ func ProvideSettingHandler(settingService *service.SettingService, buildInfo Bui
 }
 
 // ProvideAdminSettingHandler 创建带通知邮件模板 API 的后台设置处理器。
-func ProvideAdminSettingHandler(settingService *service.SettingService, emailService *service.EmailService, turnstileService *service.TurnstileService, aliyunCaptchaService *service.AliyunCaptchaService, opsService *service.OpsService, paymentConfigService *service.PaymentConfigService, paymentService *service.PaymentService, userAttributeService *service.UserAttributeService, notificationEmailService *service.NotificationEmailService, totpService *service.TotpService, userService *service.UserService, preAggregationSettings *service.PreAggregationSettingsService, dashboardAggregation *service.DashboardAggregationService, opsAggregation *service.OpsAggregationService) *admin.SettingHandler {
+func ProvideAdminSettingHandler(settingService *service.SettingService, emailService *service.EmailService, turnstileService *service.TurnstileService, aliyunCaptchaService *service.AliyunCaptchaService, opsService *service.OpsService, paymentConfigService *service.PaymentConfigService, paymentService *service.PaymentService, userAttributeService *service.UserAttributeService, notificationEmailService *service.NotificationEmailService, totpService *service.TotpService, userService *service.UserService, preAggregationSettings *service.PreAggregationSettingsService, dashboardAggregation *service.DashboardAggregationService, opsAggregation *service.OpsAggregationService, creativeModelReader *service.CreativePublicService) *admin.SettingHandler {
 	h := admin.NewSettingHandler(settingService, emailService, turnstileService, opsService, paymentConfigService, paymentService, userAttributeService)
 	h.SetNotificationEmailService(notificationEmailService)
 	h.SetAliyunCaptchaService(aliyunCaptchaService)
 	h.SetStepUpDeps(totpService, userService)
 	h.SetPreAggregationDeps(preAggregationSettings, dashboardAggregation, opsAggregation)
+	h.SetCreativeModelReader(creativeModelReader)
 	return h
 }
 
@@ -161,6 +162,7 @@ func ProvideHandlers(
 	paymentWebhookHandler *PaymentWebhookHandler,
 	dataSharingHandler *DataSharingHandler,
 	batchImageHandler *BatchImageHandler,
+	creativeHandler *CreativeHandler,
 	teamHandler *TeamHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
@@ -185,6 +187,7 @@ func ProvideHandlers(
 		PaymentWebhook:   paymentWebhookHandler,
 		DataSharing:      dataSharingHandler,
 		BatchImage:       batchImageHandler,
+		Creative:         creativeHandler,
 		Team:             teamHandler,
 	}
 }
@@ -210,6 +213,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentWebhookHandler,
 	NewDataSharingHandler,
 	NewBatchImageHandler,
+	NewCreativeHandler,
 	NewTeamHandler,
 
 	// Admin handlers

@@ -1056,6 +1056,12 @@ func (s *RateLimitService) handle403(ctx context.Context, account *Account, upst
 	if account.Platform == PlatformAntigravity {
 		return s.handleAntigravity403(ctx, account, upstreamMsg, responseBody)
 	}
+	// Kimi 将账号级并发/业务限制返回为 403；保留切号信号，但不把精确文案
+	// 送入会永久禁用账号的累计 403 计数器。
+	if isCNProviderConcurrencyLimit403(account, upstreamMsg) {
+		s.handleCNProviderConcurrencyLimit403(ctx, account)
+		return true
+	}
 	if account.Platform == PlatformOpenAI || account.IsCNProvider() {
 		return s.handleOpenAI403(ctx, account, upstreamMsg, responseBody)
 	}

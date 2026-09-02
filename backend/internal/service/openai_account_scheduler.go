@@ -45,6 +45,17 @@ type cachedAdvancedSchedulerSetting struct {
 	subscriptionPriorityEnabled bool
 	lbTopKOverride              int
 	weightOverrides             map[string]float64
+	ewmaErrorRateAlpha          float64
+	ewmaErrorRateAlphaSet       bool
+	ewmaTTFTAlpha               float64
+	ewmaTTFTAlphaSet            bool
+	stickyEscapeEnabled         bool
+	stickyEscapeEnabledSet      bool
+	stickyEscapeTTFTMs          float64
+	stickyEscapeTTFTMsSet       bool
+	stickyEscapeErrorRate       float64
+	stickyEscapeErrorRateSet    bool
+	stickyEscape                advancedStickyEscapeConfig
 	expiresAt                   int64
 }
 
@@ -53,6 +64,17 @@ type advancedSchedulerRuntimeSettings struct {
 	subscriptionPriorityEnabled bool
 	lbTopKOverride              int
 	weightOverrides             map[string]float64
+	ewmaErrorRateAlpha          float64
+	ewmaErrorRateAlphaSet       bool
+	ewmaTTFTAlpha               float64
+	ewmaTTFTAlphaSet            bool
+	stickyEscapeEnabled         bool
+	stickyEscapeEnabledSet      bool
+	stickyEscapeTTFTMs          float64
+	stickyEscapeTTFTMsSet       bool
+	stickyEscapeErrorRate       float64
+	stickyEscapeErrorRateSet    bool
+	stickyEscape                advancedStickyEscapeConfig
 }
 
 var advancedSchedulerSettingCache atomic.Value // *cachedAdvancedSchedulerSetting
@@ -78,6 +100,9 @@ type OpenAIAccountScheduleRequest struct {
 	RequiredImageCapability OpenAIImagesCapability
 	RequireCompact          bool
 	ExcludedIDs             map[int64]struct{}
+	// AdvancedSchedulerFeedbackConfig 与 StickyEscapeConfig 固定本次请求使用的有效策略。
+	AdvancedSchedulerFeedbackConfig advancedSchedulerFeedbackConfig
+	StickyEscapeConfig              advancedStickyEscapeConfig
 }
 
 // routingModel 返回账号调度层使用的模型，并兼容未设置 RoutingModel 的旧调用方。
@@ -116,7 +141,7 @@ type OpenAIAccountSchedulerMetricsSnapshot struct {
 
 type OpenAIAccountScheduler interface {
 	Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error)
-	ReportResult(accountID int64, success bool, firstTokenMs *int)
+	ReportResult(accountID int64, success bool, firstTokenMs *int, feedback ...advancedSchedulerFeedbackConfig)
 	ReportSwitch()
 	SnapshotMetrics() OpenAIAccountSchedulerMetricsSnapshot
 }
@@ -271,11 +296,23 @@ func newDefaultOpenAIAccountScheduler(service *OpenAIGatewayService, stats *open
 func (s *defaultOpenAIAccountScheduler) Select(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
-) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+) (selectionResult *AccountSelectionResult, decision OpenAIAccountScheduleDecision, selectErr error) {
+	if s != nil && s.service != nil {
+		effective := s.service.advancedSchedulerEffectiveSettingsForRequest(ctx, req.GroupID)
+		req.AdvancedSchedulerFeedbackConfig = normalizeAdvancedSchedulerFeedbackConfig(effective.feedback)
+		req.StickyEscapeConfig = normalizeAdvancedStickyEscapeConfig(effective.stickyEscape)
+	}
+	defer func() {
+		// 统一给所有成功选择路径附带请求开始时捕获的反馈配置，避免回写时重新读取运行时设置。
+		if selectionResult != nil && selectionResult.AdvancedSchedulerFeedback == nil && s != nil && s.service != nil {
+			feedback := normalizeAdvancedSchedulerFeedbackConfig(req.AdvancedSchedulerFeedbackConfig)
+			selectionResult.AdvancedSchedulerFeedback = &feedback
+		}
+	}()
 	if s != nil && s.service != nil && s.service.openAIGroupRequiresPrivacySet(ctx, req.GroupID) {
 		req.RequirePrivacySet = true
 	}
-	decision := OpenAIAccountScheduleDecision{}
+	decision = OpenAIAccountScheduleDecision{}
 	start := time.Now()
 	defer func() {
 		decision.LatencyMs = time.Since(start).Milliseconds()
@@ -445,7 +482,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		clearBinding()
 		return nil, false, nil
 	}
-	escapeCfg := s.service.openAIStickyEscapeConfig()
+	escapeCfg := normalizeAdvancedStickyEscapeConfig(req.StickyEscapeConfig)
 	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccount(accountID, escapeCfg); shouldEscape {
 		slog.Info("sticky_escape_triggered",
 			"account_id", accountID,
@@ -464,6 +501,10 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			Account:     account,
 			Acquired:    true,
 			ReleaseFunc: result.ReleaseFunc,
+			AdvancedSchedulerFeedback: func() *advancedSchedulerFeedbackConfig {
+				feedback := normalizeAdvancedSchedulerFeedbackConfig(req.AdvancedSchedulerFeedbackConfig)
+				return &feedback
+			}(),
 		}, false, nil
 	}
 
@@ -488,6 +529,10 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 				Timeout:        cfg.StickySessionWaitTimeout,
 				MaxWaiting:     cfg.StickySessionMaxWaiting,
 			},
+			AdvancedSchedulerFeedback: func() *advancedSchedulerFeedbackConfig {
+				feedback := normalizeAdvancedSchedulerFeedbackConfig(req.AdvancedSchedulerFeedbackConfig)
+				return &feedback
+			}(),
 		}, false, nil
 	}
 	return nil, false, nil
@@ -1270,11 +1315,11 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	return true, ""
 }
 
-func (s *defaultOpenAIAccountScheduler) ReportResult(accountID int64, success bool, firstTokenMs *int) {
+func (s *defaultOpenAIAccountScheduler) ReportResult(accountID int64, success bool, firstTokenMs *int, feedback ...advancedSchedulerFeedbackConfig) {
 	if s == nil || s.stats == nil {
 		return
 	}
-	s.stats.report(accountID, success, firstTokenMs)
+	s.stats.report(accountID, success, firstTokenMs, feedback...)
 }
 
 func (s *defaultOpenAIAccountScheduler) ReportSwitch() {
@@ -1322,6 +1367,7 @@ func (s *OpenAIGatewayService) advancedSchedulerSettingRepo() SettingRepository 
 }
 
 func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Context) advancedSchedulerRuntimeSettings {
+	defaults := s.advancedSchedulerProcessRuntimeSettings()
 	if cached, ok := advancedSchedulerSettingCache.Load().(*cachedAdvancedSchedulerSetting); ok && cached != nil {
 		if time.Now().UnixNano() < cached.expiresAt {
 			return advancedSchedulerRuntimeSettings{
@@ -1329,6 +1375,17 @@ func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Cont
 				subscriptionPriorityEnabled: cached.subscriptionPriorityEnabled,
 				lbTopKOverride:              cached.lbTopKOverride,
 				weightOverrides:             cloneAdvancedSchedulerWeightOverrides(cached.weightOverrides),
+				ewmaErrorRateAlpha:          cached.ewmaErrorRateAlpha,
+				ewmaErrorRateAlphaSet:       cached.ewmaErrorRateAlphaSet,
+				ewmaTTFTAlpha:               cached.ewmaTTFTAlpha,
+				ewmaTTFTAlphaSet:            cached.ewmaTTFTAlphaSet,
+				stickyEscapeEnabled:         cached.stickyEscapeEnabled,
+				stickyEscapeEnabledSet:      cached.stickyEscapeEnabledSet,
+				stickyEscapeTTFTMs:          cached.stickyEscapeTTFTMs,
+				stickyEscapeTTFTMsSet:       cached.stickyEscapeTTFTMsSet,
+				stickyEscapeErrorRate:       cached.stickyEscapeErrorRate,
+				stickyEscapeErrorRateSet:    cached.stickyEscapeErrorRateSet,
+				stickyEscape:                advancedStickyEscapeConfig{enabled: cached.stickyEscapeEnabled, ttftMs: cached.stickyEscapeTTFTMs, errorRate: cached.stickyEscapeErrorRate},
 			}
 		}
 	}
@@ -1341,6 +1398,17 @@ func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Cont
 					subscriptionPriorityEnabled: cached.subscriptionPriorityEnabled,
 					lbTopKOverride:              cached.lbTopKOverride,
 					weightOverrides:             cloneAdvancedSchedulerWeightOverrides(cached.weightOverrides),
+					ewmaErrorRateAlpha:          cached.ewmaErrorRateAlpha,
+					ewmaErrorRateAlphaSet:       cached.ewmaErrorRateAlphaSet,
+					ewmaTTFTAlpha:               cached.ewmaTTFTAlpha,
+					ewmaTTFTAlphaSet:            cached.ewmaTTFTAlphaSet,
+					stickyEscapeEnabled:         cached.stickyEscapeEnabled,
+					stickyEscapeEnabledSet:      cached.stickyEscapeEnabledSet,
+					stickyEscapeTTFTMs:          cached.stickyEscapeTTFTMs,
+					stickyEscapeTTFTMsSet:       cached.stickyEscapeTTFTMsSet,
+					stickyEscapeErrorRate:       cached.stickyEscapeErrorRate,
+					stickyEscapeErrorRateSet:    cached.stickyEscapeErrorRateSet,
+					stickyEscape:                advancedStickyEscapeConfig{enabled: cached.stickyEscapeEnabled, ttftMs: cached.stickyEscapeTTFTMs, errorRate: cached.stickyEscapeErrorRate},
 				}, nil
 			}
 		}
@@ -1349,6 +1417,16 @@ func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Cont
 		subscriptionPriorityEnabled := false
 		lbTopKOverride := 0
 		weightOverrides := map[string]float64{}
+		ewmaErrorRateAlpha := defaults.ewmaErrorRateAlpha
+		ewmaErrorRateAlphaSet := false
+		ewmaTTFTAlpha := defaults.ewmaTTFTAlpha
+		ewmaTTFTAlphaSet := false
+		stickyEscapeEnabled := defaults.stickyEscape.enabled
+		stickyEscapeEnabledSet := false
+		stickyEscapeTTFTMs := defaults.stickyEscape.ttftMs
+		stickyEscapeTTFTMsSet := false
+		stickyEscapeErrorRate := defaults.stickyEscape.errorRate
+		stickyEscapeErrorRateSet := false
 		if repo := s.advancedSchedulerSettingRepo(); repo != nil {
 			dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), advancedSchedulerSettingDBTimeout)
 			defer cancel()
@@ -1358,6 +1436,11 @@ func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Cont
 				subscriptionPriorityEnabled = strings.EqualFold(strings.TrimSpace(values[SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled]), "true")
 				lbTopKOverride = parsePositiveIntOverride(values[SettingKeyAdvancedSchedulerLBTopK])
 				weightOverrides = parseAdvancedSchedulerWeightOverrides(values)
+				ewmaErrorRateAlpha, ewmaErrorRateAlphaSet = parseAdvancedSchedulerAlphaOverride(values[SettingKeyAdvancedSchedulerEWMAErrorRateAlpha], defaults.ewmaErrorRateAlpha)
+				ewmaTTFTAlpha, ewmaTTFTAlphaSet = parseAdvancedSchedulerAlphaOverride(values[SettingKeyAdvancedSchedulerEWMATTFTAlpha], defaults.ewmaTTFTAlpha)
+				stickyEscapeEnabled, stickyEscapeEnabledSet = parseAdvancedSchedulerBoolOverride(values[SettingKeyAdvancedSchedulerStickyEscapeEnabled], defaults.stickyEscape.enabled)
+				stickyEscapeTTFTMs, stickyEscapeTTFTMsSet = parseAdvancedSchedulerPositiveFloatOverride(values[SettingKeyAdvancedSchedulerStickyEscapeTTFTMs], defaults.stickyEscape.ttftMs)
+				stickyEscapeErrorRate, stickyEscapeErrorRateSet = parseAdvancedSchedulerRateOverride(values[SettingKeyAdvancedSchedulerStickyEscapeErrorRate], defaults.stickyEscape.errorRate)
 			} else {
 				// 批量读取失败时逐键降级，覆盖全部键（含 TopK/权重），避免只加载布尔开关
 				// 而静默丢弃管理员配置的覆盖值；降级状态会被缓存一个 TTL，必须留痕。
@@ -1372,6 +1455,11 @@ func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Cont
 				subscriptionPriorityEnabled = strings.EqualFold(strings.TrimSpace(fallbackValues[SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled]), "true")
 				lbTopKOverride = parsePositiveIntOverride(fallbackValues[SettingKeyAdvancedSchedulerLBTopK])
 				weightOverrides = parseAdvancedSchedulerWeightOverrides(fallbackValues)
+				ewmaErrorRateAlpha, ewmaErrorRateAlphaSet = parseAdvancedSchedulerAlphaOverride(fallbackValues[SettingKeyAdvancedSchedulerEWMAErrorRateAlpha], defaults.ewmaErrorRateAlpha)
+				ewmaTTFTAlpha, ewmaTTFTAlphaSet = parseAdvancedSchedulerAlphaOverride(fallbackValues[SettingKeyAdvancedSchedulerEWMATTFTAlpha], defaults.ewmaTTFTAlpha)
+				stickyEscapeEnabled, stickyEscapeEnabledSet = parseAdvancedSchedulerBoolOverride(fallbackValues[SettingKeyAdvancedSchedulerStickyEscapeEnabled], defaults.stickyEscape.enabled)
+				stickyEscapeTTFTMs, stickyEscapeTTFTMsSet = parseAdvancedSchedulerPositiveFloatOverride(fallbackValues[SettingKeyAdvancedSchedulerStickyEscapeTTFTMs], defaults.stickyEscape.ttftMs)
+				stickyEscapeErrorRate, stickyEscapeErrorRateSet = parseAdvancedSchedulerRateOverride(fallbackValues[SettingKeyAdvancedSchedulerStickyEscapeErrorRate], defaults.stickyEscape.errorRate)
 			}
 		}
 
@@ -1380,6 +1468,17 @@ func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Cont
 			subscriptionPriorityEnabled: subscriptionPriorityEnabled,
 			lbTopKOverride:              lbTopKOverride,
 			weightOverrides:             cloneAdvancedSchedulerWeightOverrides(weightOverrides),
+			ewmaErrorRateAlpha:          ewmaErrorRateAlpha,
+			ewmaErrorRateAlphaSet:       ewmaErrorRateAlphaSet,
+			ewmaTTFTAlpha:               ewmaTTFTAlpha,
+			ewmaTTFTAlphaSet:            ewmaTTFTAlphaSet,
+			stickyEscapeEnabled:         stickyEscapeEnabled,
+			stickyEscapeEnabledSet:      stickyEscapeEnabledSet,
+			stickyEscapeTTFTMs:          stickyEscapeTTFTMs,
+			stickyEscapeTTFTMsSet:       stickyEscapeTTFTMsSet,
+			stickyEscapeErrorRate:       stickyEscapeErrorRate,
+			stickyEscapeErrorRateSet:    stickyEscapeErrorRateSet,
+			stickyEscape:                advancedStickyEscapeConfig{enabled: stickyEscapeEnabled, ttftMs: stickyEscapeTTFTMs, errorRate: stickyEscapeErrorRate},
 			expiresAt:                   time.Now().Add(advancedSchedulerSettingCacheTTL).UnixNano(),
 		})
 		return advancedSchedulerRuntimeSettings{
@@ -1387,11 +1486,85 @@ func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Cont
 			subscriptionPriorityEnabled: subscriptionPriorityEnabled,
 			lbTopKOverride:              lbTopKOverride,
 			weightOverrides:             weightOverrides,
+			ewmaErrorRateAlpha:          ewmaErrorRateAlpha,
+			ewmaErrorRateAlphaSet:       ewmaErrorRateAlphaSet,
+			ewmaTTFTAlpha:               ewmaTTFTAlpha,
+			ewmaTTFTAlphaSet:            ewmaTTFTAlphaSet,
+			stickyEscapeEnabled:         stickyEscapeEnabled,
+			stickyEscapeEnabledSet:      stickyEscapeEnabledSet,
+			stickyEscapeTTFTMs:          stickyEscapeTTFTMs,
+			stickyEscapeTTFTMsSet:       stickyEscapeTTFTMsSet,
+			stickyEscapeErrorRate:       stickyEscapeErrorRate,
+			stickyEscapeErrorRateSet:    stickyEscapeErrorRateSet,
+			stickyEscape:                advancedStickyEscapeConfig{enabled: stickyEscapeEnabled, ttftMs: stickyEscapeTTFTMs, errorRate: stickyEscapeErrorRate},
 		}, nil
 	})
 
 	settings, _ := result.(advancedSchedulerRuntimeSettings)
 	return settings
+}
+
+// advancedSchedulerProcessRuntimeSettings 返回高级调度器的进程级默认运行参数。
+func (s *OpenAIGatewayService) advancedSchedulerProcessRuntimeSettings() advancedSchedulerRuntimeSettings {
+	settings := advancedSchedulerRuntimeSettings{
+		ewmaErrorRateAlpha: defaultAdvancedSchedulerErrorRateAlpha,
+		ewmaTTFTAlpha:      defaultAdvancedSchedulerTTFTAlpha,
+		stickyEscape:       resolveAdvancedStickyEscapeConfig(nil),
+	}
+	if s != nil && s.cfg != nil {
+		settings.ewmaErrorRateAlpha = s.cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha
+		settings.ewmaTTFTAlpha = s.cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha
+		settings.stickyEscape = resolveAdvancedStickyEscapeConfig(s.cfg)
+	}
+	return settings
+}
+
+func parseAdvancedSchedulerAlphaOverride(raw string, fallback float64) (float64, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback, false
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value <= 0 || value > 1 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return fallback, false
+	}
+	return value, true
+}
+
+func parseAdvancedSchedulerBoolOverride(raw string, fallback bool) (bool, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback, false
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fallback, false
+	}
+	return value, true
+}
+
+func parseAdvancedSchedulerPositiveFloatOverride(raw string, fallback float64) (float64, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback, false
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return fallback, false
+	}
+	return value, true
+}
+
+func parseAdvancedSchedulerRateOverride(raw string, fallback float64) (float64, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback, false
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || value < 0 || value > 1 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return fallback, false
+	}
+	return value, true
 }
 
 func (s *OpenAIGatewayService) isAdvancedSchedulerStickyWeightedEnabled(ctx context.Context) bool {
@@ -1403,6 +1576,11 @@ func advancedSchedulerRuntimeSettingKeys() []string {
 		SettingKeyAdvancedSchedulerStickyWeightedEnabled,
 		SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled,
 		SettingKeyAdvancedSchedulerLBTopK,
+		SettingKeyAdvancedSchedulerEWMAErrorRateAlpha,
+		SettingKeyAdvancedSchedulerEWMATTFTAlpha,
+		SettingKeyAdvancedSchedulerStickyEscapeEnabled,
+		SettingKeyAdvancedSchedulerStickyEscapeTTFTMs,
+		SettingKeyAdvancedSchedulerStickyEscapeErrorRate,
 	}
 	for _, spec := range advancedSchedulerWeightOverrideSpecs() {
 		keys = append(keys, spec.key)
@@ -1910,6 +2088,8 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 	if selection != nil {
 		// 只有进入 OpenAI 高级适配器的选择才允许写入高级运行时反馈。
 		selection.AdvancedScheduler = true
+		feedback := effectiveSettings.feedback
+		selection.AdvancedSchedulerFeedback = &feedback
 	}
 	return selection, decision, selectErr
 }
@@ -2018,6 +2198,10 @@ func (s *OpenAIGatewayService) ObserveOpenAIAccountHealthFailure(ctx context.Con
 // ReportOpenAIAccountScheduleResultForSelection 按本次实际选择模式写入反馈。
 // 基础分组仍清理请求临时状态，但不会污染高级调度统计。
 func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResultForSelection(selection *AccountSelectionResult, accountID int64, model string, success bool, firstTokenMs *int) {
+	if selection != nil && selection.AdvancedScheduler && selection.AdvancedSchedulerFeedback != nil {
+		s.reportOpenAIAccountScheduleResultWithFeedback(accountID, model, success, firstTokenMs, *selection.AdvancedSchedulerFeedback)
+		return
+	}
 	s.reportOpenAIAccountScheduleResult(selection != nil && selection.AdvancedScheduler, accountID, model, success, firstTokenMs)
 }
 
@@ -2033,6 +2217,17 @@ func (s *OpenAIGatewayService) reportOpenAIAccountScheduleResult(advanced bool, 
 		return
 	}
 	scheduler.ReportResult(accountID, success, firstTokenMs)
+}
+
+func (s *OpenAIGatewayService) reportOpenAIAccountScheduleResultWithFeedback(accountID int64, model string, success bool, firstTokenMs *int, feedback advancedSchedulerFeedbackConfig) {
+	if success {
+		s.clearOpenAIAccountModelTransientState(accountID, normalizeOpenAIAccountModelTransientModel(model))
+	}
+	scheduler := s.ensureOpenAIAccountScheduler()
+	if scheduler == nil {
+		return
+	}
+	scheduler.ReportResult(accountID, success, firstTokenMs, feedback)
 }
 
 func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {
@@ -2096,39 +2291,36 @@ func (s *OpenAIGatewayService) openAIWSLBTopKForRequest(ctx context.Context) int
 func resolveAdvancedStickyEscapeConfig(appConfig *config.Config) advancedStickyEscapeConfig {
 	if appConfig != nil {
 		cfg := appConfig.Gateway.AdvancedScheduler
-		enabled := cfg.StickyEscapeEnabled
-		if !enabled && cfg.StickyEscapeTTFTMs == 0 && cfg.StickyEscapeErrorRate == 0 {
-			enabled = true
-		}
-		ttftMs := float64(cfg.StickyEscapeTTFTMs)
-		if ttftMs <= 0 {
-			ttftMs = 15000
-		}
-		errorRate := cfg.StickyEscapeErrorRate
-		if errorRate < 0 || errorRate > 1 {
-			errorRate = 0.5
-		}
-		if errorRate == 0 && cfg.StickyEscapeTTFTMs == 0 && cfg.StickyEscapeErrorRate == 0 {
-			errorRate = 0.5
-		}
-		return advancedStickyEscapeConfig{
-			enabled:   enabled,
-			ttftMs:    ttftMs,
-			errorRate: errorRate,
-		}
+		return normalizeAdvancedStickyEscapeConfig(advancedStickyEscapeConfig{
+			enabled:   cfg.StickyEscapeEnabled,
+			ttftMs:    float64(cfg.StickyEscapeTTFTMs),
+			errorRate: cfg.StickyEscapeErrorRate,
+		})
 	}
-	return advancedStickyEscapeConfig{
+	return normalizeAdvancedStickyEscapeConfig(advancedStickyEscapeConfig{
 		enabled:   true,
 		ttftMs:    15000,
 		errorRate: 0.5,
-	}
+	})
 }
 
-func (s *OpenAIGatewayService) openAIStickyEscapeConfig() advancedStickyEscapeConfig {
-	if s == nil {
-		return resolveAdvancedStickyEscapeConfig(nil)
+// normalizeAdvancedStickyEscapeConfig 保证健康逃逸配置始终使用可执行的边界值。
+func normalizeAdvancedStickyEscapeConfig(value advancedStickyEscapeConfig) advancedStickyEscapeConfig {
+	thresholdsUnset := value.ttftMs == 0 && value.errorRate == 0
+	if !value.enabled && value.ttftMs == 0 && value.errorRate == 0 {
+		// 兼容未注册配置结构体时的零值，保持历史默认开启。
+		value.enabled = true
 	}
-	return resolveAdvancedStickyEscapeConfig(s.cfg)
+	if value.ttftMs <= 0 || math.IsNaN(value.ttftMs) || math.IsInf(value.ttftMs, 0) {
+		value.ttftMs = 15000
+	}
+	if value.errorRate < 0 || value.errorRate > 1 || math.IsNaN(value.errorRate) || math.IsInf(value.errorRate, 0) {
+		value.errorRate = 0.5
+	}
+	if thresholdsUnset {
+		value.errorRate = 0.5
+	}
+	return value
 }
 
 func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayAdvancedSchedulerScoreWeightsView {

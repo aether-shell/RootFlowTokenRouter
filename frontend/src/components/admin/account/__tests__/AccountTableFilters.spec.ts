@@ -61,7 +61,7 @@ function group(overrides: Partial<AdminGroup>): AdminGroup {
 }
 
 describe('AccountTableFilters', () => {
-  it('keeps inactive groups visible in the group filter', () => {
+  it('keeps inactive groups visible in the group filter', async () => {
     const wrapper = mount(AccountTableFilters, {
       props: {
         searchQuery: '',
@@ -84,6 +84,8 @@ describe('AccountTableFilters', () => {
         }
       }
     })
+
+    await wrapper.get('[data-testid="account-filters-toggle"]').trigger('click')
 
     const selectComponents = wrapper.findAllComponents(SelectStub)
     const groupOptions = selectComponents.at(4)?.props('options') as Array<{ value: string; label: string }>

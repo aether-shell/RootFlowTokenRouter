@@ -93,3 +93,19 @@ export function getRemainingExpiryDuration(
     minutes: totalMinutes % 60
   }
 }
+
+// highestQuotaExhausted 按服务端规则只检查最高层正数额度，避免低层窗口暂时耗尽时误导用户撤销套餐。
+export function highestQuotaExhausted(subscription: Pick<
+  UserSubscription,
+  'monthly_limit_usd' | 'monthly_usage_usd' | 'weekly_limit_usd' | 'weekly_usage_usd' | 'daily_limit_usd' | 'daily_usage_usd'
+>): boolean {
+  const windows = [
+    { limit: subscription.monthly_limit_usd, used: subscription.monthly_usage_usd },
+    { limit: subscription.weekly_limit_usd, used: subscription.weekly_usage_usd },
+    { limit: subscription.daily_limit_usd, used: subscription.daily_usage_usd }
+  ]
+  const highest = windows.find(
+    (window) => window.limit != null && Number.isFinite(window.limit) && window.limit > 0
+  )
+  return highest != null && highest.limit != null && highest.used >= highest.limit
+}

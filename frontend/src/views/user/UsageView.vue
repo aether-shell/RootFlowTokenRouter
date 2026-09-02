@@ -5,17 +5,17 @@
 
       <div class="space-y-4">
         <div class="card p-4">
-          <div class="flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
+          <div class="time-controls flex flex-wrap items-center justify-between gap-2">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="time-control-label text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
               <DateRangePicker
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
                 @change="onDateRangeChange"
               />
             </div>
-            <div class="ml-auto flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="time-control-label text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
               <div class="w-28">
                 <Select v-model="granularity" :options="granularityOptions" @change="loadChartData" />
               </div>
@@ -40,6 +40,7 @@
             v-model:metric="groupDistributionMetric"
             :group-stats="groupStats"
             :loading="chartsLoading"
+            chart-type="bar"
             :show-metric-toggle="true"
             :enable-breakdown="false"
             :show-account-cost="false"
@@ -57,6 +58,7 @@
             :upstream-endpoint-stats="upstreamEndpointStats"
             :endpoint-path-stats="endpointPathStats"
             :loading="endpointStatsLoading"
+            chart-type="bar"
             :show-source-toggle="false"
             :show-metric-toggle="true"
             :enable-breakdown="false"
@@ -76,9 +78,26 @@
         </div>
       </div>
 
-      <div class="card p-6">
-        <div class="space-y-4">
-          <div v-if="activeTab === 'errors'" class="flex flex-wrap items-end gap-4">
+      <div class="card p-4">
+        <div class="flex items-center justify-between gap-3">
+          <div ref="filterPanelRef" class="relative shrink-0">
+            <button
+              type="button"
+              class="btn btn-secondary relative h-9 w-9 p-0"
+              :aria-expanded="showFilterDropdown"
+              :aria-label="t('common.filter')"
+              :title="t('common.filter')"
+              @click="showFilterDropdown = !showFilterDropdown"
+            >
+              <Icon name="filter" size="sm" />
+              <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                {{ activeFilterCount }}
+              </span>
+            </button>
+
+            <div v-show="showFilterDropdown" class="absolute left-0 top-full z-[60] mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
+              <div class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
+              <div v-if="activeTab === 'errors'" class="flex flex-wrap items-end gap-4">
             <div class="w-full sm:w-auto sm:min-w-[220px]">
               <label class="input-label">{{ t('usage.errors.keyName') }}</label>
               <Select v-model="errorFilter.api_key_id" :options="errorKeyOptions" @change="applyErrorFilters" />
@@ -104,7 +123,7 @@
               <Select v-model="errorFilter.status_code" :options="errorStatusOptions" @change="applyErrorFilters" />
             </div>
           </div>
-          <div v-else class="flex flex-wrap items-end gap-4">
+              <div v-else class="flex flex-wrap items-end gap-4">
             <div class="w-full sm:w-auto sm:min-w-[220px]">
               <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
               <Select v-model="filters.api_key_id" :options="apiKeyOptions" @change="applyFilters" />
@@ -129,24 +148,23 @@
               <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
               <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
             </div>
+              </div>
+            </div>
           </div>
 
-          <div class="flex w-full flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-4 dark:border-dark-700">
-            <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary">
-              {{ t('common.refresh') }}
-            </button>
-            <button type="button" @click="resetFilters" class="btn btn-secondary">
-              {{ t('common.reset') }}
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <button type="button" @click="refreshData" :disabled="activeTab === 'errors' ? errorLoading : loading" class="btn btn-secondary h-9 w-9 p-0" :title="t('common.refresh')">
+              <Icon name="refresh" size="sm" :class="(activeTab === 'errors' ? errorLoading : loading) ? 'animate-spin' : ''" />
             </button>
             <div class="relative" ref="columnDropdownRef">
               <button
                 type="button"
                 @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary px-2 md:px-3"
+                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
                 :title="t('admin.users.columnSettings')"
               >
                 <Icon name="grid" size="sm" />
-                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+                <span class="hidden">{{ t('admin.users.columnSettings') }}</span>
               </button>
               <div
                 v-if="showColumnDropdown"
@@ -170,7 +188,7 @@
               inline
               @failed="handleIpGeoBatchFailed"
             />
-            <button v-if="activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
+            <button v-if="activeTab !== 'errors'" type="button" @click="exportToCSV" :disabled="exporting" class="btn btn-primary h-9 whitespace-nowrap px-3 sm:px-4">
               {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
             </button>
           </div>
@@ -186,7 +204,7 @@
         </button>
       </div>
 
-      <div v-if="activeTab === 'usage'" data-tour="team-usage-records">
+      <div v-if="activeTab === 'usage'" class="space-y-4" data-tour="team-usage-records">
         <UsageTable
           :data="usageLogs"
           :loading="loading"
@@ -304,6 +322,12 @@ const errorFilter = ref<{ model: string | null; category: string; api_key_id: nu
   category: '',
   api_key_id: null,
   status_code: null,
+})
+const showFilterDropdown = ref(false)
+const filterPanelRef = ref<HTMLElement | null>(null)
+const activeFilterCount = computed(() => {
+  const source = activeTab.value === 'errors' ? errorFilter.value : filters.value
+  return Object.entries(source).filter(([key, value]) => !['start_date', 'end_date'].includes(key) && value !== null && value !== undefined && String(value) !== '').length
 })
 
 const errorKeyOptions = computed<SelectOption[]>(() => [
@@ -573,25 +597,6 @@ const refreshData = () => {
   if (activeTab.value === 'errors') void loadErrors()
 }
 
-const resetFilters = () => {
-  const range = getLast24HoursRangeDates()
-  startDate.value = range.start
-  endDate.value = range.end
-  filters.value = {
-    start_date: range.start,
-    end_date: range.end,
-    request_type: undefined,
-    billing_type: null,
-    billing_mode: null,
-  }
-  granularity.value = getGranularityForRange(range.start, range.end)
-  applyFilters()
-  if (activeTab.value === 'errors') {
-    errorFilter.value = { model: '', category: '', api_key_id: null, status_code: null }
-    applyErrorFilters()
-  }
-}
-
 const onDateRangeChange = (range: { startDate: string; endDate: string; preset: string | null }) => {
   startDate.value = range.startDate
   endDate.value = range.endDate
@@ -829,6 +834,12 @@ const handleColumnClickOutside = (event: MouseEvent) => {
     showColumnDropdown.value = false
   }
 }
+const handleFilterClickOutside = (event: MouseEvent) => {
+  const target = event.target
+  if (target instanceof Node && filterPanelRef.value?.contains(target)) return
+  if (target instanceof Element && target.closest('.select-dropdown-portal')) return
+  showFilterDropdown.value = false
+}
 
 const loadFilterOptions = async () => {
   try {
@@ -958,6 +969,7 @@ onMounted(() => {
   loadSavedColumns()
   loadSavedErrColumns()
   document.addEventListener('click', handleColumnClickOutside)
+  document.addEventListener('click', handleFilterClickOutside)
   void loadFilterOptions()
   refreshData()
 })
@@ -965,6 +977,7 @@ onMounted(() => {
 onUnmounted(() => {
   abortController?.abort()
   document.removeEventListener('click', handleColumnClickOutside)
+  document.removeEventListener('click', handleFilterClickOutside)
 })
 
 watch(endpointDistributionSource, () => {

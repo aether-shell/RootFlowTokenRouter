@@ -90,6 +90,9 @@ func TestDeriveAuditAction(t *testing.T) {
 			t.Fatalf("deriveAuditAction(%q, %q) = %q, want %q", tc.method, tc.path, got, tc.want)
 		}
 	}
+	if got := auditActionOverrides["POST /api/v1/subscriptions/:id/revoke"]; got != service.AuditActionUserSubscriptionRevoke {
+		t.Fatalf("subscription revoke audit action = %q, want %q", got, service.AuditActionUserSubscriptionRevoke)
+	}
 }
 
 func TestAuditSensitiveReadsIncludesForkBackupRoutes(t *testing.T) {

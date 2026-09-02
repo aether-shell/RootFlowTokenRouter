@@ -458,6 +458,16 @@ type userHandlerEmailCacheStub struct {
 	data *service.VerificationCodeData
 }
 
+// userHandlerSettingRepoStub 只实现 GetValue，用于在测试中开启邮箱换绑设置。
+type userHandlerSettingRepoStub struct {
+	service.SettingRepository
+	values map[string]string
+}
+
+func (s *userHandlerSettingRepoStub) GetValue(_ context.Context, key string) (string, error) {
+	return s.values[key], nil
+}
+
 type userHandlerRefreshTokenCacheStub struct {
 	revokedUserIDs []int64
 }
@@ -786,7 +796,11 @@ func TestUserHandlerBindEmailIdentityRejectsWrongCurrentPasswordForBoundEmail(t 
 		},
 	}
 	emailService := service.NewEmailService(nil, emailCache)
-	authService := service.NewAuthService(nil, repo, nil, nil, cfg, nil, emailService, nil, nil, nil, nil, nil, nil)
+	// 换绑主邮箱需要显式开启 user_email_change_enabled，否则会在校验密码前被 403 拦截。
+	settingService := service.NewSettingService(&userHandlerSettingRepoStub{values: map[string]string{
+		service.SettingKeyUserEmailChangeEnabled: "true",
+	}}, cfg)
+	authService := service.NewAuthService(nil, repo, nil, nil, cfg, settingService, emailService, nil, nil, nil, nil, nil, nil)
 	handler := NewUserHandler(service.NewUserService(repo, nil, nil, nil), authService, nil, nil, nil, nil)
 
 	body := []byte(`{"email":"new@example.com","verify_code":"123456","password":"wrong-password"}`)

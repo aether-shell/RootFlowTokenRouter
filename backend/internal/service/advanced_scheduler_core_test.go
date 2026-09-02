@@ -20,6 +20,21 @@ func advancedSchedulerTestWeights() GatewayAdvancedSchedulerScoreWeightsView {
 	}
 }
 
+func TestAdvancedSchedulerRuntimeStatsUsesIndependentEWMAFactors(t *testing.T) {
+	stats := newAdvancedAccountRuntimeStats()
+	stats.report(31, false, nil, advancedSchedulerFeedbackConfig{errorRateAlpha: 0.8, ttftAlpha: 0.4})
+	feedback := stats.feedbackSnapshot(31)
+	require.InDelta(t, 0.8, feedback.ErrorRate, 0.000001)
+
+	firstTTFT := 100
+	stats.report(31, true, &firstTTFT, advancedSchedulerFeedbackConfig{errorRateAlpha: 0.5, ttftAlpha: 0.25})
+	secondTTFT := 200
+	stats.report(31, true, &secondTTFT, advancedSchedulerFeedbackConfig{errorRateAlpha: 0.5, ttftAlpha: 0.25})
+	feedback = stats.feedbackSnapshot(31)
+	require.InDelta(t, 0.2, feedback.ErrorRate, 0.000001)
+	require.InDelta(t, 125, feedback.TTFT, 0.000001)
+}
+
 func TestAdvancedSchedulerCoreUsesRuntimeFeedbackAndNeutralOptionalSignals(t *testing.T) {
 	accounts := []*Account{
 		{ID: 11, Priority: 1, Platform: PlatformGemini},

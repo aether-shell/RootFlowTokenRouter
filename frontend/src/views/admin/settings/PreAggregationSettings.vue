@@ -16,7 +16,7 @@
       </div>
       <button
         type="button"
-        class="btn btn-secondary btn-sm shrink-0"
+        class="btn btn-secondary h-9 w-9 shrink-0 p-0"
         :disabled="loading"
         :title="t('common.refresh')"
         @click="loadSettings"

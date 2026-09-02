@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   BarElement,
@@ -49,9 +49,12 @@ import { Bar, Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useTheme } from '@/composables/useTheme'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import type { TeamUsageSummary } from '@/api/team'
 
 ChartJS.register(BarElement, CategoryScale, Legend, LinearScale, LineElement, PointElement, Tooltip)
+
+onBeforeUnmount(hideExternalTooltip)
 
 interface MemberUsageSeries {
   userID: number
@@ -117,7 +120,11 @@ const lineOptions = computed(() => ({
   interaction: { intersect: false, mode: 'index' as const },
   plugins: {
     legend: legend.value,
-    tooltip: { callbacks: { label: (context: any) => `${context.dataset.label}: ${formatBalanceAmount(Number(context.raw), { fractionDigits: 4 })}` } },
+    tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
+      callbacks: { label: (context: any) => `${context.dataset.label}: ${formatBalanceAmount(Number(context.raw), { fractionDigits: 4 })}` }
+    },
   },
   scales: {
     x: { grid: { color: gridColor.value }, ticks: { color: textColor.value, font: { size: 10 } } },
@@ -131,7 +138,11 @@ const comparisonOptions = computed(() => ({
   indexAxis: 'y' as const,
   plugins: {
     legend: { display: false },
-    tooltip: { callbacks: { label: (context: any) => `${context.label}: ${formatBalanceAmount(Number(context.raw), { fractionDigits: 4 })}` } },
+    tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
+      callbacks: { label: (context: any) => `${context.label}: ${formatBalanceAmount(Number(context.raw), { fractionDigits: 4 })}` }
+    },
   },
   scales: {
     x: { beginAtZero: true, grid: { color: gridColor.value }, ticks: { color: textColor.value, callback: (value: string | number) => formatBalanceAmount(Number(value), { fractionDigits: 2 }) } },

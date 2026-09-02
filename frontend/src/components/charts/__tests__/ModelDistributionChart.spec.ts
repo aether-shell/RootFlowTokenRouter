@@ -87,7 +87,8 @@ describe('ModelDistributionChart', () => {
 
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
     expect(chartData.labels).toEqual(['model-a', 'model-b'])
-    expect(chartData.datasets[0].data).toEqual([1000, 500])
+    expect(chartData.datasets[0].data[0]).toBeCloseTo(1 + Math.log10(2))
+    expect(chartData.datasets[0].data[1]).toBe(1)
 
     const chartTableLayout = wrapper.find('table').element.parentElement?.parentElement
     expect(chartTableLayout?.className).toContain('sm:items-start')
@@ -97,10 +98,11 @@ describe('ModelDistributionChart', () => {
     expect(rows[1].text()).toContain('model-b')
 
     const options = (wrapper.vm as any).$?.setupState.doughnutOptions
+    expect(options.plugins.tooltip.enabled).toBe(false)
+    expect(options.plugins.tooltip.external).toBeTypeOf('function')
     const label = options.plugins.tooltip.callbacks.label({
       label: 'model-a',
-      raw: 1000,
-      dataset: { data: [1000, 500] },
+      dataIndex: 0,
     })
     expect(label).toBe('model-a: 1.00K (66.7%)')
   })
@@ -120,7 +122,8 @@ describe('ModelDistributionChart', () => {
 
     const chartData = JSON.parse(wrapper.find('.chart-data').text())
     expect(chartData.labels).toEqual(['model-b', 'model-a'])
-    expect(chartData.datasets[0].data).toEqual([1.4, 0.2])
+    expect(chartData.datasets[0].data[0]).toBeCloseTo(1 + Math.log10(7))
+    expect(chartData.datasets[0].data[1]).toBe(1)
 
     const rows = wrapper.findAll('tbody tr')
     expect(rows[0].text()).toContain('model-b')
@@ -129,8 +132,7 @@ describe('ModelDistributionChart', () => {
     const options = (wrapper.vm as any).$?.setupState.doughnutOptions
     const label = options.plugins.tooltip.callbacks.label({
       label: 'model-b',
-      raw: 1.4,
-      dataset: { data: [1.4, 0.2] },
+      dataIndex: 0,
     })
     expect(label).toBe('model-b: $1.40 (87.5%)')
   })
@@ -185,7 +187,10 @@ describe('ModelDistributionChart', () => {
       '#3 User #3',
       'Others',
     ])
-    expect(chartData.datasets[0].data).toEqual([12, 8, 0, 10])
+    expect(chartData.datasets[0].data[0]).toBeCloseTo(1 + Math.log10(12 / 8))
+    expect(chartData.datasets[0].data[1]).toBe(1)
+    expect(chartData.datasets[0].data[2]).toBe(0)
+    expect(chartData.datasets[0].data[3]).toBeCloseTo(1 + Math.log10(10 / 8))
     expect(chartData.datasets[0].backgroundColor[0]).toBe('#3b82f6')
     expect(chartData.datasets[0].backgroundColor[3]).toBe('#94a3b8')
     expect(chartData.datasets[0].backgroundColor[3]).not.toBe(chartData.datasets[0].backgroundColor[0])

@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strconv"
+
 	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -28,6 +30,13 @@ type SubscriptionSummaryItem struct {
 type SubscriptionProgressInfo struct {
 	Subscription *dto.UserSubscription         `json:"subscription"`
 	Progress     *service.SubscriptionProgress `json:"progress"`
+}
+
+// RevokeSubscriptionResponse 表示用户撤销耗尽套餐后的接续与 Key 改绑结果。
+type RevokeSubscriptionResponse struct {
+	RevokedSubscriptionID     int64  `json:"revoked_subscription_id"`
+	ReplacementSubscriptionID *int64 `json:"replacement_subscription_id"`
+	ReboundAPIKeyCount        int    `json:"rebound_api_key_count"`
 }
 
 // SubscriptionHandler handles user subscription operations
@@ -180,6 +189,39 @@ func (h *SubscriptionHandler) GetSummary(c *gin.Context) {
 	}
 
 	response.Success(c, summary)
+}
+
+// Revoke 撤销当前用户额度耗尽的订阅。
+// POST /api/v1/subscriptions/:id/revoke
+func (h *SubscriptionHandler) Revoke(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+
+	subscriptionID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || subscriptionID <= 0 {
+		response.BadRequest(c, "Invalid subscription ID")
+		return
+	}
+	middleware2.SetAuditAction(c, service.AuditActionUserSubscriptionRevoke)
+
+	result, err := h.subscriptionService.RevokeOwnExhaustedSubscription(
+		c.Request.Context(),
+		subject.UserID,
+		subscriptionID,
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, RevokeSubscriptionResponse{
+		RevokedSubscriptionID:     result.RevokedSubscriptionID,
+		ReplacementSubscriptionID: result.ReplacementSubscriptionID,
+		ReboundAPIKeyCount:        result.ReboundAPIKeyCount,
+	})
 }
 
 func valueOrZero(value *float64) float64 {

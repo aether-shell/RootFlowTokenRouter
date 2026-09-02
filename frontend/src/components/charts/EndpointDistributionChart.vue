@@ -74,7 +74,8 @@
     <!-- 桌面端顶部对齐，避免数据较少时表格被圆环图垂直居中。 -->
     <div v-else-if="displayEndpointStats.length > 0 && chartData" class="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6">
       <div class="h-48 w-48 shrink-0">
-        <Doughnut :data="chartData" :options="doughnutOptions" />
+        <Bar v-if="chartType === 'bar'" :data="chartData" :options="barOptions" />
+        <Doughnut v-else :data="doughnutChartData" :options="doughnutOptions" />
       </div>
       <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
         <table class="w-full text-xs">
@@ -134,23 +135,29 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
-import { Doughnut } from 'vue-chartjs'
+import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LogarithmicScale, Tooltip, Legend } from 'chart.js'
+import { Bar, Doughnut } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import UserBreakdownSubTable from './UserBreakdownSubTable.vue'
+import { toLogarithmicDisplayValues } from '@/utils/chartDisplayScale'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import type { EndpointStat, UserBreakdownItem } from '@/types'
 import { getUserBreakdown } from '@/api/admin/dashboard'
 
-ChartJS.register(ArcElement, Tooltip, Legend)
+ChartJS.register(ArcElement, BarElement, CategoryScale, LogarithmicScale, Tooltip, Legend)
+
+onBeforeUnmount(hideExternalTooltip)
 
 const { t } = useI18n()
 const { balanceUnitSymbol, usdUnitSymbol } = useBalanceDisplay()
 
 type DistributionMetric = 'tokens' | 'actual_cost'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
+// 图表形态：默认圆环；用户用量页传 bar，避免同页多个卡片都是圆环图。
+type EndpointChartType = 'doughnut' | 'bar'
 
 const props = withDefaults(
   defineProps<{
@@ -160,6 +167,7 @@ const props = withDefaults(
     loading?: boolean
     title?: string
     metric?: DistributionMetric
+    chartType?: EndpointChartType
     source?: EndpointSource
     showMetricToggle?: boolean
     showSourceToggle?: boolean
@@ -175,6 +183,7 @@ const props = withDefaults(
     loading: false,
     title: '',
     metric: 'tokens',
+    chartType: 'doughnut',
     source: 'inbound',
     showMetricToggle: false,
     showSourceToggle: false,
@@ -245,6 +254,13 @@ const displayEndpointStats = computed(() => {
   return [...sourceStats].sort((a, b) => b[metricKey] - a[metricKey])
 })
 
+// 原始指标值：柱状图按原值走对数轴，圆环图按 log 压缩渲染，tooltip 始终按原始值计算真实占比。
+const chartValues = computed(() =>
+  displayEndpointStats.value.map((item) =>
+    props.metric === 'actual_cost' ? item.actual_cost : item.total_tokens
+  )
+)
+
 const chartData = computed(() => {
   if (!displayEndpointStats.value?.length) return null
 
@@ -252,15 +268,37 @@ const chartData = computed(() => {
     labels: displayEndpointStats.value.map((item) => item.endpoint),
     datasets: [
       {
-        data: displayEndpointStats.value.map((item) =>
-          props.metric === 'actual_cost' ? item.actual_cost : item.total_tokens
-        ),
+        data: chartValues.value,
         backgroundColor: chartColors.slice(0, displayEndpointStats.value.length),
         borderWidth: 0
       }
     ]
   }
 })
+
+// 与 chartData 同生命周期（无数据时模板分支不会渲染），保持非空类型以通过图表组件的 data 校验。
+const doughnutChartData = computed(() => ({
+  labels: displayEndpointStats.value.map((item) => item.endpoint),
+  datasets: [
+    {
+      data: toLogarithmicDisplayValues(chartValues.value),
+      backgroundColor: chartColors.slice(0, displayEndpointStats.value.length),
+      borderWidth: 0
+    }
+  ]
+}))
+
+// tooltip 统一展示「名称: 数值 (占比)」，圆环图与柱状图共用；
+// 圆环扇区可能被 log 压缩，数值与占比一律按原始值（dataIndex 回查）计算。
+const tooltipLabel = (context: any) => {
+  const value = chartValues.value[context.dataIndex] ?? 0
+  const total = chartValues.value.reduce((a: number, b: number) => a + b, 0)
+  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
+  const formattedValue = props.metric === 'actual_cost'
+    ? `${balanceUnitSymbol.value}${formatCost(value)}`
+    : formatTokens(value)
+  return `${context.label}: ${formattedValue} (${percentage}%)`
+}
 
 const doughnutOptions = computed(() => ({
   responsive: true,
@@ -270,16 +308,49 @@ const doughnutOptions = computed(() => ({
       display: false
     },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
-        label: (context: any) => {
-          const value = context.raw as number
-          const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
-          const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
-          const formattedValue = props.metric === 'actual_cost'
-            ? `${balanceUnitSymbol.value}${formatCost(value)}`
-            : formatTokens(value)
-          return `${context.label}: ${formattedValue} (${percentage}%)`
-        }
+        label: tooltipLabel
+      }
+    }
+  }
+}))
+
+const barOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    // 端点名通常较长，交给 tooltip 与右侧表格展示，坐标轴只保留柱形本身。
+    x: {
+      ticks: {
+        display: false
+      },
+      grid: {
+        display: false
+      }
+    },
+    y: {
+      // 端点用量常差几个数量级，对数刻度保证小用量端点也可见。
+      type: 'logarithmic' as const,
+      ticks: {
+        display: false
+      },
+      // log 轴默认会为每个次要刻度画网格线，视觉上挤成一团，整体关闭。
+      grid: {
+        display: false
+      }
+    }
+  },
+  plugins: {
+    legend: {
+      display: false
+    },
+    tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
+      callbacks: {
+        label: tooltipLabel
       }
     }
   }

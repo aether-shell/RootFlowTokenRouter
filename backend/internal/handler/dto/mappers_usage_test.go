@@ -28,6 +28,22 @@ func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 	require.False(t, UsageLogFromServiceAdmin(httpLog).OpenAIWSMode)
 }
 
+func TestUsageLogTimingFromService_MapsStages(t *testing.T) {
+	t.Parallel()
+
+	firstByte := int64(1200)
+	attempts := int64(2)
+	got := UsageLogTimingFromService(&service.OpsRequestTiming{
+		UpstreamFirstResponseByteMs: &firstByte,
+		UpstreamAttemptCount:        &attempts,
+		UpstreamConnectionReused:    true,
+	})
+	require.NotNil(t, got)
+	require.Equal(t, int64(1200), *got.UpstreamFirstResponseByteMs)
+	require.Equal(t, int64(2), *got.UpstreamAttemptCount)
+	require.True(t, got.UpstreamConnectionReused)
+}
+
 func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
 	t.Parallel()
 

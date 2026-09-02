@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Select from '@/components/common/Select.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -90,6 +90,8 @@ watch(
 const showCustomTimeRangeDialog = ref(false)
 const customStartTimeInput = ref('')
 const customEndTimeInput = ref('')
+const showFilterDropdown = ref(false)
+const filterDropdownRef = ref<HTMLElement | null>(null)
 
 function formatCustomTimeRangeLabel(startTime: string, endTime: string): string {
   const start = new Date(startTime)
@@ -125,6 +127,23 @@ const groupOptions = computed(() => {
   const filtered = props.platform ? groups.filter((g) => g.platform === props.platform) : groups
   return [{ value: null, label: t('common.all') }, ...filtered.map((g) => ({ value: g.id, label: g.name }))]
 })
+
+const activeFilterCount = computed(() => [props.platform, props.groupId, props.timeRange !== '1h' ? props.timeRange : ''].filter(Boolean).length)
+
+function resetOpsFilters() {
+  emit('update:platform', '')
+  emit('update:group', null)
+  emit('update:timeRange', '1h')
+}
+
+function handleFilterClickOutside(event: MouseEvent) {
+  const target = event.target
+  if (target instanceof Node && filterDropdownRef.value?.contains(target)) return
+  showFilterDropdown.value = false
+}
+
+onMounted(() => document.addEventListener('click', handleFilterClickOutside))
+onUnmounted(() => document.removeEventListener('click', handleFilterClickOutside))
 
 watch(
   () => [props.platform, props.groupId, props.groups] as const,
@@ -873,8 +892,8 @@ function handleToolbarRefresh() {
 <template>
   <div :class="['flex flex-col gap-4 rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-900 dark:ring-dark-700', props.fullscreen ? 'p-8' : 'p-6']">
     <!-- Top Toolbar -->
-    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-dark-700">
-      <div>
+    <div class="flex flex-wrap items-center gap-4 border-b border-gray-100 pb-4 dark:border-dark-700">
+      <div v-if="props.fullscreen">
         <h1 class="flex items-center gap-2 text-xl font-black text-gray-900 dark:text-white">
           <svg class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
@@ -907,31 +926,42 @@ function handleToolbarRefresh() {
 
       <div class="flex flex-wrap items-center gap-3">
         <template v-if="!props.fullscreen">
-          <Select
-            :model-value="platform"
-            :options="platformOptions"
-            class="w-full sm:w-[140px]"
-            @update:model-value="handlePlatformChange"
-          />
-
-          <Select
-            :model-value="groupId"
-            :options="groupOptions"
-            class="w-full sm:w-[160px]"
-            @update:model-value="handleGroupChange"
-          />
-
-          <div class="mx-1 hidden h-4 w-[1px] bg-gray-200 dark:bg-dark-700 sm:block"></div>
-
-          <Select
-            :model-value="timeRange"
-            :options="timeRangeOptions"
-            class="relative w-full sm:w-[150px]"
-            @update:model-value="handleTimeRangeChange"
-          />
+          <div ref="filterDropdownRef" class="relative">
+            <button
+              type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800"
+              :aria-expanded="showFilterDropdown"
+              :aria-label="t('common.filter')"
+              :title="t('common.filter')"
+              @click="showFilterDropdown = !showFilterDropdown"
+            >
+              <Icon name="filter" size="sm" />
+              <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold text-white">
+                {{ activeFilterCount }}
+              </span>
+            </button>
+            <div
+              v-if="showFilterDropdown"
+              class="absolute left-0 right-auto top-full z-[60] mt-2 w-[calc(100vw-4rem)] max-w-[calc(100vw-4rem)] rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:w-[min(34rem,calc(100vw-2rem))] sm:max-w-[calc(100vw-2rem)]"
+              @click.stop
+            >
+              <div class="mb-3 flex items-center justify-between">
+                <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
+                <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetOpsFilters">
+                  {{ t('common.reset') }}
+                </button>
+              </div>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Select :model-value="platform" :options="platformOptions" @update:model-value="handlePlatformChange" />
+                <Select :model-value="groupId" :options="groupOptions" @update:model-value="handleGroupChange" />
+                <Select :model-value="timeRange" :options="timeRangeOptions" class="sm:col-span-2" @update:model-value="handleTimeRangeChange" />
+              </div>
+            </div>
+          </div>
         </template>
 
-        <button
+        <div v-if="!props.fullscreen" class="ml-auto flex flex-wrap items-center gap-3">
+          <button
           v-if="!props.fullscreen"
           type="button"
           class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-400 dark:hover:bg-dark-800"
@@ -947,15 +977,15 @@ function handleToolbarRefresh() {
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
             />
           </svg>
-        </button>
+          </button>
 
-        <div v-if="!props.fullscreen" class="mx-1 hidden h-4 w-[1px] bg-gray-200 dark:bg-dark-700 sm:block"></div>
+          <div class="mx-1 hidden h-4 w-[1px] bg-gray-200 dark:bg-dark-700 sm:block"></div>
 
         <!-- Alert Rules Button (hidden in fullscreen) -->
-        <button
+          <button
           v-if="!props.fullscreen"
           type="button"
-          class="flex h-8 items-center gap-1.5 rounded-lg bg-blue-100 px-3 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+          class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 p-0 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-3"
           :title="t('admin.ops.alertRules.title')"
           @click="emit('openAlertRules')"
         >
@@ -963,13 +993,13 @@ function handleToolbarRefresh() {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
           <span class="hidden sm:inline">{{ t('admin.ops.alertRules.manage') }}</span>
-        </button>
+          </button>
 
         <!-- Settings Button (hidden in fullscreen) -->
-        <button
+          <button
           v-if="!props.fullscreen"
           type="button"
-          class="flex h-8 items-center gap-1.5 rounded-lg bg-gray-100 px-3 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800"
+          class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 p-0 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-3"
           :title="t('admin.ops.settings.title')"
           @click="emit('openSettings')"
         >
@@ -978,10 +1008,10 @@ function handleToolbarRefresh() {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <span class="hidden sm:inline">{{ t('common.settings') }}</span>
-        </button>
+          </button>
 
         <!-- Enter Fullscreen Button (hidden in fullscreen mode) -->
-        <button
+          <button
           v-if="!props.fullscreen"
           type="button"
           class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800"
@@ -991,7 +1021,8 @@ function handleToolbarRefresh() {
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
           </svg>
-        </button>
+          </button>
+        </div>
       </div>
     </div>
 

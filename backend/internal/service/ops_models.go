@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 )
@@ -20,6 +21,93 @@ type OpsSystemLog struct {
 	Platform        string         `json:"platform"`
 	Model           string         `json:"model"`
 	Extra           map[string]any `json:"extra,omitempty"`
+}
+
+// OpsRequestTiming 是从 http.access 系统日志提取的单请求阶段耗时。
+// 所有数值均为相对于 Sub2API 入口的毫秒数；缺失阶段保持 nil。
+type OpsRequestTiming struct {
+	RequestContentLength           *int64 `json:"request_content_length,omitempty"`
+	AccountSlotAcquiredMs          *int64 `json:"account_slot_acquired_ms,omitempty"`
+	UpstreamGetConnMs              *int64 `json:"upstream_get_conn_ms,omitempty"`
+	UpstreamGotConnMs              *int64 `json:"upstream_got_conn_ms,omitempty"`
+	UpstreamWroteRequestMs         *int64 `json:"upstream_wrote_request_ms,omitempty"`
+	UpstreamFirstResponseByteMs    *int64 `json:"upstream_first_response_byte_ms,omitempty"`
+	UpstreamFirstSSEDataMs         *int64 `json:"upstream_first_sse_data_ms,omitempty"`
+	FirstVisibleOutputMs           *int64 `json:"first_visible_output_ms,omitempty"`
+	FirstDownstreamFlushMs         *int64 `json:"first_downstream_flush_ms,omitempty"`
+	UpstreamGetConnCount           *int64 `json:"upstream_get_conn_count,omitempty"`
+	UpstreamGotConnCount           *int64 `json:"upstream_got_conn_count,omitempty"`
+	UpstreamAttemptCount           *int64 `json:"upstream_attempt_count,omitempty"`
+	UpstreamFirstResponseByteCount *int64 `json:"upstream_first_response_byte_count,omitempty"`
+	UpstreamConnectionReused       bool   `json:"upstream_connection_reused,omitempty"`
+	UpstreamWroteRequestError      bool   `json:"upstream_wrote_request_error,omitempty"`
+}
+
+// OpsRequestTimingFromExtra 只提取阶段字段，避免把系统日志中的其它内容带入使用记录接口。
+func OpsRequestTimingFromExtra(extra map[string]any) *OpsRequestTiming {
+	if len(extra) == 0 {
+		return nil
+	}
+	timing := &OpsRequestTiming{
+		RequestContentLength:           timingInt64Ptr(extra["request_content_length"]),
+		AccountSlotAcquiredMs:          timingInt64Ptr(extra["account_slot_acquired_ms"]),
+		UpstreamGetConnMs:              timingInt64Ptr(extra["upstream_get_conn_ms"]),
+		UpstreamGotConnMs:              timingInt64Ptr(extra["upstream_got_conn_ms"]),
+		UpstreamWroteRequestMs:         timingInt64Ptr(extra["upstream_wrote_request_ms"]),
+		UpstreamFirstResponseByteMs:    timingInt64Ptr(extra["upstream_first_response_byte_ms"]),
+		UpstreamFirstSSEDataMs:         timingInt64Ptr(extra["upstream_first_sse_data_ms"]),
+		FirstVisibleOutputMs:           timingInt64Ptr(extra["first_visible_output_ms"]),
+		FirstDownstreamFlushMs:         timingInt64Ptr(extra["first_downstream_flush_ms"]),
+		UpstreamGetConnCount:           timingInt64Ptr(extra["upstream_get_conn_count"]),
+		UpstreamGotConnCount:           timingInt64Ptr(extra["upstream_got_conn_count"]),
+		UpstreamAttemptCount:           timingInt64Ptr(extra["upstream_attempt_count"]),
+		UpstreamFirstResponseByteCount: timingInt64Ptr(extra["upstream_first_response_byte_count"]),
+	}
+	if value, ok := extra["upstream_connection_reused"].(bool); ok {
+		timing.UpstreamConnectionReused = value
+	}
+	if value, ok := extra["upstream_wrote_request_error"].(bool); ok {
+		timing.UpstreamWroteRequestError = value
+	}
+	if timing.RequestContentLength == nil && timing.AccountSlotAcquiredMs == nil && timing.UpstreamGetConnMs == nil &&
+		timing.UpstreamGotConnMs == nil && timing.UpstreamWroteRequestMs == nil && timing.UpstreamFirstResponseByteMs == nil &&
+		timing.UpstreamFirstSSEDataMs == nil && timing.FirstVisibleOutputMs == nil && timing.FirstDownstreamFlushMs == nil &&
+		timing.UpstreamGetConnCount == nil && timing.UpstreamGotConnCount == nil && timing.UpstreamAttemptCount == nil &&
+		timing.UpstreamFirstResponseByteCount == nil && !timing.UpstreamConnectionReused && !timing.UpstreamWroteRequestError {
+		return nil
+	}
+	return timing
+}
+
+// timingInt64Ptr 解析 JSON 数字并保留零值；零毫秒是有效的“立即发生”阶段。
+func timingInt64Ptr(value any) *int64 {
+	var parsed int64
+	switch v := value.(type) {
+	case int:
+		parsed = int64(v)
+	case int64:
+		parsed = v
+	case float64:
+		parsed = int64(v)
+	case json.Number:
+		if n, err := v.Int64(); err == nil {
+			parsed = n
+		} else {
+			return nil
+		}
+	case string:
+		if n, err := json.Number(strings.TrimSpace(v)).Int64(); err == nil {
+			parsed = n
+		} else {
+			return nil
+		}
+	default:
+		return nil
+	}
+	if parsed < 0 {
+		return nil
+	}
+	return &parsed
 }
 
 type OpsErrorLog struct {

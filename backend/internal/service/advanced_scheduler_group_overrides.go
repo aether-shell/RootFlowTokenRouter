@@ -15,6 +15,8 @@ type advancedSchedulerEffectiveSettings struct {
 	subscriptionPriorityEnabled bool
 	topK                        int
 	weights                     GatewayAdvancedSchedulerScoreWeightsView
+	feedback                    advancedSchedulerFeedbackConfig
+	stickyEscape                advancedStickyEscapeConfig
 }
 
 // ValidateGroupAdvancedSchedulerOverrides 校验分组稀疏覆盖的单字段边界。
@@ -22,6 +24,25 @@ type advancedSchedulerEffectiveSettings struct {
 func ValidateGroupAdvancedSchedulerOverrides(overrides GroupAdvancedSchedulerOverrides) error {
 	if overrides.LBTopK != nil && *overrides.LBTopK <= 0 {
 		return fmt.Errorf("lb_top_k must be a positive integer")
+	}
+	for _, item := range []struct {
+		name  string
+		value *float64
+	}{{"ewma_error_rate_alpha", overrides.EWMAErrorRateAlpha}, {"ewma_ttft_alpha", overrides.EWMATTFTAlpha}} {
+		if item.value == nil {
+			continue
+		}
+		if *item.value <= 0 || *item.value > 1 || math.IsNaN(*item.value) || math.IsInf(*item.value, 0) {
+			return fmt.Errorf("%s must be between 0 and 1", item.name)
+		}
+	}
+	if overrides.StickyEscapeTTFTMs != nil && *overrides.StickyEscapeTTFTMs <= 0 {
+		return fmt.Errorf("sticky_escape_ttft_ms must be positive")
+	}
+	if overrides.StickyEscapeErrorRate != nil &&
+		(*overrides.StickyEscapeErrorRate < 0 || *overrides.StickyEscapeErrorRate > 1 ||
+			math.IsNaN(*overrides.StickyEscapeErrorRate) || math.IsInf(*overrides.StickyEscapeErrorRate, 0)) {
+		return fmt.Errorf("sticky_escape_error_rate must be between 0 and 1")
 	}
 
 	weights := []struct {
@@ -122,6 +143,11 @@ func CloneGroupAdvancedSchedulerOverrides(overrides GroupAdvancedSchedulerOverri
 	return GroupAdvancedSchedulerOverrides{
 		StickyWeightedEnabled:       cloneBool(overrides.StickyWeightedEnabled),
 		SubscriptionPriorityEnabled: cloneBool(overrides.SubscriptionPriorityEnabled),
+		EWMAErrorRateAlpha:          cloneFloat(overrides.EWMAErrorRateAlpha),
+		EWMATTFTAlpha:               cloneFloat(overrides.EWMATTFTAlpha),
+		StickyEscapeEnabled:         cloneBool(overrides.StickyEscapeEnabled),
+		StickyEscapeTTFTMs:          cloneInt(overrides.StickyEscapeTTFTMs),
+		StickyEscapeErrorRate:       cloneFloat(overrides.StickyEscapeErrorRate),
 		LBTopK:                      cloneInt(overrides.LBTopK),
 		WeightPriority:              cloneFloat(overrides.WeightPriority),
 		WeightLoad:                  cloneFloat(overrides.WeightLoad),
@@ -241,6 +267,8 @@ func resolveAdvancedSchedulerEffectiveSettings(
 		subscriptionPriorityEnabled: global.subscriptionPriorityEnabled,
 		topK:                        globalTopK,
 		weights:                     globalWeights,
+		feedback:                    normalizeAdvancedSchedulerFeedbackConfig(advancedSchedulerFeedbackConfig{errorRateAlpha: global.ewmaErrorRateAlpha, ttftAlpha: global.ewmaTTFTAlpha}),
+		stickyEscape:                normalizeAdvancedStickyEscapeConfig(advancedStickyEscapeConfig{enabled: global.stickyEscapeEnabled, ttftMs: global.stickyEscapeTTFTMs, errorRate: global.stickyEscapeErrorRate}),
 	}
 	if overrides.StickyWeightedEnabled != nil {
 		effective.stickyWeightedEnabled = *overrides.StickyWeightedEnabled
@@ -251,6 +279,23 @@ func resolveAdvancedSchedulerEffectiveSettings(
 	if overrides.LBTopK != nil && *overrides.LBTopK > 0 {
 		effective.topK = *overrides.LBTopK
 	}
+	if overrides.EWMAErrorRateAlpha != nil {
+		effective.feedback.errorRateAlpha = *overrides.EWMAErrorRateAlpha
+	}
+	if overrides.EWMATTFTAlpha != nil {
+		effective.feedback.ttftAlpha = *overrides.EWMATTFTAlpha
+	}
+	if overrides.StickyEscapeEnabled != nil {
+		effective.stickyEscape.enabled = *overrides.StickyEscapeEnabled
+	}
+	if overrides.StickyEscapeTTFTMs != nil {
+		effective.stickyEscape.ttftMs = float64(*overrides.StickyEscapeTTFTMs)
+	}
+	if overrides.StickyEscapeErrorRate != nil {
+		effective.stickyEscape.errorRate = *overrides.StickyEscapeErrorRate
+	}
+	effective.feedback = normalizeAdvancedSchedulerFeedbackConfig(effective.feedback)
+	effective.stickyEscape = normalizeAdvancedStickyEscapeConfig(effective.stickyEscape)
 	effective.weights = applyGroupAdvancedSchedulerWeightOverrides(effective.weights, overrides)
 	if validateErr := validateAdvancedSchedulerEffectiveWeights(effective.weights); validateErr != nil {
 		// 历史异常数据不能进入评分；仅回退权重，保留分组其它有效覆盖。

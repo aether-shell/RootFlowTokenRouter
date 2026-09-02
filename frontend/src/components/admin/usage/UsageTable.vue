@@ -230,6 +230,18 @@
               <span class="text-gray-400 dark:text-gray-500">{{ t('usage.latencyDuration') }}</span>
               <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
             </div>
+            <button
+              v-if="row.detailed_timing"
+              type="button"
+              class="group relative mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-blue-100 hover:text-blue-500 focus:outline-none focus:ring-2 focus:ring-primary-500/40 dark:bg-gray-700 dark:text-gray-500 dark:hover:bg-blue-900/50 dark:hover:text-blue-400"
+              :aria-label="t('usage.detailedTiming')"
+              :title="t('usage.detailedTiming')"
+              @mouseenter="showTimingTooltip($event, row)"
+              @mouseleave="hideTimingTooltip"
+              @click.stop="toggleTimingTooltip($event, row)"
+            >
+              <Icon name="infoCircle" size="xs" />
+            </button>
           </div>
         </template>
 
@@ -364,6 +376,61 @@
           v-else-if="tokenTooltipPosition.placement === 'left'"
           class="absolute left-full h-0 w-0 -translate-y-1/2 border-b-[6px] border-l-[6px] border-t-[6px] border-b-transparent border-l-gray-900 border-t-transparent dark:border-l-gray-800"
           :style="{ top: tokenTooltipPosition.arrowY + 'px' }"
+        ></div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- 详细耗时 Tooltip Portal：桌面端悬停显示，移动端点击后固定显示。 -->
+  <Teleport to="body">
+    <div
+      v-if="timingTooltipVisible"
+      ref="timingTooltipRef"
+      data-testid="timing-detail-tooltip"
+      class="pointer-events-none fixed z-[9999]"
+      :class="{ invisible: !timingTooltipReady }"
+      :style="{
+        left: timingTooltipPosition.x + 'px',
+        top: timingTooltipPosition.y + 'px'
+      }"
+    >
+      <div class="w-max max-w-[calc(100vw-1.5rem)] break-words whitespace-normal rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800 md:whitespace-nowrap">
+        <div class="text-xs font-semibold text-gray-300 mb-1.5">{{ t('usage.detailedTiming') }}</div>
+        <div v-if="timingTooltipData" class="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 text-[11px] leading-4 md:grid-cols-[max-content_minmax(0,1fr)_max-content_minmax(0,1fr)]">
+          <span class="text-gray-400">{{ t('usage.timingRequestSize') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatRequestSize(timingTooltipData.detailed_timing?.request_content_length) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingSlot') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatTimingMs(timingTooltipData.detailed_timing?.account_slot_acquired_ms) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingGetConn') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatTimingMs(timingTooltipData.detailed_timing?.upstream_get_conn_ms) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingGotConn') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatTimingMs(timingTooltipData.detailed_timing?.upstream_got_conn_ms) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingWriteRequest') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatTimingMs(timingTooltipData.detailed_timing?.upstream_wrote_request_ms) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingFirstByte') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatTimingMs(timingTooltipData.detailed_timing?.upstream_first_response_byte_ms) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingFirstSSE') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatTimingMs(timingTooltipData.detailed_timing?.upstream_first_sse_data_ms) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingVisible') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatTimingMs(timingTooltipData.detailed_timing?.first_visible_output_ms) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingFlush') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ formatTimingMs(timingTooltipData.detailed_timing?.first_downstream_flush_ms) }}</span>
+          <span class="text-gray-400">{{ t('usage.timingAttempts') }}</span>
+          <span class="font-medium tabular-nums text-right">{{ timingTooltipData.detailed_timing?.upstream_attempt_count ?? '-' }}</span>
+        </div>
+        <div v-if="timingTooltipData?.detailed_timing?.upstream_connection_reused || timingTooltipData?.detailed_timing?.upstream_wrote_request_error" class="mt-1.5 flex flex-wrap gap-x-2 text-[10px]">
+          <span v-if="timingTooltipData.detailed_timing?.upstream_connection_reused" class="text-emerald-400">{{ t('usage.timingReused') }}</span>
+          <span v-if="timingTooltipData.detailed_timing?.upstream_wrote_request_error" class="text-rose-400">{{ t('usage.timingWriteError') }}</span>
+        </div>
+        <div
+          v-if="timingTooltipPosition.placement === 'right'"
+          class="absolute right-full h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"
+          :style="{ top: timingTooltipPosition.arrowY + 'px' }"
+        ></div>
+        <div
+          v-else-if="timingTooltipPosition.placement === 'left'"
+          class="absolute left-full h-0 w-0 -translate-y-1/2 border-b-[6px] border-l-[6px] border-t-[6px] border-b-transparent border-l-gray-900 border-t-transparent dark:border-l-gray-800"
+          :style="{ top: timingTooltipPosition.arrowY + 'px' }"
         ></div>
       </div>
     </div>
@@ -534,7 +601,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useClipboard } from '@/composables/useClipboard'
@@ -709,6 +776,15 @@ const tokenTooltipRef = ref<HTMLElement | null>(null)
 const tokenTooltipPosition = ref<TooltipPosition>({ x: 0, y: 0, arrowY: 0, placement: 'overlay' })
 const tokenTooltipData = ref<AdminUsageLog | null>(null)
 
+// 详细耗时 Tooltip 状态；点击后固定显示，便于移动端查看长内容。
+const timingTooltipVisible = ref(false)
+const timingTooltipReady = ref(false)
+const timingTooltipRef = ref<HTMLElement | null>(null)
+const timingTooltipPosition = ref<TooltipPosition>({ x: 0, y: 0, arrowY: 0, placement: 'overlay' })
+const timingTooltipData = ref<AdminUsageLog | null>(null)
+const timingTooltipAnchor = ref<HTMLElement | null>(null)
+const timingTooltipPinned = ref(false)
+
 type TooltipPlacement = 'left' | 'right' | 'overlay'
 
 interface TooltipPosition {
@@ -814,6 +890,18 @@ const formatDuration = (ms: number | null | undefined): string => {
   return `${Math.floor(totalSec / 3600)}h ${Math.floor((totalSec % 3600) / 60)}m`
 }
 
+const formatTimingMs = (ms: number | null | undefined): string => {
+  if (ms == null) return '-'
+  return formatDuration(ms)
+}
+
+const formatRequestSize = (bytes: number | null | undefined): string => {
+  if (bytes == null) return '-'
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)}MB`
+}
+
 // 费用 Tooltip 交互。
 const showTooltip = async (event: MouseEvent, row: AdminUsageLog) => {
   const target = event.currentTarget as HTMLElement
@@ -853,4 +941,60 @@ const hideTokenTooltip = () => {
   tokenTooltipReady.value = false
   tokenTooltipData.value = null
 }
+
+// 详细耗时 Tooltip 交互：悬停打开，点击固定，再次点击或点击外部关闭。
+const updateTimingTooltip = async (event: MouseEvent, row: AdminUsageLog) => {
+  if (!row.detailed_timing) return
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  timingTooltipAnchor.value = target
+  timingTooltipData.value = row
+  timingTooltipReady.value = false
+  timingTooltipVisible.value = true
+  await nextTick()
+
+  if (!timingTooltipVisible.value || timingTooltipData.value !== row || !timingTooltipRef.value) return
+  timingTooltipPosition.value = calculateTooltipPosition(rect, timingTooltipRef.value.getBoundingClientRect())
+  timingTooltipReady.value = true
+}
+
+const showTimingTooltip = (event: MouseEvent, row: AdminUsageLog) => {
+  void updateTimingTooltip(event, row)
+}
+
+const closeTimingTooltip = () => {
+  timingTooltipVisible.value = false
+  timingTooltipReady.value = false
+  timingTooltipData.value = null
+  timingTooltipAnchor.value = null
+  timingTooltipPinned.value = false
+}
+
+const hideTimingTooltip = () => {
+  if (timingTooltipPinned.value) return
+  closeTimingTooltip()
+}
+
+const toggleTimingTooltip = async (event: MouseEvent, row: AdminUsageLog) => {
+  if (timingTooltipVisible.value && timingTooltipPinned.value && timingTooltipData.value === row) {
+    closeTimingTooltip()
+    return
+  }
+  timingTooltipPinned.value = true
+  await updateTimingTooltip(event, row)
+}
+
+const handleTimingTooltipDocumentClick = (event: MouseEvent) => {
+  const target = event.target
+  if (timingTooltipAnchor.value && target instanceof Node && timingTooltipAnchor.value.contains(target)) return
+  closeTimingTooltip()
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleTimingTooltipDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleTimingTooltipDocumentClick)
+})
 </script>

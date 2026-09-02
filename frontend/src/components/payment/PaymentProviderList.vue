@@ -16,7 +16,7 @@
             type="button"
             @click="emit('refresh')"
             :disabled="loading"
-            class="btn btn-secondary btn-sm"
+            class="btn btn-secondary btn-sm h-9 w-9 p-0"
             :title="t('common.refresh')"
           >
             <Icon name="refresh" size="sm" :class="loading ? 'animate-spin' : ''" />
@@ -26,8 +26,8 @@
             @click="emit('create')"
             :disabled="!canCreate"
             :class="canCreate
-              ? 'btn btn-primary btn-sm'
-              : 'btn btn-secondary btn-sm cursor-not-allowed opacity-50'"
+              ? 'btn btn-primary btn-sm h-9'
+              : 'btn btn-secondary btn-sm h-9 cursor-not-allowed opacity-50'"
           >
             {{ t('admin.settings.payment.createProvider') }}
           </button>
@@ -83,7 +83,7 @@
           type="button"
           v-if="canCreate"
           @click="emit('create')"
-          class="btn btn-primary btn-sm mt-2"
+          class="btn btn-primary btn-sm h-9 mt-2"
         >
           {{ t('admin.settings.payment.createProvider') }}
         </button>

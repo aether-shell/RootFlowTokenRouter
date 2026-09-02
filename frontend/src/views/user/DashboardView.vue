@@ -1,10 +1,23 @@
 <template>
   <AppLayout>
+    <template #page-heading-actions>
+      <button
+        type="button"
+        class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+        :disabled="loadingCharts || loading"
+        :title="t('common.refresh')"
+        @click="refreshAll"
+      >
+        <Icon name="refresh" size="md" :class="(loadingCharts || loading) ? 'animate-spin' : ''" />
+      </button>
+    </template>
+
     <div class="space-y-6">
       <div v-if="loading" class="flex items-center justify-center py-12"><LoadingSpinner /></div>
       <template v-else-if="stats">
         <UserDashboardStats :stats="stats" :balance="user?.balance || 0" :is-simple="authStore.isSimpleMode" />
         <UserDashboardCharts v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="loadingCharts" :trend="trendData" :models="modelStats" @dateRangeChange="onDateRangeChange" @granularityChange="loadCharts" @refresh="refreshAll" />
+        <UserDashboardHeatmap ref="heatmapRef" />
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div class="lg:col-span-2"><UserDashboardAnnouncements /></div>
           <div class="lg:col-span-1"><UserDashboardQuickActions /></div>
@@ -16,6 +29,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useAnnouncementStore } from '@/stores/announcements'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
@@ -23,12 +37,15 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import UserDashboardStats from '@/components/user/dashboard/UserDashboardStats.vue'
 import UserDashboardCharts from '@/components/user/dashboard/UserDashboardCharts.vue'
+import UserDashboardHeatmap from '@/components/user/dashboard/UserDashboardHeatmap.vue'
 import UserDashboardAnnouncements from '@/components/user/dashboard/UserDashboardAnnouncements.vue'
 import UserDashboardQuickActions from '@/components/user/dashboard/UserDashboardQuickActions.vue'
+import Icon from '@/components/icons/Icon.vue'
 import type { ModelStat, TrendDataPoint } from '@/types'
 import { formatDateLocalInput } from '@/utils/format'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 const announcementStore = useAnnouncementStore()
 const user = computed(() => authStore.user)
 const stats = ref<UserStatsType | null>(null)
@@ -95,9 +112,11 @@ const loadCharts = async () => {
 }
 
 // App 负责首次预加载；用户主动刷新时同时绕过公告节流获取最新内容。
+const heatmapRef = ref<InstanceType<typeof UserDashboardHeatmap> | null>(null)
 const refreshAll = () => {
   void loadStats()
   void loadCharts()
+  void heatmapRef.value?.reload()
   void announcementStore.fetchAnnouncements(true)
 }
 

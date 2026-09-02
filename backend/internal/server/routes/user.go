@@ -156,6 +156,20 @@ func RegisterUserRoutes(
 			usage.GET("/:id", h.Usage.GetByID)
 		}
 
+		// 创作台（Creative Studio）：图片生成/编辑/局部重绘异步任务。
+		// 服务端只保存任务元数据，图片与 prompt 明文只存于临时 Redis 存储。
+		creative := authenticated.Group("/creative")
+		{
+			creative.GET("/capabilities", h.Creative.ListCapabilities)
+			creative.GET("/models", h.Creative.ListModels)
+			creative.POST("/runs", panelRateLimiter.Heavy(), h.Creative.CreateRun)
+			creative.GET("/runs/active", h.Creative.ListActiveRuns)
+			creative.GET("/runs", h.Creative.ListRuns)
+			creative.GET("/runs/:id", h.Creative.GetRun)
+			creative.GET("/runs/:id/outputs/:index/content", h.Creative.GetOutputContent)
+			creative.POST("/runs/:id/outputs/:index/ack", h.Creative.AckOutput)
+		}
+
 		// 公告（用户可见）
 		announcements := authenticated.Group("/announcements")
 		{
@@ -177,6 +191,7 @@ func RegisterUserRoutes(
 			subscriptions.GET("/active", h.Subscription.GetActive)
 			subscriptions.GET("/progress", h.Subscription.GetProgress)
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
+			subscriptions.POST("/:id/revoke", h.Subscription.Revoke)
 		}
 	}
 }

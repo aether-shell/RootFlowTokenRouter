@@ -166,6 +166,7 @@ func createAPIKeyRecord(ctx context.Context, client *dbent.Client, key *service.
 		SetModelMapping(service.CloneModelMapping(key.ModelMapping)).
 		SetNillableGroupID(key.GroupID).
 		SetNillableLastUsedAt(key.LastUsedAt).
+		SetNillableManagedBy(key.ManagedBy).
 		SetQuota(key.Quota).
 		SetQuotaUsed(key.QuotaUsed).
 		SetNillableExpiresAt(key.ExpiresAt).
@@ -239,6 +240,31 @@ func (r *apiKeyRepository) GetByID(ctx context.Context, id int64) (*service.APIK
 		return nil, err
 	}
 	return apiKeyEntityToService(m), nil
+}
+
+// GetManagedKeyByUserAndGroup 查找某用户 + 分组的服务端托管隐藏 Key（如创作台执行 Key）。
+func (r *apiKeyRepository) GetManagedKeyByUserAndGroup(ctx context.Context, userID, groupID int64, managedBy string) (*service.APIKey, error) {
+	m, err := r.activeQuery().
+		Where(
+			apikey.UserIDEQ(userID),
+			apikey.GroupIDEQ(groupID),
+			apikey.ManagedByEQ(managedBy),
+		).
+		WithGroup().
+		Only(ctx)
+	if err != nil {
+		if dbent.IsNotFound(err) {
+			return nil, service.ErrAPIKeyNotFound
+		}
+		return nil, err
+	}
+	return apiKeyEntityToService(m), nil
+}
+
+// CreateManagedKey 创建服务端托管的隐藏 Key；与普通 Key 共用创建路径（含数量限制），
+// managed_by 由调用方在 key.ManagedBy 上显式标记。
+func (r *apiKeyRepository) CreateManagedKey(ctx context.Context, key *service.APIKey) error {
+	return r.Create(ctx, key)
 }
 
 // GetKeyAndOwnerID 根据 API Key ID 获取其 key 与所有者（用户）ID。
@@ -644,6 +670,8 @@ func (r *apiKeyRepository) deleteWithTombstone(ctx context.Context, exec *dbent.
 
 func (r *apiKeyRepository) apiKeyListByUserIDQuery(userID int64, filters service.APIKeyListFilters) *dbent.APIKeyQuery {
 	q := r.activeQuery().Where(apikey.UserIDEQ(userID))
+	// 创作台等场景的服务端托管隐藏 Key 不出现在普通 Key 列表中。
+	q = q.Where(apikey.ManagedByIsNil())
 
 	if filters.Search != "" {
 		q = q.Where(apikey.Or(
@@ -1278,6 +1306,7 @@ func apiKeyEntityToService(m *dbent.APIKey) *service.APIKey {
 		Window1dStart:                         m.Window1dStart,
 		Window7dStart:                         m.Window7dStart,
 		FallbackToDefaultGroupWhenUnavailable: m.FallbackToDefaultGroupWhenUnavailable,
+		ManagedBy:                             m.ManagedBy,
 		// 数据共享确认信息随 API Key 返回，用户端可判断是否需要重新确认须知。
 		DataSharingNoticeVersion:    m.DataSharingNoticeVersion,
 		DataSharingConfirmedGroupID: m.DataSharingConfirmedGroupID,

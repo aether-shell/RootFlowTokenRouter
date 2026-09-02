@@ -87,6 +87,7 @@ import { useI18n } from 'vue-i18n'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import Icon from '@/components/icons/Icon.vue'
 import type { CurrencyAmounts, DashboardStats } from '@/types/payment'
+import { DEFAULT_PAYMENT_CURRENCY } from '@/components/payment/currency'
 
 const { t } = useI18n()
 const { balanceUnitName } = useBalanceDisplay()
@@ -96,7 +97,8 @@ defineProps<{
 }>()
 
 function sortedAmounts(amounts: CurrencyAmounts): [string, number][] {
-  return Object.entries(amounts).sort(([left], [right]) => left.localeCompare(right))
+  const entries = Object.entries(amounts || {}).sort(([left], [right]) => left.localeCompare(right))
+  return entries.length > 0 ? entries : [[DEFAULT_PAYMENT_CURRENCY, 0]]
 }
 
 function formatMoney(currency: string, amount: number): string {

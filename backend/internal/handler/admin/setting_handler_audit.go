@@ -2,6 +2,7 @@ package admin
 
 import (
 	"log/slog"
+	"reflect"
 
 	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -47,6 +48,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.RegistrationEmailDomainQuotaEnabled != after.RegistrationEmailDomainQuotaEnabled {
 		changed = append(changed, "registration_email_domain_quota_enabled")
 	}
+	if before.UserEmailChangeEnabled != after.UserEmailChangeEnabled {
+		changed = append(changed, "user_email_change_enabled")
+	}
 	if before.PromoCodeEnabled != after.PromoCodeEnabled {
 		changed = append(changed, "promo_code_enabled")
 	}
@@ -61,6 +65,15 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.DataSharingEnabled != after.DataSharingEnabled {
 		changed = append(changed, "data_sharing_enabled")
+	}
+	if before.CreativeEnabled != after.CreativeEnabled {
+		changed = append(changed, "creative_enabled")
+	}
+	if !reflect.DeepEqual(before.CreativeModelSettings, after.CreativeModelSettings) {
+		changed = append(changed, "creative_model_settings")
+	}
+	if before.CreativeWorkerCount != after.CreativeWorkerCount {
+		changed = append(changed, "creative_worker_count")
 	}
 	if before.RiskControlEnabled != after.RiskControlEnabled {
 		changed = append(changed, "risk_control_enabled")
@@ -542,6 +555,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.FooterText != after.FooterText {
 		changed = append(changed, "footer_text")
 	}
+	if before.HomeFeaturedModels != after.HomeFeaturedModels {
+		changed = append(changed, "home_featured_models")
+	}
 	if before.EnableFingerprintUnification != after.EnableFingerprintUnification {
 		changed = append(changed, "enable_fingerprint_unification")
 	}
@@ -598,6 +614,21 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.AdvancedSchedulerSubscriptionPriorityEnabled != after.AdvancedSchedulerSubscriptionPriorityEnabled {
 		changed = append(changed, "advanced_scheduler_subscription_priority_enabled")
+	}
+	if before.AdvancedSchedulerEWMAErrorRateAlpha != after.AdvancedSchedulerEWMAErrorRateAlpha {
+		changed = append(changed, "advanced_scheduler_ewma_error_rate_alpha")
+	}
+	if before.AdvancedSchedulerEWMATTFTAlpha != after.AdvancedSchedulerEWMATTFTAlpha {
+		changed = append(changed, "advanced_scheduler_ewma_ttft_alpha")
+	}
+	if before.AdvancedSchedulerStickyEscapeEnabled != after.AdvancedSchedulerStickyEscapeEnabled {
+		changed = append(changed, "advanced_scheduler_sticky_escape_enabled")
+	}
+	if before.AdvancedSchedulerStickyEscapeTTFTMs != after.AdvancedSchedulerStickyEscapeTTFTMs {
+		changed = append(changed, "advanced_scheduler_sticky_escape_ttft_ms")
+	}
+	if before.AdvancedSchedulerStickyEscapeErrorRate != after.AdvancedSchedulerStickyEscapeErrorRate {
+		changed = append(changed, "advanced_scheduler_sticky_escape_error_rate")
 	}
 	if before.AdvancedSchedulerLBTopK != after.AdvancedSchedulerLBTopK {
 		changed = append(changed, "advanced_scheduler_lb_top_k")

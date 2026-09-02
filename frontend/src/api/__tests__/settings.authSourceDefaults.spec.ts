@@ -8,16 +8,12 @@ import {
   type UpdateSettingsRequest,
   type DefaultPlatformQuotasMap,
 } from "@/api/admin/settings";
+import { CONCRETE_PLATFORM_OPTIONS } from "@/constants/platforms";
 
-/** 全 null 的 6 平台 map，用于断言归一化默认值 */
-const allNullQuotas: DefaultPlatformQuotasMap = {
-  anthropic: { daily: null, weekly: null, monthly: null },
-  openai:    { daily: null, weekly: null, monthly: null },
-  gemini:    { daily: null, weekly: null, monthly: null },
-  antigravity: { daily: null, weekly: null, monthly: null },
-  qoder: { daily: null, weekly: null, monthly: null },
-  grok: { daily: null, weekly: null, monthly: null },
-}
+/** 从统一平台目录生成全 null map，避免新增平台时测试继续锁死旧数量。 */
+const allNullQuotas: DefaultPlatformQuotasMap = Object.fromEntries(
+  CONCRETE_PLATFORM_OPTIONS.map(({ value }) => [value, { daily: null, weekly: null, monthly: null }]),
+) as DefaultPlatformQuotasMap;
 
 describe("admin settings auth source defaults helpers", () => {
   it("builds auth source defaults state from flat settings fields", () => {
@@ -89,11 +85,14 @@ describe("admin settings auth source defaults helpers", () => {
     expect(state.email.platform_quotas.anthropic).toEqual({ daily: 10, weekly: 50, monthly: 200 });
     // openai 全 null 应被保留
     expect(state.email.platform_quotas.openai).toEqual({ daily: null, weekly: null, monthly: null });
-    // 未出现的平台（gemini/antigravity/qoder/grok）归一化为 null
+    // 未出现的平台归一化为 null
     expect(state.email.platform_quotas.gemini).toEqual({ daily: null, weekly: null, monthly: null });
     expect(state.email.platform_quotas.antigravity).toEqual({ daily: null, weekly: null, monthly: null });
     expect(state.email.platform_quotas.qoder).toEqual({ daily: null, weekly: null, monthly: null });
     expect(state.email.platform_quotas.grok).toEqual({ daily: null, weekly: null, monthly: null });
+    expect(state.email.platform_quotas.kimi).toEqual({ daily: null, weekly: null, monthly: null });
+    expect(state.email.platform_quotas.zhipu).toEqual({ daily: null, weekly: null, monthly: null });
+    expect(state.email.platform_quotas.deepseek).toEqual({ daily: null, weekly: null, monthly: null });
   });
 
   it("appends auth source defaults back onto update payload", () => {
@@ -238,9 +237,9 @@ describe("normalizePlatformQuotasMap", () => {
     expect(result.grok).toEqual({ daily: null, weekly: null, monthly: null });
   });
 
-  it("无参数时返回全 6 平台全 null", () => {
+  it("无参数时返回当前平台目录的全 null map", () => {
     const result = normalizePlatformQuotasMap();
-    expect(Object.keys(result)).toHaveLength(6);
+    expect(result).toEqual(allNullQuotas);
     for (const v of Object.values(result)) {
       expect(v).toEqual({ daily: null, weekly: null, monthly: null });
     }
@@ -288,7 +287,7 @@ describe("sanitizePlatformQuotasMap", () => {
 
   it("缺失平台填充为全 null", () => {
     const result = sanitizePlatformQuotasMap({});
-    expect(Object.keys(result)).toHaveLength(6);
+    expect(result).toEqual(allNullQuotas);
     for (const v of Object.values(result)) {
       expect(v).toEqual({ daily: null, weekly: null, monthly: null });
     }

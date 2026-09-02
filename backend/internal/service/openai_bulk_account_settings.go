@@ -13,12 +13,13 @@ import (
 type bulkOpenAISettings struct {
 	workloadCapabilities    bool
 	textRouteMode           bool
+	continuationSupported   bool
 	capabilitiesIncludeText bool
 	forcedTextRoute         bool
 }
 
 func (s bulkOpenAISettings) any() bool {
-	return s.workloadCapabilities || s.textRouteMode
+	return s.workloadCapabilities || s.textRouteMode || s.continuationSupported
 }
 
 // normalizeBulkOpenAISettings 严格校验批量配置，避免部分账号写入无法路由的组合。
@@ -61,6 +62,12 @@ func normalizeBulkOpenAISettings(input *BulkUpdateAccountsInput) (bulkOpenAISett
 			return settings, err
 		}
 		settings.forcedTextRoute = forced
+	}
+	if raw, exists := input.Extra[openai_compat.ExtraKeyResponsesContinuationSupported]; exists {
+		settings.continuationSupported = true
+		if err := validateBulkOpenAIResponsesContinuationSupported(raw); err != nil {
+			return settings, err
+		}
 	}
 
 	if settings.workloadCapabilities && !settings.capabilitiesIncludeText {
@@ -180,6 +187,19 @@ func invalidBulkOpenAITextRouteMode() error {
 	)
 }
 
+func validateBulkOpenAIResponsesContinuationSupported(raw any) error {
+	if raw == nil {
+		return nil
+	}
+	if _, ok := raw.(bool); !ok {
+		return infraerrors.BadRequest(
+			"OPENAI_RESPONSES_CONTINUATION_INVALID",
+			"openai_responses_continuation_supported must be a boolean or null",
+		)
+	}
+	return nil
+}
+
 // validateBulkOpenAISettingsTargets 在任何批量写入前检查所有目标，避免漏查 ID 或混入非 API Key。
 func validateBulkOpenAISettingsTargets(input *BulkUpdateAccountsInput, settings bulkOpenAISettings, targetsByID map[int64]*Account) error {
 	if input == nil || !settings.any() {
@@ -191,7 +211,7 @@ func validateBulkOpenAISettingsTargets(input *BulkUpdateAccountsInput, settings 
 			return invalidBulkOpenAITarget(accountID, "account does not exist")
 		}
 		if !isOpenAIAPIKeyAccount(account) {
-			return invalidBulkOpenAITarget(accountID, "workload capabilities and text route settings require an OpenAI API-key account")
+			return invalidBulkOpenAITarget(accountID, "workload capabilities, text route and continuation settings require an OpenAI API-key account")
 		}
 		if settings.forcedTextRoute && !settings.capabilitiesIncludeText && !account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityTextGeneration) {
 			return invalidBulkOpenAITarget(accountID, "a forced text route requires the text_generation workload capability")

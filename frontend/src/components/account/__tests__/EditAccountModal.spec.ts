@@ -912,11 +912,18 @@ describe('EditAccountModal', () => {
     expect(wrapper.find('[data-testid="openai-plan-type-select"]').exists()).toBe(false)
   })
 
+  it('renders the account scheduling threshold override as a switch', () => {
+    const wrapper = mountModal(buildAccount())
+
+    expect(wrapper.get('[data-testid="account-scheduling-threshold-override-enabled"]').attributes('role')).toBe('switch')
+  })
+
   it('submits OpenAI APIKey text route mode and keeps probe status read-only', async () => {
     const account = buildAccount()
     account.extra = {
       openai_text_route_mode: 'force_chat_completions',
-      openai_responses_probe_status: 'unsupported'
+      openai_responses_probe_status: 'unsupported',
+      openai_responses_continuation_supported: true
     }
     updateAccountMock.mockReset()
     checkMixedChannelRiskMock.mockReset()
@@ -925,12 +932,14 @@ describe('EditAccountModal', () => {
 
     const wrapper = mountModal(account)
 
+    expect(wrapper.get('[data-testid="edit-openai-continuation-supported"]').attributes('role')).toBe('switch')
     await wrapper.get('[data-testid="openai-text-route-mode-select"]').setValue('force_responses')
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_text_route_mode).toBe('force_responses')
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_probe_status).toBe('unsupported')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_continuation_supported).toBe(true)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_mode')
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_supported')
   })
@@ -964,6 +973,7 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_text_route_mode).toBe('preserve_client_protocol')
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_probe_status).toBe('supported')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_continuation_supported).toBe(false)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_mode')
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_supported')
   })

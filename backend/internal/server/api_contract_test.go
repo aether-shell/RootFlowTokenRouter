@@ -556,6 +556,88 @@ func TestAPIContracts(t *testing.T) {
 			}`,
 		},
 		{
+			name: "POST /api/v1/subscriptions/501/revoke",
+			setup: func(t *testing.T, deps *contractDeps) {
+				t.Helper()
+				limit := 10.0
+				deps.userSubRepo.SetByID(501, service.UserSubscription{
+					ID:                 501,
+					UserID:             1,
+					PlanID:             10,
+					StartsAt:           time.Now().Add(-time.Hour),
+					ExpiresAt:          time.Date(2099, 1, 2, 3, 4, 5, 0, time.UTC),
+					Status:             service.SubscriptionStatusActive,
+					MonthlyLimitUSD:    &limit,
+					MonthlyUsageUSD:    limit,
+					MonthlyWindowStart: ptr(time.Now().Add(-time.Hour)),
+					CreatedAt:          deps.now,
+					UpdatedAt:          deps.now,
+				})
+			},
+			method:     http.MethodPost,
+			path:       "/api/v1/subscriptions/501/revoke",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"revoked_subscription_id": 501,
+					"replacement_subscription_id": null,
+					"rebound_api_key_count": 0
+				}
+			}`,
+		},
+		{
+			name: "POST /api/v1/subscriptions/501/revoke quota available",
+			setup: func(t *testing.T, deps *contractDeps) {
+				t.Helper()
+				limit := 10.0
+				deps.userSubRepo.SetByID(501, service.UserSubscription{
+					ID:                 501,
+					UserID:             1,
+					PlanID:             10,
+					StartsAt:           time.Now().Add(-time.Hour),
+					ExpiresAt:          time.Date(2099, 1, 2, 3, 4, 5, 0, time.UTC),
+					Status:             service.SubscriptionStatusActive,
+					MonthlyLimitUSD:    &limit,
+					MonthlyUsageUSD:    9,
+					MonthlyWindowStart: ptr(time.Now().Add(-time.Hour)),
+					CreatedAt:          deps.now,
+					UpdatedAt:          deps.now,
+				})
+			},
+			method:     http.MethodPost,
+			path:       "/api/v1/subscriptions/501/revoke",
+			wantStatus: http.StatusConflict,
+			wantJSON: `{
+				"code": 409,
+				"message": "subscription still has available quota",
+				"reason": "SUBSCRIPTION_QUOTA_NOT_EXHAUSTED"
+			}`,
+		},
+		{
+			name: "POST /api/v1/subscriptions/501/revoke foreign subscription",
+			setup: func(t *testing.T, deps *contractDeps) {
+				t.Helper()
+				deps.userSubRepo.SetByID(501, service.UserSubscription{
+					ID:        501,
+					UserID:    2,
+					PlanID:    10,
+					StartsAt:  time.Now().Add(-time.Hour),
+					ExpiresAt: time.Date(2099, 1, 2, 3, 4, 5, 0, time.UTC),
+					Status:    service.SubscriptionStatusActive,
+				})
+			},
+			method:     http.MethodPost,
+			path:       "/api/v1/subscriptions/501/revoke",
+			wantStatus: http.StatusNotFound,
+			wantJSON: `{
+				"code": 404,
+				"message": "subscription not found",
+				"reason": "SUBSCRIPTION_NOT_FOUND"
+			}`,
+		},
+		{
 			name: "POST /api/v1/admin/subscriptions/501/restore",
 			setup: func(t *testing.T, deps *contractDeps) {
 				t.Helper()
@@ -884,6 +966,7 @@ func TestAPIContracts(t *testing.T) {
 					"registration_email_normalization": false,
 					"registration_email_suffix_whitelist": [],
 					"registration_email_domain_quota_enabled": false,
+					"user_email_change_enabled": false,
 					"promo_code_enabled": true,
 					"password_reset_enabled": false,
 					"frontend_url": "",
@@ -1049,6 +1132,10 @@ func TestAPIContracts(t *testing.T) {
 						"fallback_model_openai": "gpt-4o",
 						"footer_links": [],
 						"footer_text": "",
+						"home_featured_models": [],
+						"creative_enabled": true,
+						"creative_model_settings": [],
+						"creative_worker_count": 128,
 						"enable_identity_patch": true,
 						"identity_patch_prompt": "",
 						"invitation_code_enabled": false,
@@ -1099,6 +1186,11 @@ func TestAPIContracts(t *testing.T) {
 							"payment_visible_method_wxpay_enabled": false,
 							"advanced_scheduler_sticky_weighted_enabled": false,
 							"advanced_scheduler_subscription_priority_enabled": false,
+							"advanced_scheduler_ewma_error_rate_alpha": "",
+							"advanced_scheduler_ewma_ttft_alpha": "",
+							"advanced_scheduler_sticky_escape_enabled": true,
+							"advanced_scheduler_sticky_escape_ttft_ms": "",
+							"advanced_scheduler_sticky_escape_error_rate": "",
 							"advanced_scheduler_lb_top_k": "",
 							"advanced_scheduler_weight_priority": "",
 							"advanced_scheduler_weight_load": "",
@@ -1119,6 +1211,11 @@ func TestAPIContracts(t *testing.T) {
 							"advanced_scheduler_effective_weight_quota_headroom": "0",
 							"advanced_scheduler_effective_weight_previous_response": "5",
 							"advanced_scheduler_effective_weight_session_sticky": "3",
+							"advanced_scheduler_effective_ewma_error_rate_alpha": "0.2",
+							"advanced_scheduler_effective_ewma_ttft_alpha": "0.2",
+							"advanced_scheduler_effective_sticky_escape_enabled": true,
+							"advanced_scheduler_effective_sticky_escape_ttft_ms": "15000",
+							"advanced_scheduler_effective_sticky_escape_error_rate": "0.5",
 							"openai_account_quota_auto_pause": {
 								"default_threshold_5h": 0,
 								"default_threshold_7d": 0
@@ -1260,6 +1357,7 @@ func TestAPIContracts(t *testing.T) {
 					"registration_email_normalization": false,
 					"registration_email_suffix_whitelist": [],
 					"registration_email_domain_quota_enabled": false,
+					"user_email_change_enabled": false,
 					"promo_code_enabled": true,
 					"password_reset_enabled": false,
 					"frontend_url": "",
@@ -1416,6 +1514,10 @@ func TestAPIContracts(t *testing.T) {
 					"fallback_model_antigravity": "gemini-2.5-pro",
 					"footer_links": [],
 					"footer_text": "",
+						"home_featured_models": [],
+						"creative_enabled": true,
+						"creative_model_settings": [],
+						"creative_worker_count": 128,
 					"enable_identity_patch": true,
 					"identity_patch_prompt": "",
 					"ops_monitoring_enabled": false,
@@ -1443,6 +1545,11 @@ func TestAPIContracts(t *testing.T) {
 							"payment_visible_method_wxpay_enabled": false,
 							"advanced_scheduler_sticky_weighted_enabled": false,
 							"advanced_scheduler_subscription_priority_enabled": false,
+							"advanced_scheduler_ewma_error_rate_alpha": "",
+							"advanced_scheduler_ewma_ttft_alpha": "",
+							"advanced_scheduler_sticky_escape_enabled": true,
+							"advanced_scheduler_sticky_escape_ttft_ms": "",
+							"advanced_scheduler_sticky_escape_error_rate": "",
 							"advanced_scheduler_lb_top_k": "",
 							"advanced_scheduler_weight_priority": "",
 							"advanced_scheduler_weight_load": "",
@@ -1463,6 +1570,11 @@ func TestAPIContracts(t *testing.T) {
 							"advanced_scheduler_effective_weight_quota_headroom": "0",
 							"advanced_scheduler_effective_weight_previous_response": "5",
 							"advanced_scheduler_effective_weight_session_sticky": "3",
+							"advanced_scheduler_effective_ewma_error_rate_alpha": "0.2",
+							"advanced_scheduler_effective_ewma_ttft_alpha": "0.2",
+							"advanced_scheduler_effective_sticky_escape_enabled": true,
+							"advanced_scheduler_effective_sticky_escape_ttft_ms": "15000",
+							"advanced_scheduler_effective_sticky_escape_error_rate": "0.5",
 							"openai_account_quota_auto_pause": {
 								"default_threshold_5h": 0,
 								"default_threshold_7d": 0
@@ -1743,6 +1855,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Subs := v1.Group("")
 	v1Subs.Use(jwtAuth)
 	v1Subs.GET("/subscriptions", subscriptionHandler.List)
+	v1Subs.POST("/subscriptions/:id/revoke", subscriptionHandler.Revoke)
 
 	v1Redeem := v1.Group("")
 	v1Redeem.Use(jwtAuth)
@@ -2511,8 +2624,15 @@ func (stubUserSubscriptionRepo) GetLatestByUserIDAndPlanID(ctx context.Context, 
 func (stubUserSubscriptionRepo) Update(ctx context.Context, sub *service.UserSubscription) error {
 	return errors.New("not implemented")
 }
-func (stubUserSubscriptionRepo) Delete(ctx context.Context, id int64) error {
-	return errors.New("not implemented")
+func (r *stubUserSubscriptionRepo) Delete(ctx context.Context, id int64) error {
+	if r.byID == nil {
+		return errors.New("not implemented")
+	}
+	if _, ok := r.byID[id]; !ok {
+		return service.ErrSubscriptionNotFound
+	}
+	delete(r.byID, id)
+	return nil
 }
 func (r *stubUserSubscriptionRepo) Restore(ctx context.Context, subscriptionID int64, restoredStatus string) (*service.UserSubscription, error) {
 	if r.byID == nil {

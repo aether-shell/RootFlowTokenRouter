@@ -901,3 +901,136 @@ func TestListModelNamesByProvider_EmptyCatalog(t *testing.T) {
 	require.NotNil(t, got)
 	require.Empty(t, got)
 }
+
+func TestParsePricingData_ParsesModalityFields(t *testing.T) {
+	svc := &PricingService{}
+	data, err := svc.parsePricingData([]byte(`{
+		"gemini-2.5-flash": {
+			"input_cost_per_token": 0.0000003,
+			"output_cost_per_token": 0.0000025,
+			"litellm_provider": "google",
+			"mode": "chat",
+			"supported_modalities": ["text", "image", "audio", "video"],
+			"supported_output_modalities": ["text", "image"],
+			"supports_vision": true,
+			"supports_audio_input": true
+		}
+	}`))
+	require.NoError(t, err)
+	parsed := data["gemini-2.5-flash"]
+	require.NotNil(t, parsed)
+	require.Equal(t, []string{"text", "image", "audio", "video"}, parsed.SupportedModalities)
+	require.Equal(t, []string{"text", "image"}, parsed.SupportedOutputModalities)
+	require.True(t, parsed.SupportsVision)
+	require.True(t, parsed.SupportsAudioInput)
+	require.False(t, parsed.SupportsAudioOutput)
+}
+
+func TestGetModelModalities(t *testing.T) {
+	tests := []struct {
+		name    string
+		model   string
+		data    map[string]*LiteLLMModelPricing
+		wantIn  []string
+		wantOut []string
+	}{
+		{
+			name:  "supported_modalities 优先且按固定顺序输出",
+			model: "gemini-2.5-flash",
+			data: map[string]*LiteLLMModelPricing{
+				"gemini-2.5-flash": {
+					Mode:                      "chat",
+					SupportedModalities:       []string{"video", "text", "image"},
+					SupportedOutputModalities: []string{"image", "text"},
+				},
+			},
+			wantIn:  []string{"text", "image", "video"},
+			wantOut: []string{"text", "image"},
+		},
+		{
+			name:  "模态缺失时用 mode 兜底并用 supports_vision 补充图片输入",
+			model: "gpt-5.5",
+			data: map[string]*LiteLLMModelPricing{
+				"gpt-5.5": {Mode: "chat", SupportsVision: true},
+			},
+			wantIn:  []string{"text", "image"},
+			wantOut: []string{"text"},
+		},
+		{
+			name:  "生图模型用图片输入价识别图生图能力",
+			model: "gpt-image-2",
+			data: map[string]*LiteLLMModelPricing{
+				"gpt-image-2": {Mode: "image_generation", InputCostPerImageToken: 8e-6},
+			},
+			wantIn:  []string{"text", "image"},
+			wantOut: []string{"image"},
+		},
+		{
+			name:  "纯生图模型只有文字输入",
+			model: "flux-schnell",
+			data: map[string]*LiteLLMModelPricing{
+				"flux-schnell": {Mode: "image_generation"},
+			},
+			wantIn:  []string{"text"},
+			wantOut: []string{"image"},
+		},
+		{
+			name:  "音频输入输出标记合成音频模态",
+			model: "gpt-realtime",
+			data: map[string]*LiteLLMModelPricing{
+				"gpt-realtime": {Mode: "realtime", SupportsAudioInput: true, SupportsAudioOutput: true},
+			},
+			wantIn:  []string{"text", "audio"},
+			wantOut: []string{"text", "audio"},
+		},
+		{
+			name:  "非模态取值被过滤",
+			model: "file-model",
+			data: map[string]*LiteLLMModelPricing{
+				"file-model": {
+					Mode:                      "chat",
+					SupportedModalities:       []string{"text", "file"},
+					SupportedOutputModalities: []string{"text"},
+				},
+			},
+			wantIn:  []string{"text"},
+			wantOut: []string{"text"},
+		},
+		{
+			name:  "版本写法变体可命中",
+			model: "claude-opus-4-5-20251101",
+			data: map[string]*LiteLLMModelPricing{
+				"claude-opus-4.5-20251101": {Mode: "chat", SupportsVision: true},
+			},
+			wantIn:  []string{"text", "image"},
+			wantOut: []string{"text"},
+		},
+		{
+			name:  "查不到时返回 nil",
+			model: "unknown-model",
+			data: map[string]*LiteLLMModelPricing{
+				"claude-opus-4.5": {Mode: "chat"},
+			},
+			wantIn:  nil,
+			wantOut: nil,
+		},
+		{
+			name:  "不做系列模糊回退，避免新模型继承旧模型能力",
+			model: "claude-opus-4.6",
+			data: map[string]*LiteLLMModelPricing{
+				"claude-opus-4.5": {Mode: "chat", SupportsVision: true},
+			},
+			wantIn:  nil,
+			wantOut: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &PricingService{pricingData: tt.data}
+			in, out := svc.GetModelModalities(tt.model)
+			require.Equal(t, tt.wantIn, in)
+			require.Equal(t, tt.wantOut, out)
+		})
+	}
+}

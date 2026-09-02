@@ -2,9 +2,10 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <!-- Left: Search + Filters -->
-          <div class="flex-1 sm:max-w-64">
+          <div class="flex min-w-0 flex-1 items-center gap-3">
+            <div class="min-w-0 flex-1 sm:flex-none sm:w-64">
             <input
               v-model="searchQuery"
               type="text"
@@ -12,25 +13,26 @@
               class="input"
               @input="handleSearch"
             />
+            </div>
+            <Select
+              v-model="filters.status"
+              :options="statusFilterOptions"
+              class="w-32 shrink-0 sm:w-40"
+              @change="handleStatusChange"
+            />
           </div>
-          <Select
-            v-model="filters.status"
-            :options="statusFilterOptions"
-            class="w-40"
-            @change="handleStatusChange"
-          />
 
           <!-- Right: Action buttons -->
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
+          <div class="flex shrink-0 items-center justify-end gap-2">
             <button
               @click="loadAnnouncements"
               :disabled="loading"
-              class="btn btn-secondary"
+              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <button @click="openCreateDialog" class="btn btn-primary">
+            <button @click="openCreateDialog" class="btn btn-primary h-9 shrink-0 whitespace-nowrap">
               <Icon name="plus" size="md" class="mr-1" />
               {{ t('admin.announcements.createAnnouncement') }}
             </button>

@@ -29,6 +29,10 @@ const (
 	AntigravityCredentialRejectedReason GatewayFailureReason = "antigravity_oauth_credential_rejected"
 )
 
+// antigravityCompatMaxTokens 限制兼容层发送给 Anthropic 上游的最大输出 token，
+// 避免客户端的大数值超过 Antigravity 接口可接受的范围。
+const antigravityCompatMaxTokens = 64000
+
 type antigravityCompatRequest struct {
 	protocol          antigravityCompatProtocol
 	originalBody      []byte
@@ -168,7 +172,7 @@ func preserveChatCompletionTokenLimit(request *apicompat.ChatCompletionsRequest,
 		limit = request.MaxCompletionTokens
 	}
 	if limit != nil && *limit > 0 {
-		claudeRequest.MaxTokens = *limit
+		claudeRequest.MaxTokens = min(*limit, antigravityCompatMaxTokens)
 	}
 }
 

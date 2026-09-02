@@ -2,10 +2,10 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div class="flex flex-wrap items-center gap-2">
           <!-- Left: Search + Filters -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
-            <div class="relative w-full sm:w-64">
+          <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div class="relative min-w-0 flex-1 sm:flex-none sm:w-64">
               <Icon
                 name="search"
                 size="md"
@@ -24,22 +24,22 @@
               v-model="filters.status"
               :options="statusFilterOptions"
               :placeholder="t('admin.channels.allStatus', 'All Status')"
-              class="w-40"
+              class="w-32 shrink-0"
               @change="loadChannels"
             />
           </div>
 
           <!-- Right: Actions -->
-          <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <button
               @click="loadChannels"
               :disabled="loading"
-              class="btn btn-secondary"
+              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
               :title="t('common.refresh', 'Refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
             </button>
-            <button @click="openCreateDialog" class="btn btn-primary">
+            <button @click="openCreateDialog" class="btn btn-primary h-9 whitespace-nowrap px-3 sm:px-4">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.channels.createChannel', 'Create Channel') }}
             </button>
@@ -1772,7 +1772,7 @@ onUnmounted(() => {
 }
 
 .channel-tab {
-  @apply flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap;
+  @apply flex h-9 items-center gap-1.5 px-3 py-1.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap;
 }
 
 .channel-tab-active {

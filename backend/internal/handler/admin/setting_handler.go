@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -65,6 +66,9 @@ type SettingHandler struct {
 	preAggregationSettings   *service.PreAggregationSettingsService
 	dashboardAggregation     *service.DashboardAggregationService
 	opsAggregation           *service.OpsAggregationService
+	creativeModelReader      interface {
+		ListCreativeModelCandidates(context.Context) ([]service.CreativeModelCandidate, error)
+	}
 }
 
 // SetPreAggregationDeps 注入统一预聚合设置、用量任务和运维任务。
@@ -75,6 +79,16 @@ func (h *SettingHandler) SetPreAggregationDeps(settings *service.PreAggregationS
 	h.preAggregationSettings = settings
 	h.dashboardAggregation = dashboard
 	h.opsAggregation = ops
+}
+
+// SetCreativeModelReader 注入创作台模型候选读取服务，并保持既有构造函数签名不变。
+func (h *SettingHandler) SetCreativeModelReader(reader interface {
+	ListCreativeModelCandidates(context.Context) ([]service.CreativeModelCandidate, error)
+}) {
+	if h == nil {
+		return
+	}
+	h.creativeModelReader = reader
 }
 
 // NewSettingHandler 创建系统设置处理器
@@ -88,6 +102,31 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 		paymentService:       paymentService,
 		userAttributeService: userAttributeService,
 	}
+}
+
+// ListCreativeModelCandidates 返回管理员配置创作台白名单时可选择的模型候选。
+// 该接口只挂在管理员设置路由下，不受用户创作台开关影响。
+func (h *SettingHandler) ListCreativeModelCandidates(c *gin.Context) {
+	if h == nil || h.creativeModelReader == nil {
+		response.Error(c, 500, "creative model candidate service is not configured")
+		return
+	}
+	candidates, err := h.creativeModelReader.ListCreativeModelCandidates(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, candidates)
+}
+
+// GetCreativeWorkerStatus 返回创作台任务 worker 池状态快照，供管理端展示当前使用情况。
+// GET /api/v1/admin/settings/creative-worker-status
+func (h *SettingHandler) GetCreativeWorkerStatus(c *gin.Context) {
+	if h == nil || h.settingService == nil {
+		response.Error(c, 500, "setting service is not configured")
+		return
+	}
+	response.Success(c, h.settingService.CreativeWorkerStatus())
 }
 
 // SetNotificationEmailService 注入通知邮件模板服务，并保持既有构造函数签名不变。
@@ -145,6 +184,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		RegistrationEmailSuffixWhitelist:                 settings.RegistrationEmailSuffixWhitelist,
 		RegistrationEmailNormalization:                   settings.RegistrationEmailNormalization,
 		RegistrationEmailDomainQuotaEnabled:              settings.RegistrationEmailDomainQuotaEnabled,
+		UserEmailChangeEnabled:                           settings.UserEmailChangeEnabled,
 		PromoCodeEnabled:                                 settings.PromoCodeEnabled,
 		PasswordResetEnabled:                             settings.PasswordResetEnabled,
 		FrontendURL:                                      settings.FrontendURL,
@@ -279,10 +319,14 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		CustomEndpoints:                                  dto.ParseCustomEndpoints(settings.CustomEndpoints),
 		FooterLinks:                                      dto.ParseFooterLinks(settings.FooterLinks),
 		FooterText:                                       settings.FooterText,
+		HomeFeaturedModels:                               dto.ParseHomeFeaturedModels(settings.HomeFeaturedModels),
 		DefaultConcurrency:                               settings.DefaultConcurrency,
 		DefaultBalance:                                   settings.DefaultBalance,
 		TeamEnabled:                                      settings.TeamEnabled,
 		DataSharingEnabled:                               settings.DataSharingEnabled,
+		CreativeEnabled:                                  settings.CreativeEnabled,
+		CreativeModelSettings:                            settings.CreativeModelSettings,
+		CreativeWorkerCount:                              settings.CreativeWorkerCount,
 		RiskControlEnabled:                               settings.RiskControlEnabled,
 		CyberSessionBlockEnabled:                         settings.CyberSessionBlockEnabled,
 		CyberSessionBlockTTLSeconds:                      settings.CyberSessionBlockTTLSeconds,
@@ -339,6 +383,11 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PaymentVisibleMethodWxpayEnabled:                 settings.PaymentVisibleMethodWxpayEnabled,
 		AdvancedSchedulerStickyWeightedEnabled:           settings.AdvancedSchedulerStickyWeightedEnabled,
 		AdvancedSchedulerSubscriptionPriorityEnabled:     settings.AdvancedSchedulerSubscriptionPriorityEnabled,
+		AdvancedSchedulerEWMAErrorRateAlpha:              settings.AdvancedSchedulerEWMAErrorRateAlpha,
+		AdvancedSchedulerEWMATTFTAlpha:                   settings.AdvancedSchedulerEWMATTFTAlpha,
+		AdvancedSchedulerStickyEscapeEnabled:             settings.AdvancedSchedulerStickyEscapeEnabled,
+		AdvancedSchedulerStickyEscapeTTFTMs:              settings.AdvancedSchedulerStickyEscapeTTFTMs,
+		AdvancedSchedulerStickyEscapeErrorRate:           settings.AdvancedSchedulerStickyEscapeErrorRate,
 		AdvancedSchedulerLBTopK:                          settings.AdvancedSchedulerLBTopK,
 		AdvancedSchedulerWeightPriority:                  settings.AdvancedSchedulerWeightPriority,
 		AdvancedSchedulerWeightLoad:                      settings.AdvancedSchedulerWeightLoad,
@@ -359,6 +408,11 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		AdvancedSchedulerEffectiveWeightQuotaHeadroom:    settings.AdvancedSchedulerEffectiveWeightQuotaHeadroom,
 		AdvancedSchedulerEffectiveWeightPreviousResponse: settings.AdvancedSchedulerEffectiveWeightPreviousResponse,
 		AdvancedSchedulerEffectiveWeightSessionSticky:    settings.AdvancedSchedulerEffectiveWeightSessionSticky,
+		AdvancedSchedulerEffectiveEWMAErrorRateAlpha:     settings.AdvancedSchedulerEffectiveEWMAErrorRateAlpha,
+		AdvancedSchedulerEffectiveEWMATTFTAlpha:          settings.AdvancedSchedulerEffectiveEWMATTFTAlpha,
+		AdvancedSchedulerEffectiveStickyEscapeEnabled:    settings.AdvancedSchedulerEffectiveStickyEscapeEnabled,
+		AdvancedSchedulerEffectiveStickyEscapeTTFTMs:     settings.AdvancedSchedulerEffectiveStickyEscapeTTFTMs,
+		AdvancedSchedulerEffectiveStickyEscapeErrorRate:  settings.AdvancedSchedulerEffectiveStickyEscapeErrorRate,
 		OpenAIQuotaAutoPauseSettings:                     settings.OpenAIQuotaAutoPauseSettings,
 		BalanceLowNotifyEnabled:                          settings.BalanceLowNotifyEnabled,
 		BalanceLowNotifyThreshold:                        settings.BalanceLowNotifyThreshold,

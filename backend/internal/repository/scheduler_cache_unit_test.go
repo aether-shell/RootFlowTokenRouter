@@ -313,6 +313,7 @@ func TestBuildSchedulerMetadataAccount_KeepsOpenAIAPIKeyProtocolFields(t *testin
 			"openai_ws_force_http":                          true,
 			"openai_text_route_mode":                        "force_chat_completions",
 			"openai_responses_probe_status":                 "unsupported",
+			"openai_responses_continuation_supported":       true,
 			"mixed_scheduling":                              true,
 			"unused_large_field":                            "drop-me",
 		},
@@ -325,6 +326,7 @@ func TestBuildSchedulerMetadataAccount_KeepsOpenAIAPIKeyProtocolFields(t *testin
 	require.Equal(t, true, got.Extra["openai_ws_force_http"])
 	require.Equal(t, "force_chat_completions", got.Extra["openai_text_route_mode"])
 	require.Equal(t, "unsupported", got.Extra["openai_responses_probe_status"])
+	require.Equal(t, true, got.Extra["openai_responses_continuation_supported"])
 	require.Equal(t, true, got.Extra["mixed_scheduling"])
 	require.Nil(t, got.Extra["unused_large_field"])
 	require.Equal(t, []any{"text_generation"}, got.Credentials["openai_workload_capabilities"])

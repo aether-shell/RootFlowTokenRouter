@@ -28,6 +28,7 @@ type UpdateSettingsRequest struct {
 	RegistrationEmailSuffixWhitelist    []string                     `json:"registration_email_suffix_whitelist"`
 	RegistrationEmailNormalization      bool                         `json:"registration_email_normalization"`
 	RegistrationEmailDomainQuotaEnabled *bool                        `json:"registration_email_domain_quota_enabled"` // 省略时保持现值
+	UserEmailChangeEnabled              *bool                        `json:"user_email_change_enabled"`               // 省略时保持现值
 	PromoCodeEnabled                    bool                         `json:"promo_code_enabled"`
 	PasswordResetEnabled                bool                         `json:"password_reset_enabled"`
 	FrontendURL                         string                       `json:"frontend_url"`
@@ -155,34 +156,37 @@ type UpdateSettingsRequest struct {
 	GoogleOAuthFrontendRedirectURL string `json:"google_oauth_frontend_redirect_url"`
 
 	// OEM设置
-	SiteName                    string                 `json:"site_name"`
-	SiteLogo                    string                 `json:"site_logo"`
-	SiteSubtitle                string                 `json:"site_subtitle"`
-	SiteNameZh                  string                 `json:"site_name_zh"`
-	SiteNameEn                  string                 `json:"site_name_en"`
-	SiteTitleZh                 string                 `json:"site_title_zh"`
-	SiteTitleEn                 string                 `json:"site_title_en"`
-	SiteSubtitleZh              string                 `json:"site_subtitle_zh"`
-	SiteSubtitleEn              string                 `json:"site_subtitle_en"`
-	APIBaseURL                  string                 `json:"api_base_url"`
-	ContactInfo                 string                 `json:"contact_info"`
-	DocURL                      string                 `json:"doc_url"`
-	HomeContent                 string                 `json:"home_content"`
-	HideCcsImportButton         bool                   `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled *bool                  `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     *string                `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int                    `json:"table_default_page_size"`
-	TablePageSizeOptions        []int                  `json:"table_page_size_options"`
-	UsageRankingLimit           int                    `json:"usage_ranking_limit"`
-	UsageRankingEnabled         *bool                  `json:"usage_ranking_enabled"`
-	UsageRankingSortBy          *string                `json:"usage_ranking_sort_by"`
-	UsageRankingShowTotalTokens *bool                  `json:"usage_ranking_show_total_tokens"`
-	UsageRankingShowRequests    *bool                  `json:"usage_ranking_show_requests"`
-	UsageRankingShowActualCost  *bool                  `json:"usage_ranking_show_actual_cost"`
-	CustomMenuItems             *[]dto.CustomMenuItem  `json:"custom_menu_items"`
-	CustomEndpoints             *[]dto.CustomEndpoint  `json:"custom_endpoints"`
-	FooterLinks                 *[]dto.FooterLinkGroup `json:"footer_links"`
-	FooterText                  *string                `json:"footer_text"`
+	SiteName                    string                          `json:"site_name"`
+	SiteLogo                    string                          `json:"site_logo"`
+	SiteSubtitle                string                          `json:"site_subtitle"`
+	SiteNameZh                  string                          `json:"site_name_zh"`
+	SiteNameEn                  string                          `json:"site_name_en"`
+	SiteTitleZh                 string                          `json:"site_title_zh"`
+	SiteTitleEn                 string                          `json:"site_title_en"`
+	SiteSubtitleZh              string                          `json:"site_subtitle_zh"`
+	SiteSubtitleEn              string                          `json:"site_subtitle_en"`
+	APIBaseURL                  string                          `json:"api_base_url"`
+	ContactInfo                 string                          `json:"contact_info"`
+	DocURL                      string                          `json:"doc_url"`
+	HomeContent                 string                          `json:"home_content"`
+	HideCcsImportButton         bool                            `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled *bool                           `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     *string                         `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int                             `json:"table_default_page_size"`
+	TablePageSizeOptions        []int                           `json:"table_page_size_options"`
+	UsageRankingLimit           int                             `json:"usage_ranking_limit"`
+	UsageRankingEnabled         *bool                           `json:"usage_ranking_enabled"`
+	UsageRankingSortBy          *string                         `json:"usage_ranking_sort_by"`
+	UsageRankingShowTotalTokens *bool                           `json:"usage_ranking_show_total_tokens"`
+	UsageRankingShowRequests    *bool                           `json:"usage_ranking_show_requests"`
+	UsageRankingShowActualCost  *bool                           `json:"usage_ranking_show_actual_cost"`
+	CustomMenuItems             *[]dto.CustomMenuItem           `json:"custom_menu_items"`
+	CustomEndpoints             *[]dto.CustomEndpoint           `json:"custom_endpoints"`
+	FooterLinks                 *[]dto.FooterLinkGroup          `json:"footer_links"`
+	FooterText                  *string                         `json:"footer_text"`
+	HomeFeaturedModels          *[]string                       `json:"home_featured_models"`
+	CreativeModelSettings       *[]service.CreativeModelSetting `json:"creative_model_settings"`
+	CreativeWorkerCount         *int                            `json:"creative_worker_count"`
 
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
@@ -294,6 +298,11 @@ type UpdateSettingsRequest struct {
 	// 通用高级调度器参数
 	AdvancedSchedulerStickyWeightedEnabled       *bool   `json:"advanced_scheduler_sticky_weighted_enabled"`
 	AdvancedSchedulerSubscriptionPriorityEnabled *bool   `json:"advanced_scheduler_subscription_priority_enabled"`
+	AdvancedSchedulerEWMAErrorRateAlpha          *string `json:"advanced_scheduler_ewma_error_rate_alpha"`
+	AdvancedSchedulerEWMATTFTAlpha               *string `json:"advanced_scheduler_ewma_ttft_alpha"`
+	AdvancedSchedulerStickyEscapeEnabled         *bool   `json:"advanced_scheduler_sticky_escape_enabled"`
+	AdvancedSchedulerStickyEscapeTTFTMs          *string `json:"advanced_scheduler_sticky_escape_ttft_ms"`
+	AdvancedSchedulerStickyEscapeErrorRate       *string `json:"advanced_scheduler_sticky_escape_error_rate"`
 	AdvancedSchedulerLBTopK                      *string `json:"advanced_scheduler_lb_top_k"`
 	AdvancedSchedulerWeightPriority              *string `json:"advanced_scheduler_weight_priority"`
 	AdvancedSchedulerWeightLoad                  *string `json:"advanced_scheduler_weight_load"`
@@ -348,9 +357,10 @@ type UpdateSettingsRequest struct {
 
 	// 风控中心功能开关
 	RiskControlEnabled *bool `json:"risk_control_enabled"`
-	// 团队和数据共享页面功能开关
+	// 团队、数据共享和创作台页面功能开关
 	TeamEnabled        *bool `json:"team_enabled"`
 	DataSharingEnabled *bool `json:"data_sharing_enabled"`
+	CreativeEnabled    *bool `json:"creative_enabled"`
 
 	// cyber 会话屏蔽开关与 TTL
 	CyberSessionBlockEnabled    *bool `json:"cyber_session_block_enabled"`
@@ -484,6 +494,19 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	// 管理端保存白名单时按实际分组平台收敛能力，清理已下线的 Gemini inpaint。
+	if req.CreativeModelSettings != nil {
+		if sanitizer, ok := h.creativeModelReader.(interface {
+			NormalizeCreativeModelSettingsForSave(context.Context, []service.CreativeModelSetting) ([]service.CreativeModelSetting, error)
+		}); ok {
+			normalized, normalizeErr := sanitizer.NormalizeCreativeModelSettingsForSave(c.Request.Context(), *req.CreativeModelSettings)
+			if normalizeErr != nil {
+				response.BadRequest(c, "Invalid creative model settings: "+normalizeErr.Error())
+				return
+			}
+			req.CreativeModelSettings = &normalized
+		}
+	}
 	auditReq := settingsAuditRequest(req)
 	omitted := omittedSettingKeys(sentFields)
 
@@ -502,6 +525,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	registrationEmailDomainQuotaEnabled := previousSettings.RegistrationEmailDomainQuotaEnabled
 	if req.RegistrationEmailDomainQuotaEnabled != nil {
 		registrationEmailDomainQuotaEnabled = *req.RegistrationEmailDomainQuotaEnabled
+	}
+	userEmailChangeEnabled := previousSettings.UserEmailChangeEnabled
+	if req.UserEmailChangeEnabled != nil {
+		userEmailChangeEnabled = *req.UserEmailChangeEnabled
 	}
 	// 两个安全开关同样保留省略字段语义。
 	sessionBindingEnabled := previousSettings.SessionBindingEnabled
@@ -1552,6 +1579,43 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		footerLinksJSON = string(groupBytes)
 	}
 
+	// 首页展示模型列表验证：限制数量、去空白、去重，保持管理员配置的顺序
+	const maxHomeFeaturedModels = 12
+	const maxHomeFeaturedModelIDLen = 200
+
+	homeFeaturedModelsJSON := previousSettings.HomeFeaturedModels
+	if req.HomeFeaturedModels != nil {
+		models := *req.HomeFeaturedModels
+		if len(models) > maxHomeFeaturedModels {
+			response.BadRequest(c, "Too many home featured models (max 12)")
+			return
+		}
+		seen := make(map[string]struct{}, len(models))
+		normalized := make([]string, 0, len(models))
+		for _, model := range models {
+			trimmed := strings.TrimSpace(model)
+			if trimmed == "" {
+				response.BadRequest(c, "Home featured model ID is required")
+				return
+			}
+			if len(trimmed) > maxHomeFeaturedModelIDLen {
+				response.BadRequest(c, "Home featured model ID is too long (max 200 characters)")
+				return
+			}
+			if _, duplicate := seen[trimmed]; duplicate {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			normalized = append(normalized, trimmed)
+		}
+		modelBytes, err := json.Marshal(normalized)
+		if err != nil {
+			response.BadRequest(c, "Failed to serialize home featured models")
+			return
+		}
+		homeFeaturedModelsJSON = string(modelBytes)
+	}
+
 	footerText := previousSettings.FooterText
 	if req.FooterText != nil {
 		trimmed := strings.TrimSpace(*req.FooterText)
@@ -1624,6 +1688,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		response.BadRequest(c, "cyber_session_block_ttl_seconds must be > 0")
 		return
 	}
+	if req.CreativeWorkerCount != nil && *req.CreativeWorkerCount <= 0 {
+		response.BadRequest(c, "creative_worker_count must be > 0")
+		return
+	}
 
 	settings := &service.SystemSettings{
 		// 系统全局 platform quota 默认值（整体替换语义）
@@ -1635,6 +1703,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		RegistrationEmailSuffixWhitelist:    req.RegistrationEmailSuffixWhitelist,
 		RegistrationEmailNormalization:      req.RegistrationEmailNormalization,
 		RegistrationEmailDomainQuotaEnabled: registrationEmailDomainQuotaEnabled,
+		UserEmailChangeEnabled:              userEmailChangeEnabled,
 		PromoCodeEnabled:                    req.PromoCodeEnabled,
 		PasswordResetEnabled:                req.PasswordResetEnabled,
 		FrontendURL:                         req.FrontendURL,
@@ -1773,6 +1842,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CustomEndpoints:                        customEndpointsJSON,
 		FooterLinks:                            footerLinksJSON,
 		FooterText:                             footerText,
+		HomeFeaturedModels:                     homeFeaturedModelsJSON,
 		DefaultConcurrency:                     req.DefaultConcurrency,
 		DefaultBalance:                         req.DefaultBalance,
 		AffiliateEnabled:                       req.AffiliateEnabled,
@@ -1792,6 +1862,24 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				return *req.DataSharingEnabled
 			}
 			return previousSettings.DataSharingEnabled
+		}(),
+		CreativeEnabled: func() bool {
+			if req.CreativeEnabled != nil {
+				return *req.CreativeEnabled
+			}
+			return previousSettings.CreativeEnabled
+		}(),
+		CreativeModelSettings: func() []service.CreativeModelSetting {
+			if req.CreativeModelSettings != nil {
+				return *req.CreativeModelSettings
+			}
+			return previousSettings.CreativeModelSettings
+		}(),
+		CreativeWorkerCount: func() int {
+			if req.CreativeWorkerCount != nil {
+				return *req.CreativeWorkerCount
+			}
+			return previousSettings.CreativeWorkerCount
 		}(),
 		RiskControlEnabled: func() bool {
 			if req.RiskControlEnabled != nil {
@@ -1988,6 +2076,22 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.AdvancedSchedulerSubscriptionPriorityEnabled
 		}(),
+		AdvancedSchedulerEWMAErrorRateAlpha: stringSetting(req.AdvancedSchedulerEWMAErrorRateAlpha, previousSettings.AdvancedSchedulerEWMAErrorRateAlpha),
+		AdvancedSchedulerEWMATTFTAlpha:      stringSetting(req.AdvancedSchedulerEWMATTFTAlpha, previousSettings.AdvancedSchedulerEWMATTFTAlpha),
+		AdvancedSchedulerStickyEscapeEnabled: func() bool {
+			if req.AdvancedSchedulerStickyEscapeEnabled != nil {
+				return *req.AdvancedSchedulerStickyEscapeEnabled
+			}
+			return previousSettings.AdvancedSchedulerStickyEscapeEnabled
+		}(),
+		AdvancedSchedulerStickyEscapeEnabledSet: func() bool {
+			if req.AdvancedSchedulerStickyEscapeEnabled != nil {
+				return true
+			}
+			return previousSettings.AdvancedSchedulerStickyEscapeEnabledSet
+		}(),
+		AdvancedSchedulerStickyEscapeTTFTMs:     stringSetting(req.AdvancedSchedulerStickyEscapeTTFTMs, previousSettings.AdvancedSchedulerStickyEscapeTTFTMs),
+		AdvancedSchedulerStickyEscapeErrorRate:  stringSetting(req.AdvancedSchedulerStickyEscapeErrorRate, previousSettings.AdvancedSchedulerStickyEscapeErrorRate),
 		AdvancedSchedulerLBTopK:                 stringSetting(req.AdvancedSchedulerLBTopK, previousSettings.AdvancedSchedulerLBTopK),
 		AdvancedSchedulerWeightPriority:         stringSetting(req.AdvancedSchedulerWeightPriority, previousSettings.AdvancedSchedulerWeightPriority),
 		AdvancedSchedulerWeightLoad:             stringSetting(req.AdvancedSchedulerWeightLoad, previousSettings.AdvancedSchedulerWeightLoad),
@@ -2195,6 +2299,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		RegistrationEmailSuffixWhitelist:                 updatedSettings.RegistrationEmailSuffixWhitelist,
 		RegistrationEmailNormalization:                   updatedSettings.RegistrationEmailNormalization,
 		RegistrationEmailDomainQuotaEnabled:              updatedSettings.RegistrationEmailDomainQuotaEnabled,
+		UserEmailChangeEnabled:                           updatedSettings.UserEmailChangeEnabled,
 		PromoCodeEnabled:                                 updatedSettings.PromoCodeEnabled,
 		PasswordResetEnabled:                             updatedSettings.PasswordResetEnabled,
 		FrontendURL:                                      updatedSettings.FrontendURL,
@@ -2329,10 +2434,14 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CustomEndpoints:                                  dto.ParseCustomEndpoints(updatedSettings.CustomEndpoints),
 		FooterLinks:                                      dto.ParseFooterLinks(updatedSettings.FooterLinks),
 		FooterText:                                       updatedSettings.FooterText,
+		HomeFeaturedModels:                               dto.ParseHomeFeaturedModels(updatedSettings.HomeFeaturedModels),
 		DefaultConcurrency:                               updatedSettings.DefaultConcurrency,
 		DefaultBalance:                                   updatedSettings.DefaultBalance,
 		TeamEnabled:                                      updatedSettings.TeamEnabled,
 		DataSharingEnabled:                               updatedSettings.DataSharingEnabled,
+		CreativeEnabled:                                  updatedSettings.CreativeEnabled,
+		CreativeModelSettings:                            updatedSettings.CreativeModelSettings,
+		CreativeWorkerCount:                              updatedSettings.CreativeWorkerCount,
 		RiskControlEnabled:                               updatedSettings.RiskControlEnabled,
 		CyberSessionBlockEnabled:                         updatedSettings.CyberSessionBlockEnabled,
 		CyberSessionBlockTTLSeconds:                      updatedSettings.CyberSessionBlockTTLSeconds,
@@ -2389,6 +2498,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PaymentVisibleMethodWxpayEnabled:                 updatedSettings.PaymentVisibleMethodWxpayEnabled,
 		AdvancedSchedulerStickyWeightedEnabled:           updatedSettings.AdvancedSchedulerStickyWeightedEnabled,
 		AdvancedSchedulerSubscriptionPriorityEnabled:     updatedSettings.AdvancedSchedulerSubscriptionPriorityEnabled,
+		AdvancedSchedulerEWMAErrorRateAlpha:              updatedSettings.AdvancedSchedulerEWMAErrorRateAlpha,
+		AdvancedSchedulerEWMATTFTAlpha:                   updatedSettings.AdvancedSchedulerEWMATTFTAlpha,
+		AdvancedSchedulerStickyEscapeEnabled:             updatedSettings.AdvancedSchedulerStickyEscapeEnabled,
+		AdvancedSchedulerStickyEscapeTTFTMs:              updatedSettings.AdvancedSchedulerStickyEscapeTTFTMs,
+		AdvancedSchedulerStickyEscapeErrorRate:           updatedSettings.AdvancedSchedulerStickyEscapeErrorRate,
 		AdvancedSchedulerLBTopK:                          updatedSettings.AdvancedSchedulerLBTopK,
 		AdvancedSchedulerWeightPriority:                  updatedSettings.AdvancedSchedulerWeightPriority,
 		AdvancedSchedulerWeightLoad:                      updatedSettings.AdvancedSchedulerWeightLoad,
@@ -2409,6 +2523,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AdvancedSchedulerEffectiveWeightQuotaHeadroom:    updatedSettings.AdvancedSchedulerEffectiveWeightQuotaHeadroom,
 		AdvancedSchedulerEffectiveWeightPreviousResponse: updatedSettings.AdvancedSchedulerEffectiveWeightPreviousResponse,
 		AdvancedSchedulerEffectiveWeightSessionSticky:    updatedSettings.AdvancedSchedulerEffectiveWeightSessionSticky,
+		AdvancedSchedulerEffectiveEWMAErrorRateAlpha:     updatedSettings.AdvancedSchedulerEffectiveEWMAErrorRateAlpha,
+		AdvancedSchedulerEffectiveEWMATTFTAlpha:          updatedSettings.AdvancedSchedulerEffectiveEWMATTFTAlpha,
+		AdvancedSchedulerEffectiveStickyEscapeEnabled:    updatedSettings.AdvancedSchedulerEffectiveStickyEscapeEnabled,
+		AdvancedSchedulerEffectiveStickyEscapeTTFTMs:     updatedSettings.AdvancedSchedulerEffectiveStickyEscapeTTFTMs,
+		AdvancedSchedulerEffectiveStickyEscapeErrorRate:  updatedSettings.AdvancedSchedulerEffectiveStickyEscapeErrorRate,
 		OpenAIQuotaAutoPauseSettings:                     updatedSettings.OpenAIQuotaAutoPauseSettings,
 		BalanceLowNotifyEnabled:                          updatedSettings.BalanceLowNotifyEnabled,
 		BalanceLowNotifyThreshold:                        updatedSettings.BalanceLowNotifyThreshold,

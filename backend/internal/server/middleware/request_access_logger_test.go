@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
@@ -198,6 +199,79 @@ func TestLogger_AccessLogIncludesCoreFields(t *testing.T) {
 	if !found {
 		t.Fatalf("access log event not found")
 	}
+}
+
+func TestLogger_AccessLogSeparatesParentAndInternalRequestIDs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	sink := initMiddlewareTestLogger(t)
+
+	r := gin.New()
+	r.Use(Logger())
+	r.Use(ClientRequestID())
+	r.GET("/v1/responses", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	req.Header.Set(clientRequestIDHeader, "tokenrouter-request-123")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d", w.Code)
+	}
+
+	for _, event := range sink.list() {
+		if event == nil || event.Message != "http request completed" {
+			continue
+		}
+		internalID, ok := event.Fields["client_request_id"].(string)
+		if !ok || internalID == "" || internalID == "tokenrouter-request-123" {
+			t.Fatalf("internal client request ID is not isolated: %+v", event.Fields)
+		}
+		if got := event.Fields["parent_client_request_id"]; got != "tokenrouter-request-123" {
+			t.Fatalf("parent client request ID mismatch: %v", got)
+		}
+		return
+	}
+	t.Fatalf("access log event not found")
+}
+
+func TestLogger_AccessLogIncludesRequestStageFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	sink := initMiddlewareTestLogger(t)
+
+	r := gin.New()
+	r.Use(Logger())
+	r.GET("/v1/responses", func(c *gin.Context) {
+		startedAt := time.Now().Add(-2 * time.Second)
+		ctx := context.WithValue(c.Request.Context(), ctxkey.RequestStartedAt, startedAt)
+		ctx = context.WithValue(ctx, ctxkey.AccountSlotAcquiredAt, startedAt.Add(100*time.Millisecond))
+		ctx = context.WithValue(ctx, ctxkey.FirstSSEDataAt, startedAt.Add(500*time.Millisecond))
+		ctx = context.WithValue(ctx, ctxkey.FirstVisibleOutputAt, startedAt.Add(700*time.Millisecond))
+		ctx = context.WithValue(ctx, ctxkey.FirstDownstreamFlushAt, startedAt.Add(800*time.Millisecond))
+		c.Request = c.Request.WithContext(ctx)
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d", w.Code)
+	}
+
+	for _, event := range sink.list() {
+		if event == nil || event.Message != "http request completed" {
+			continue
+		}
+		for _, field := range []string{"account_slot_acquired_ms", "upstream_first_sse_data_ms", "first_visible_output_ms", "first_downstream_flush_ms"} {
+			if _, ok := event.Fields[field]; !ok {
+				t.Fatalf("stage field %q missing: %+v", field, event.Fields)
+			}
+		}
+		return
+	}
+	t.Fatal("access log event not found")
 }
 
 func TestLogger_IngressRejectRemainsInStandardAccessLog(t *testing.T) {

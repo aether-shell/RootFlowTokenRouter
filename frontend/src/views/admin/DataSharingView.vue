@@ -1196,7 +1196,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, type ComponentPublicInstance } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, reactive, ref, type ComponentPublicInstance } from 'vue'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -1238,8 +1238,11 @@ import {
 import { dataSharingAPI, type DataShareNotice, type DataShareQualityFilterStatus, type DataShareSession, type DataShareSessionFilterOptions } from '@/api/dataSharing'
 import { useAppStore } from '@/stores/app'
 import type { Column } from '@/components/common/types'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler)
+
+onBeforeUnmount(hideExternalTooltip)
 
 const appStore = useAppStore()
 const { t, te } = useI18n()
@@ -1656,6 +1659,8 @@ const lineChartOptions = computed(() => ({
   plugins: {
     legend: { labels: { color: chartColors.value.text } },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
         label: (ctx: any) => ctx.dataset.yAxisID === 'y1'
           ? `${ctx.dataset.label}: ${formatNumber(ctx.raw)}`
@@ -1679,6 +1684,8 @@ const barChartOptions = computed(() => ({
   plugins: {
     legend: { labels: { color: chartColors.value.text } },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
         label: (ctx: any) => `${ctx.dataset.label}: ${formatBytes(ctx.raw)}`
       }
@@ -1692,6 +1699,8 @@ const doughnutChartOptions = computed(() => ({
   plugins: {
     legend: { position: 'bottom' as const, labels: { color: chartColors.value.text } },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
         label: (ctx: any) => {
           const point = stats.value?.request_path_breakdown?.[ctx.dataIndex]
@@ -1744,6 +1753,8 @@ const invalidUserBarChartOptions = computed(() => ({
   plugins: {
     legend: { display: false },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
         label: (ctx: any) => {
           const point = stats.value?.invalid_user_breakdown?.[ctx.dataIndex]
@@ -1775,6 +1786,8 @@ const durationBucketChartOptions = computed(() => ({
   plugins: {
     legend: { display: false },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
         label: (ctx: any) => `样本: ${formatNumber(Number(ctx.raw || 0))}`
       }
@@ -1802,6 +1815,8 @@ const exportDurationChartOptions = computed(() => ({
   plugins: {
     legend: { display: false },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
         label: (ctx: any) => {
           const part = exportDurationChartParts.value[ctx.dataIndex]
@@ -3194,6 +3209,8 @@ function buildDoughnutChartOptions(
         ? { display: false }
         : { position: 'bottom' as const, labels: { color: chartColors.value.text } },
       tooltip: {
+        enabled: false,
+        external: externalTooltipHandler,
         callbacks: {
           label: (ctx: any) => {
             const point = points[ctx.dataIndex]
@@ -3218,6 +3235,8 @@ function buildSessionCountDoughnutChartOptions(
         ? { display: false }
         : { position: 'bottom' as const, labels: { color: chartColors.value.text } },
       tooltip: {
+        enabled: false,
+        external: externalTooltipHandler,
         callbacks: {
           label: (ctx: any) => {
             const point = points[ctx.dataIndex]

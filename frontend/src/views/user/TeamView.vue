@@ -78,7 +78,7 @@
             v-for="tab in visibleTabs"
             :key="tab.value"
             type="button"
-            class="shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition-colors"
+            class="inline-flex h-9 shrink-0 items-center border-b-2 px-4 py-1.5 text-sm font-medium transition-colors"
             :class="activeTab === tab.value
               ? 'border-primary-500 text-primary-600 dark:text-primary-400'
               : 'border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'"

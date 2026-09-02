@@ -1,8 +1,25 @@
 <template>
-  <div :class="flat ? 'p-4 sm:p-6' : 'card p-6'">
-    <!-- 筛选条件在上、操作按钮在下，避免多行筛选时左上区域出现大块空白。 -->
+  <div :class="flat ? 'p-4' : 'card p-6'">
     <div class="space-y-4">
-      <div class="flex flex-wrap items-end gap-4">
+      <div class="flex items-center justify-between gap-3">
+        <div ref="filterPanelRef" class="relative shrink-0">
+          <button
+            type="button"
+            class="btn btn-secondary relative h-9 w-9 p-0"
+            :aria-expanded="showFilterDropdown"
+            :aria-label="t('common.filter')"
+            :title="t('common.filter')"
+            @click="showFilterDropdown = !showFilterDropdown"
+          >
+            <Icon name="filter" size="sm" />
+            <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+              {{ activeFilterCount }}
+            </span>
+          </button>
+
+          <div v-show="showFilterDropdown" class="absolute left-0 top-full z-[60] mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900" @click.stop>
+            <div class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
+            <div class="flex flex-wrap items-end gap-4">
         <div v-if="mode === 'usage'" class="w-full sm:w-auto sm:min-w-[200px]">
           <label class="input-label">{{ t('admin.usage.teamFilter') }}</label>
           <Select v-model="filters.team_id" :options="teamOptions" searchable @change="emitChange" />
@@ -166,25 +183,24 @@
           <label class="input-label">{{ t('admin.usage.group') }}</label>
           <Select v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
+            </div>
+          </div>
+        </div>
 
-      </div>
-
-      <div v-if="showActions" class="flex w-full flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-4 dark:border-dark-700">
-        <button type="button" @click="$emit('refresh')" class="btn btn-secondary">
-          {{ t('common.refresh') }}
-        </button>
-        <button type="button" @click="$emit('reset')" class="btn btn-secondary">
-          {{ t('common.reset') }}
-        </button>
-        <slot name="after-reset" />
-        <template v-if="mode === 'usage'">
-          <button type="button" @click="$emit('cleanup')" class="btn btn-danger">
-            {{ t('admin.usage.cleanup.button') }}
+        <div v-if="showActions" class="flex flex-wrap items-center justify-end gap-2">
+          <button type="button" @click="$emit('refresh')" class="btn btn-secondary h-9 w-9 p-0" :title="t('common.refresh')">
+            <Icon name="refresh" size="sm" />
           </button>
-          <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary">
-            {{ t('usage.exportExcel') }}
-          </button>
-        </template>
+          <slot name="after-reset" />
+          <template v-if="mode === 'usage'">
+            <button type="button" @click="$emit('cleanup')" class="btn btn-danger h-9 whitespace-nowrap px-3 sm:px-4">
+              {{ t('admin.usage.cleanup.button') }}
+            </button>
+            <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary h-9 whitespace-nowrap px-3 sm:px-4">
+              {{ t('usage.exportExcel') }}
+            </button>
+          </template>
+        </div>
       </div>
     </div>
   </div>
@@ -195,6 +211,7 @@ import { ref, onMounted, onUnmounted, toRef, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 import type { SimpleApiKey, SimpleUser } from '@/api/admin/usage'
 
@@ -236,6 +253,8 @@ const filters = toRef(props, 'modelValue')
 const userSearchRef = ref<HTMLElement | null>(null)
 const apiKeySearchRef = ref<HTMLElement | null>(null)
 const accountSearchRef = ref<HTMLElement | null>(null)
+const filterPanelRef = ref<HTMLElement | null>(null)
+const showFilterDropdown = ref(false)
 
 const userKeyword = ref('')
 const userResults = ref<SimpleUser[]>([])
@@ -263,6 +282,7 @@ const modelOptions = computed<SelectOption[]>(() => [
 ])
 const groupOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allGroups') }])
 const teamOptions = ref<SelectOption[]>([{ value: null, label: t('admin.usage.allTeams') }])
+const activeFilterCount = computed(() => Object.entries(filters.value).filter(([key, value]) => !['start_date', 'end_date'].includes(key) && value !== null && value !== undefined && String(value) !== '').length)
 
 const requestTypeOptions = ref<SelectOption[]>([
   { value: null, label: t('admin.usage.allTypes') },
@@ -447,14 +467,17 @@ const onApiKeyFocus = () => {
 const onDocumentClick = (e: MouseEvent) => {
   const target = e.target as Node | null
   if (!target) return
+  if (target instanceof Element && target.closest('.select-dropdown-portal')) return
 
   const clickedInsideUser = userSearchRef.value?.contains(target) ?? false
   const clickedInsideApiKey = apiKeySearchRef.value?.contains(target) ?? false
   const clickedInsideAccount = accountSearchRef.value?.contains(target) ?? false
+  const clickedInsideFilters = filterPanelRef.value?.contains(target) ?? false
 
   if (!clickedInsideUser) showUserDropdown.value = false
   if (!clickedInsideApiKey) showApiKeyDropdown.value = false
   if (!clickedInsideAccount) showAccountDropdown.value = false
+  if (!clickedInsideFilters) showFilterDropdown.value = false
 }
 
 watch(

@@ -14,7 +14,7 @@
       <div class="flex flex-wrap gap-2">
         <button
           type="button"
-          class="btn btn-secondary btn-sm"
+          class="btn btn-secondary btn-sm h-9"
           :disabled="loadingTemplate || previewing || !canPreview"
           @click="refreshPreview"
         >
@@ -22,7 +22,7 @@
         </button>
         <button
           type="button"
-          class="btn btn-secondary btn-sm"
+          class="btn btn-secondary btn-sm h-9"
           :disabled="loadingTemplate || restoring || !selectedEvent || !selectedLocale"
           @click="restoreOfficial"
         >
@@ -30,7 +30,7 @@
         </button>
         <button
           type="button"
-          class="btn btn-primary btn-sm"
+          class="btn btn-primary btn-sm h-9"
           :disabled="loadingTemplate || saving || !canSave"
           @click="saveTemplate"
         >

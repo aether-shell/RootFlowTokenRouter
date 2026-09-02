@@ -2,16 +2,21 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="relative w-full md:w-80">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div class="relative min-w-0 w-full flex-1 sm:w-64 sm:flex-none sm:max-w-none">
             <Icon name="search" size="md" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input v-model="filters.search" type="text" class="input pl-10" :placeholder="t('admin.affiliates.records.searchPlaceholder')" @input="debounceLoad" />
           </div>
-          <input v-model="filters.start_at" type="date" class="input w-full sm:w-44" :title="t('admin.affiliates.records.startAt')" @change="reloadFromFirstPage" />
-          <input v-model="filters.end_at" type="date" class="input w-full sm:w-44" :title="t('admin.affiliates.records.endAt')" @change="reloadFromFirstPage" />
-          <button class="btn btn-secondary px-2 md:px-3" :disabled="loading" :title="t('common.refresh')" @click="loadRecords">
-            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-          </button>
+          <div class="flex shrink-0 items-center gap-2">
+            <DateRangePicker
+              v-model:start-date="dateRangeStart"
+              v-model:end-date="dateRangeEnd"
+              @change="handleDateRangeChange"
+            />
+            <button class="btn btn-secondary h-9 w-9 shrink-0 p-0" :disabled="loading" :title="t('common.refresh')" @click="loadRecords">
+              <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+            </button>
+          </div>
         </div>
       </template>
 
@@ -150,6 +155,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import type { Column } from '@/components/common/types'
 import { useAppStore } from '@/stores/app'
@@ -173,6 +179,8 @@ const { balanceUnitName, formatBalanceAmount } = useBalanceDisplay()
 const loading = ref(false)
 const records = ref<AffiliateRecord[]>([])
 const filters = reactive({ search: '', start_at: '', end_at: '' })
+const dateRangeStart = ref('')
+const dateRangeEnd = ref('')
 const pagination = reactive({ page: 1, page_size: 20, total: 0 })
 const overviewDialog = ref(false)
 const overviewLoading = ref(false)
@@ -281,6 +289,12 @@ async function loadRecords() {
 function debounceLoad() {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => reloadFromFirstPage(), 300)
+}
+
+function handleDateRangeChange(range: { startDate: string; endDate: string; preset: string | null }) {
+  filters.start_at = range.startDate
+  filters.end_at = range.endDate
+  reloadFromFirstPage()
 }
 
 function reloadFromFirstPage() {

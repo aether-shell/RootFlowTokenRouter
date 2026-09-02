@@ -21,17 +21,17 @@
   <div v-else class="ba-theme-shell relative flex min-h-screen flex-col overflow-hidden text-gray-950 dark:text-white">
     <div class="ba-theme-backdrop pointer-events-none fixed inset-0"></div>
 
-    <header class="relative z-20 border-b border-gray-200/70 bg-white/90 px-4 backdrop-blur dark:border-dark-800 dark:bg-dark-950/90 sm:px-6">
-      <nav class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4">
+    <header class="glass relative z-20 border-b border-primary-900/10 px-4 dark:border-dark-600/80 sm:px-6">
+      <nav class="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4">
         <router-link to="/home" class="flex min-w-0 items-center gap-2.5">
           <span class="h-8 w-8 shrink-0 overflow-hidden rounded-lg shadow-sm">
             <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
           </span>
-          <span class="truncate text-sm font-semibold text-gray-950 dark:text-white">{{ siteName }}</span>
+          <span class="truncate text-base font-semibold text-gray-950 dark:text-white">{{ siteName }}</span>
         </router-link>
 
         <div class="flex items-center gap-2 sm:gap-3">
-          <div class="hidden items-center gap-5 text-sm font-medium text-gray-600 dark:text-dark-300 lg:flex">
+          <div class="hidden items-center gap-5 text-sm font-medium text-gray-600 dark:text-dark-300 md:flex">
             <router-link to="/models" class="transition hover:text-gray-950 dark:hover:text-white">
               {{ t('home.nav.models') }}
             </router-link>
@@ -50,7 +50,7 @@
 
           <button
             @click="toggleTheme"
-            class="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-dark-300 dark:hover:bg-dark-900 dark:hover:text-white"
+            class="flex h-9 w-9 items-center justify-center rounded-control text-primary-900/90 transition-colors hover:bg-primary-100 hover:text-primary-900 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white"
             :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
           >
             <Icon v-if="isDark" name="sun" size="md" />
@@ -62,9 +62,12 @@
             :to="dashboardPath"
             class="inline-flex items-center gap-1.5 rounded-full bg-primary-600 py-1.5 pl-1.5 pr-3 text-xs font-semibold text-white shadow-none transition hover:bg-primary-700 dark:bg-primary-600 dark:text-white dark:hover:bg-primary-700"
           >
-            <span class="flex h-5 w-5 items-center justify-center rounded-full bg-primary-500 text-[10px] text-white">
-              {{ userInitial }}
-            </span>
+            <UserAvatar
+              :user-id="authStore.user?.id"
+              :avatar-url="authStore.user?.avatar_url || ''"
+              :alt="authStore.user?.username || authStore.user?.email || ''"
+              size-class="h-5 w-5"
+            />
             {{ t('home.dashboard') }}
           </router-link>
           <router-link
@@ -306,20 +309,50 @@
           </router-link>
         </div>
 
-        <div class="grid gap-6 lg:grid-cols-3">
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div
             v-if="homeMarketplaceLoading"
-            class="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center text-sm text-gray-500 dark:border-dark-800 dark:bg-dark-900 dark:text-dark-400 lg:col-span-3"
+            class="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center text-sm text-gray-500 dark:border-dark-800 dark:bg-dark-900 dark:text-dark-400 sm:col-span-2 lg:col-span-3"
           >
             {{ t('common.loading') }}
           </div>
 
           <div
             v-else-if="supportedProviders.length === 0"
-            class="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center text-sm text-gray-500 dark:border-dark-800 dark:bg-dark-900 dark:text-dark-400 lg:col-span-3"
+            class="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center text-sm text-gray-500 dark:border-dark-800 dark:bg-dark-900 dark:text-dark-400 sm:col-span-2 lg:col-span-3"
           >
             {{ homeMarketplaceError ? t('home.providers.unavailable') : t('home.providers.empty') }}
           </div>
+
+          <!-- 管理员配置了首页展示模型时，按 OpenRouter Featured Models 风格渲染单模型卡片 -->
+          <template v-else-if="featuredModels.length > 0">
+            <article
+              v-for="featured in featuredModels"
+              :key="featured.model.id"
+              class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm ring-1 ring-transparent transition duration-300 hover:-translate-y-1 hover:border-black/20 hover:shadow-[0_12px_32px_rgba(0,0,0,0.1)] focus-within:border-black/20 dark:border-dark-800 dark:bg-dark-900 dark:hover:border-dark-600 dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.4)]"
+            >
+              <div class="flex items-start gap-4">
+                <!-- 图标与模型广场保持一致：模型图标体系 + 白底圆角方形 -->
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-950">
+                  <ModelIcon :model="featured.model.id" size="28px" />
+                </span>
+                <div class="min-w-0 flex-1">
+                  <h3 class="truncate text-lg font-semibold text-gray-950 dark:text-white">
+                    {{ featured.model.display_name || featured.model.id }}
+                  </h3>
+                  <p class="truncate text-sm text-gray-500 dark:text-dark-400">
+                    {{ t('home.featured.byProvider', { provider: homeProviderCategory(featured.group).label }) }}
+                  </p>
+                </div>
+              </div>
+              <!-- 左下角展示相对官方价的折扣，右下角留空；无折扣数据时整块底部区域不渲染 -->
+              <div v-if="featured.discountOff" class="mt-5 border-t border-gray-200 pt-5 dark:border-dark-800">
+                <p class="text-sm font-semibold tabular-nums text-gray-950 dark:text-white">
+                  {{ featured.discountOff }}
+                </p>
+              </div>
+            </article>
+          </template>
 
           <template v-else>
             <article
@@ -522,11 +555,13 @@ import { useAuthStore, useAppStore } from '@/stores'
 import GitHubMark from '@/components/auth/GitHubMark.vue'
 import GoogleOneTap from '@/components/auth/GoogleOneTap.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import ProviderIcon from '@/components/common/ProviderIcon.vue'
+import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useTheme } from '@/composables/useTheme'
 import { getMarketplaceModels, getMarketplaceStats } from '@/api/marketplace'
-import type { MarketplaceGroup, MarketplaceStats } from '@/types'
+import type { MarketplaceGroup, MarketplaceModel, MarketplaceStats } from '@/types'
 import { sanitizeUrl } from '@/utils/url'
 import { hasAcceptedLoginAgreement } from '@/utils/loginAgreement'
 import { isGoogleOneTapEligible, isGoogleOneTapOriginSupported } from '@/utils/googleIdentity'
@@ -581,6 +616,14 @@ interface HomeProviderCloudIcon {
   scale: number
 }
 
+// 首页精选卡片：单个模型及其所属分组（分组提供品牌与折扣上下文）
+interface HomeFeaturedModel {
+  model: MarketplaceModel
+  group: MarketplaceGroup
+  // 相对官方价的折扣文案（如 "95.6% off"），分组无有效折扣时为 null
+  discountOff: string | null
+}
+
 const { t, locale } = useI18n()
 
 const authStore = useAuthStore()
@@ -621,11 +664,6 @@ const { isDark, toggleTheme } = useTheme()
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
 const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dashboard')
-const userInitial = computed(() => {
-  const user = authStore.user
-  if (!user || !user.email) return ''
-  return user.email.charAt(0).toUpperCase()
-})
 
 const googleOneTapClientID = computed(
   () => appStore.cachedPublicSettings?.google_oauth_client_id || ''
@@ -760,6 +798,31 @@ const providerCloudLayout = [
 const totalModelCount = computed(() =>
   marketplaceGroups.value.reduce((total, group) => total + group.models.length, 0)
 )
+
+// 管理员在「系统设置 - 通用设置 - 首页模型展示」配置的模型 ID 列表（公开设置注入或接口返回）
+const homeFeaturedModelIds = computed<string[]>(() => {
+  const configured = appStore.cachedPublicSettings?.home_featured_models
+  return Array.isArray(configured) ? configured : []
+})
+
+// 按配置顺序在市场分组中解析模型，解析不到的 ID 直接跳过
+const featuredModels = computed<HomeFeaturedModel[]>(() => {
+  const resolved: HomeFeaturedModel[] = []
+  for (const modelId of homeFeaturedModelIds.value) {
+    for (const group of marketplaceGroups.value) {
+      const model = group.models.find(item => item.id === modelId)
+      if (model) {
+        resolved.push({
+          model,
+          group,
+          discountOff: formatFeaturedDiscountOff(group.official_price_ratio),
+        })
+        break
+      }
+    }
+  }
+  return resolved
+})
 
 const homeStatAnimationTargets = computed<Record<HomeStatsKey, number | null>>(() => ({
   'today-tokens': homeStatsLoading.value ? null : normalizedHomeStatTarget(homeStats.value?.today_tokens),
@@ -969,6 +1032,19 @@ function formatOfficialPriceRatio(ratio: number): string {
   return t('marketplace.officialPriceDiscount', { discount })
 }
 
+// 相对官方价的折扣百分比（分组级），如 0.044 返回 "95.6% off"；
+// 无有效倍率或价格不低于官方价时返回 null，卡片底部整块不渲染
+function formatFeaturedDiscountOff(ratio?: number): string | null {
+  const valid = validOfficialPriceRatio(ratio)
+  if (valid === null || valid >= 1) {
+    return null
+  }
+  const percent = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+  }).format((1 - valid) * 100)
+  return t('home.featured.discountOff', { percent })
+}
+
 function formatAnimatedHomeStat(
   key: HomeStatsKey,
   target: number | null,
@@ -1132,7 +1208,7 @@ function mergeProviderVisualBrands(brands: string[]): string[] {
   return merged
 }
 
-function providerIconWrapClass(provider: HomeProviderSummary): string {
+function providerIconWrapClass(provider: Pick<HomeProviderSummary, 'key' | 'iconBrand'>): string {
   if (provider.key === 'antigravity') {
     return 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-200 dark:ring-rose-400/30'
   }

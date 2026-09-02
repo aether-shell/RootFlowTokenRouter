@@ -32,6 +32,7 @@ type SystemSettings struct {
 	RegistrationEmailSuffixWhitelist    []string                 `json:"registration_email_suffix_whitelist"`
 	RegistrationEmailNormalization      bool                     `json:"registration_email_normalization"`
 	RegistrationEmailDomainQuotaEnabled bool                     `json:"registration_email_domain_quota_enabled"`
+	UserEmailChangeEnabled              bool                     `json:"user_email_change_enabled"` // 是否允许已有邮箱的用户换绑主邮箱
 	PromoCodeEnabled                    bool                     `json:"promo_code_enabled"`
 	PasswordResetEnabled                bool                     `json:"password_reset_enabled"`
 	FrontendURL                         string                   `json:"frontend_url"`
@@ -146,39 +147,43 @@ type SystemSettings struct {
 	GoogleOAuthRedirectURL            string `json:"google_oauth_redirect_url"`
 	GoogleOAuthFrontendRedirectURL    string `json:"google_oauth_frontend_redirect_url"`
 
-	SiteName                    string            `json:"site_name"`
-	SiteLogo                    string            `json:"site_logo"`
-	SiteSubtitle                string            `json:"site_subtitle"`
-	SiteNameZh                  string            `json:"site_name_zh"`
-	SiteNameEn                  string            `json:"site_name_en"`
-	SiteTitleZh                 string            `json:"site_title_zh"`
-	SiteTitleEn                 string            `json:"site_title_en"`
-	SiteSubtitleZh              string            `json:"site_subtitle_zh"`
-	SiteSubtitleEn              string            `json:"site_subtitle_en"`
-	APIBaseURL                  string            `json:"api_base_url"`
-	ContactInfo                 string            `json:"contact_info"`
-	DocURL                      string            `json:"doc_url"`
-	HomeContent                 string            `json:"home_content"`
-	HideCcsImportButton         bool              `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled bool              `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     string            `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int               `json:"table_default_page_size"`
-	TablePageSizeOptions        []int             `json:"table_page_size_options"`
-	UsageRankingLimit           int               `json:"usage_ranking_limit"`
-	UsageRankingEnabled         bool              `json:"usage_ranking_enabled"`
-	UsageRankingSortBy          string            `json:"usage_ranking_sort_by"`
-	UsageRankingShowTotalTokens bool              `json:"usage_ranking_show_total_tokens"`
-	UsageRankingShowRequests    bool              `json:"usage_ranking_show_requests"`
-	UsageRankingShowActualCost  bool              `json:"usage_ranking_show_actual_cost"`
-	CustomMenuItems             []CustomMenuItem  `json:"custom_menu_items"`
-	CustomEndpoints             []CustomEndpoint  `json:"custom_endpoints"`
-	FooterLinks                 []FooterLinkGroup `json:"footer_links"`
-	FooterText                  string            `json:"footer_text"`
+	SiteName                    string                         `json:"site_name"`
+	SiteLogo                    string                         `json:"site_logo"`
+	SiteSubtitle                string                         `json:"site_subtitle"`
+	SiteNameZh                  string                         `json:"site_name_zh"`
+	SiteNameEn                  string                         `json:"site_name_en"`
+	SiteTitleZh                 string                         `json:"site_title_zh"`
+	SiteTitleEn                 string                         `json:"site_title_en"`
+	SiteSubtitleZh              string                         `json:"site_subtitle_zh"`
+	SiteSubtitleEn              string                         `json:"site_subtitle_en"`
+	APIBaseURL                  string                         `json:"api_base_url"`
+	ContactInfo                 string                         `json:"contact_info"`
+	DocURL                      string                         `json:"doc_url"`
+	HomeContent                 string                         `json:"home_content"`
+	HideCcsImportButton         bool                           `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled bool                           `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     string                         `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int                            `json:"table_default_page_size"`
+	TablePageSizeOptions        []int                          `json:"table_page_size_options"`
+	UsageRankingLimit           int                            `json:"usage_ranking_limit"`
+	UsageRankingEnabled         bool                           `json:"usage_ranking_enabled"`
+	UsageRankingSortBy          string                         `json:"usage_ranking_sort_by"`
+	UsageRankingShowTotalTokens bool                           `json:"usage_ranking_show_total_tokens"`
+	UsageRankingShowRequests    bool                           `json:"usage_ranking_show_requests"`
+	UsageRankingShowActualCost  bool                           `json:"usage_ranking_show_actual_cost"`
+	CustomMenuItems             []CustomMenuItem               `json:"custom_menu_items"`
+	CustomEndpoints             []CustomEndpoint               `json:"custom_endpoints"`
+	FooterLinks                 []FooterLinkGroup              `json:"footer_links"`
+	FooterText                  string                         `json:"footer_text"`
+	HomeFeaturedModels          []string                       `json:"home_featured_models"`
+	CreativeModelSettings       []service.CreativeModelSetting `json:"creative_model_settings"`
+	CreativeWorkerCount         int                            `json:"creative_worker_count"`
 
 	DefaultConcurrency                   int                          `json:"default_concurrency"`
 	DefaultBalance                       float64                      `json:"default_balance"`
 	TeamEnabled                          bool                         `json:"team_enabled"`         // 团队功能页面开关
 	DataSharingEnabled                   bool                         `json:"data_sharing_enabled"` // 数据共享页面开关
+	CreativeEnabled                      bool                         `json:"creative_enabled"`     // 创作台功能开关
 	RiskControlEnabled                   bool                         `json:"risk_control_enabled"` // 风控中心功能开关
 	CyberSessionBlockEnabled             bool                         `json:"cyber_session_block_enabled"`
 	CyberSessionBlockTTLSeconds          int                          `json:"cyber_session_block_ttl_seconds"`
@@ -256,6 +261,11 @@ type SystemSettings struct {
 	// 通用高级调度器参数；是否启用由分组 scheduler_type 决定。
 	AdvancedSchedulerStickyWeightedEnabled           bool   `json:"advanced_scheduler_sticky_weighted_enabled"`
 	AdvancedSchedulerSubscriptionPriorityEnabled     bool   `json:"advanced_scheduler_subscription_priority_enabled"`
+	AdvancedSchedulerEWMAErrorRateAlpha              string `json:"advanced_scheduler_ewma_error_rate_alpha"`
+	AdvancedSchedulerEWMATTFTAlpha                   string `json:"advanced_scheduler_ewma_ttft_alpha"`
+	AdvancedSchedulerStickyEscapeEnabled             bool   `json:"advanced_scheduler_sticky_escape_enabled"`
+	AdvancedSchedulerStickyEscapeTTFTMs              string `json:"advanced_scheduler_sticky_escape_ttft_ms"`
+	AdvancedSchedulerStickyEscapeErrorRate           string `json:"advanced_scheduler_sticky_escape_error_rate"`
 	AdvancedSchedulerLBTopK                          string `json:"advanced_scheduler_lb_top_k"`
 	AdvancedSchedulerWeightPriority                  string `json:"advanced_scheduler_weight_priority"`
 	AdvancedSchedulerWeightLoad                      string `json:"advanced_scheduler_weight_load"`
@@ -276,6 +286,11 @@ type SystemSettings struct {
 	AdvancedSchedulerEffectiveWeightQuotaHeadroom    string `json:"advanced_scheduler_effective_weight_quota_headroom"`
 	AdvancedSchedulerEffectiveWeightPreviousResponse string `json:"advanced_scheduler_effective_weight_previous_response"`
 	AdvancedSchedulerEffectiveWeightSessionSticky    string `json:"advanced_scheduler_effective_weight_session_sticky"`
+	AdvancedSchedulerEffectiveEWMAErrorRateAlpha     string `json:"advanced_scheduler_effective_ewma_error_rate_alpha"`
+	AdvancedSchedulerEffectiveEWMATTFTAlpha          string `json:"advanced_scheduler_effective_ewma_ttft_alpha"`
+	AdvancedSchedulerEffectiveStickyEscapeEnabled    bool   `json:"advanced_scheduler_effective_sticky_escape_enabled"`
+	AdvancedSchedulerEffectiveStickyEscapeTTFTMs     string `json:"advanced_scheduler_effective_sticky_escape_ttft_ms"`
+	AdvancedSchedulerEffectiveStickyEscapeErrorRate  string `json:"advanced_scheduler_effective_sticky_escape_error_rate"`
 	// OpenAI 账号配额自动暂停全局默认阈值。后端按 0~1 存储，0 表示不启用全局默认阈值。
 	OpenAIQuotaAutoPauseSettings service.OpsOpenAIAccountQuotaAutoPauseSettings `json:"openai_account_quota_auto_pause"`
 
@@ -341,6 +356,7 @@ type PublicSettings struct {
 	ForceEmailOnThirdPartySignup        bool                     `json:"force_email_on_third_party_signup"`
 	RegistrationEmailSuffixWhitelist    []string                 `json:"registration_email_suffix_whitelist"`
 	RegistrationEmailDomainQuotaEnabled bool                     `json:"registration_email_domain_quota_enabled"`
+	UserEmailChangeEnabled              bool                     `json:"user_email_change_enabled"` // 是否允许已有邮箱的用户换绑主邮箱
 	PromoCodeEnabled                    bool                     `json:"promo_code_enabled"`
 	PasswordResetEnabled                bool                     `json:"password_reset_enabled"`
 	InvitationCodeEnabled               bool                     `json:"invitation_code_enabled"`
@@ -388,6 +404,7 @@ type PublicSettings struct {
 	CustomEndpoints                     []CustomEndpoint         `json:"custom_endpoints"`
 	FooterLinks                         []FooterLinkGroup        `json:"footer_links"`
 	FooterText                          string                   `json:"footer_text"`
+	HomeFeaturedModels                  []string                 `json:"home_featured_models"`
 	DingTalkOAuthEnabled                bool                     `json:"dingtalk_oauth_enabled"`
 	LinuxDoOAuthEnabled                 bool                     `json:"linuxdo_oauth_enabled"`
 	WeChatOAuthEnabled                  bool                     `json:"wechat_oauth_enabled"`
@@ -405,6 +422,7 @@ type PublicSettings struct {
 	TeamEnabled                         bool                     `json:"team_enabled"`
 	TeamSelfServiceEnabled              bool                     `json:"team_self_service_enabled"`
 	DataSharingEnabled                  bool                     `json:"data_sharing_enabled"`
+	CreativeEnabled                     bool                     `json:"creative_enabled"`
 	Version                             string                   `json:"version"`
 	// 服务器全局时区与当前 UTC 偏移，供前端标注高峰计费窗口等服务端本地时间。
 	ServerTimezone              string  `json:"server_timezone"`
@@ -651,4 +669,18 @@ func ParseFooterLinks(raw string) []FooterLinkGroup {
 		return []FooterLinkGroup{}
 	}
 	return groups
+}
+
+// ParseHomeFeaturedModels 将 JSON 字符串解析为首页展示模型 ID 列表。
+// 空串或非法输入返回空切片。
+func ParseHomeFeaturedModels(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" {
+		return []string{}
+	}
+	var models []string
+	if err := json.Unmarshal([]byte(raw), &models); err != nil {
+		return []string{}
+	}
+	return models
 }

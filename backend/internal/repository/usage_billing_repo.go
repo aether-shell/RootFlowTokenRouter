@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -402,7 +403,7 @@ func applyBatchImageAllowance(ctx context.Context, tx *sql.Tx, cmd *service.Batc
 		if err := reserveBatchImageMemberAllowance(ctx, tx, cmd, cmd.HoldAmount); err != nil {
 			return err
 		}
-		return setBatchImageAllowanceReserved(ctx, tx, cmd.BatchID, true)
+		return setBatchImageAllowanceReserved(ctx, tx, cmd, true)
 	case batchImageAllowanceCapture:
 		if cmd.AllowanceReserved {
 			adjustment := cmd.HoldAmount - cmd.ActualAmount
@@ -427,7 +428,7 @@ func applyBatchImageAllowance(ctx context.Context, tx *sql.Tx, cmd *service.Batc
 				}
 			}
 		}
-		return setBatchImageAllowanceReserved(ctx, tx, cmd.BatchID, false)
+		return setBatchImageAllowanceReserved(ctx, tx, cmd, false)
 	case batchImageAllowanceRelease:
 		if cmd.AllowanceReserved {
 			if err := rollbackBatchImageAllowanceBestEffort(ctx, tx, cmd.BatchID, func() error {
@@ -439,7 +440,7 @@ func applyBatchImageAllowance(ctx context.Context, tx *sql.Tx, cmd *service.Batc
 				return err
 			}
 		}
-		return setBatchImageAllowanceReserved(ctx, tx, cmd.BatchID, false)
+		return setBatchImageAllowanceReserved(ctx, tx, cmd, false)
 	default:
 		return nil
 	}
@@ -466,8 +467,14 @@ func rollbackBatchImageAllowanceBestEffort(ctx context.Context, tx *sql.Tx, batc
 	return err
 }
 
-func setBatchImageAllowanceReserved(ctx context.Context, tx *sql.Tx, batchID string, reserved bool) error {
-	result, err := tx.ExecContext(ctx, `UPDATE batch_image_jobs SET allowance_reserved = $2, updated_at = NOW() WHERE batch_id = $1`, batchID, reserved)
+func setBatchImageAllowanceReserved(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand, reserved bool) error {
+	table, idColumn, err := batchImageBillingEntityTable(cmd)
+	if err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, fmt.Sprintf(
+		`UPDATE %s SET allowance_reserved = $2, updated_at = NOW() WHERE %s = $1`, table, idColumn,
+	), strings.TrimSpace(cmd.BatchID), reserved)
 	if err != nil {
 		return err
 	}
@@ -479,6 +486,27 @@ func setBatchImageAllowanceReserved(ctx context.Context, tx *sql.Tx, batchID str
 		return service.ErrBatchImageJobNotFound
 	}
 	return nil
+}
+
+// batchImageBillingEntityTable 返回计费命令对应的任务表与标识列。
+// 表名只能取白名单内的两个值：批量图片作业用 batch_image_jobs，创作台任务用 creative_runs。
+func batchImageBillingEntityTable(cmd *service.BatchImageBalanceHoldCommand) (table string, idColumn string, err error) {
+	if cmd != nil && cmd.CreativeEntity {
+		return "creative_runs", "run_id", nil
+	}
+	return "batch_image_jobs", "batch_id", nil
+}
+
+// batchImageHoldClaimRequestID 返回预占认领（dedup）记录的 request id：
+// 创作台任务用 creative_hold 前缀，批量图片作业沿用 batch_image_hold 前缀。
+func batchImageHoldClaimRequestID(cmd *service.BatchImageBalanceHoldCommand) string {
+	if cmd != nil && cmd.CreativeEntity {
+		return service.CreativeHoldRequestID(strings.TrimSpace(cmd.BatchID))
+	}
+	if cmd == nil {
+		return ""
+	}
+	return service.BatchImageHoldRequestID(cmd.BatchID)
 }
 
 func reserveBatchImageAPIKeyAllowance(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64, reservedAt time.Time) error {
@@ -1367,7 +1395,7 @@ func reserveUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 	}
 	// 第二版指纹不依赖最终预占金额，可以在 claim 后把额度口径改为真实混合预占金额。
 	cmd.HoldAmount = result.HoldAmountUSD
-	if err := persistBatchImageBillingHold(ctx, tx, cmd.BatchID, balanceAmount, allocations, result.HoldAmountUSD, result.EstimatedAmountUSD); err != nil {
+	if err := persistBatchImageBillingHold(ctx, tx, cmd, balanceAmount, allocations, result.HoldAmountUSD, result.EstimatedAmountUSD); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -1377,7 +1405,7 @@ func reserveUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 func captureUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
 	// 新任务必须证明预占已提交；升级前已冻结但没有 dedup 记录的旧任务仍允许安全消费冻结额。
 	if cmd != nil && cmd.HoldAmount > 0 && (cmd.AllowanceReserved || cmd.BalanceHoldAmount > 0 || len(cmd.SubscriptionHoldAllocations) > 0) {
-		held, err := batchImageHoldClaimExists(ctx, tx, service.BatchImageHoldRequestID(cmd.BatchID), cmd.APIKeyID)
+		held, err := batchImageHoldClaimExists(ctx, tx, batchImageHoldClaimRequestID(cmd), cmd.APIKeyID)
 		if err != nil {
 			return nil, err
 		}
@@ -1418,7 +1446,7 @@ func releaseUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 	if cmd == nil {
 		return &service.BatchImageBalanceHoldResult{}, nil
 	}
-	held, err := batchImageHoldClaimExists(ctx, tx, service.BatchImageHoldRequestID(cmd.BatchID), cmd.APIKeyID)
+	held, err := batchImageHoldClaimExists(ctx, tx, batchImageHoldClaimRequestID(cmd), cmd.APIKeyID)
 	if err != nil {
 		return nil, err
 	}
@@ -1433,20 +1461,24 @@ func releaseUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 	return releaseUsageBillingBatchImageFrozenBalance(ctx, tx, cmd.UserID, balanceAmount)
 }
 
-func persistBatchImageBillingHold(ctx context.Context, tx *sql.Tx, batchID string, balanceAmount float64, allocations []domain.BillingAllocation, holdAmount, estimatedAmount float64) error {
+func persistBatchImageBillingHold(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand, balanceAmount float64, allocations []domain.BillingAllocation, holdAmount, estimatedAmount float64) error {
 	encoded, err := json.Marshal(allocations)
 	if err != nil {
 		return err
 	}
-	result, err := tx.ExecContext(ctx, `
-		UPDATE batch_image_jobs
+	table, idColumn, err := batchImageBillingEntityTable(cmd)
+	if err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE %s
 		SET balance_hold_amount = $2,
 			subscription_hold_allocations = $3::jsonb,
 			hold_amount = $4,
 			estimated_cost = $5,
 			updated_at = NOW()
-		WHERE batch_id = $1
-	`, batchID, balanceAmount, string(encoded), holdAmount, estimatedAmount)
+		WHERE %s = $1
+	`, table, idColumn), strings.TrimSpace(cmd.BatchID), balanceAmount, string(encoded), holdAmount, estimatedAmount)
 	if err != nil {
 		return err
 	}

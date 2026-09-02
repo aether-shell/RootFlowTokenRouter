@@ -161,6 +161,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyForceEmailOnThirdPartySignup,
 		SettingKeyRegistrationEmailSuffixWhitelist,
 		SettingKeyRegistrationEmailDomainQuotaEnabled,
+		SettingKeyUserEmailChangeEnabled,
 		SettingKeyPromoCodeEnabled,
 		SettingKeyPasswordResetEnabled,
 		SettingKeyInvitationCodeEnabled,
@@ -208,6 +209,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyCustomEndpoints,
 		SettingKeyFooterLinks,
 		SettingKeyFooterText,
+		SettingKeyHomeFeaturedModels,
 		SettingKeyLinuxDoConnectEnabled,
 		SettingKeyDingTalkConnectEnabled,
 		SettingKeyWeChatConnectEnabled,
@@ -250,6 +252,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAccountQuotaNotifyEnabled,
 		SettingKeyTeamEnabled,
 		SettingKeyDataSharingEnabled,
+		SettingKeyCreativeEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
 	}
@@ -331,12 +334,14 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		ForceEmailOnThirdPartySignup:        settings[SettingKeyForceEmailOnThirdPartySignup] == "true",
 		RegistrationEmailSuffixWhitelist:    registrationEmailSuffixWhitelist,
 		RegistrationEmailDomainQuotaEnabled: settings[SettingKeyRegistrationEmailDomainQuotaEnabled] == "true",
+		UserEmailChangeEnabled:              settings[SettingKeyUserEmailChangeEnabled] == "true",
 		PromoCodeEnabled:                    settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用
 		PasswordResetEnabled:                passwordResetEnabled,
 		InvitationCodeEnabled:               settings[SettingKeyInvitationCodeEnabled] == "true",
 		TeamEnabled:                         settings[SettingKeyTeamEnabled] != "false" && (s.cfg == nil || s.cfg.Team.Enabled),
 		TeamSelfServiceEnabled:              s.cfg == nil || s.cfg.Team.SelfServiceEnabled,
 		DataSharingEnabled:                  settings[SettingKeyDataSharingEnabled] != "false",
+		CreativeEnabled:                     settings[SettingKeyCreativeEnabled] != "false",
 		AffiliateEnabled:                    settings[SettingKeyAffiliateEnabled] == "true",
 		TotpEnabled:                         settings[SettingKeyTotpEnabled] == "true",
 		PasskeyEnabled:                      s.cfg != nil && s.cfg.WebAuthn.Enabled,
@@ -382,6 +387,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		CustomEndpoints:                     settings[SettingKeyCustomEndpoints],
 		FooterLinks:                         settings[SettingKeyFooterLinks],
 		FooterText:                          settings[SettingKeyFooterText],
+		HomeFeaturedModels:                  settings[SettingKeyHomeFeaturedModels],
 		LinuxDoOAuthEnabled:                 linuxDoEnabled,
 		DingTalkOAuthEnabled:                dingTalkEnabled,
 		WeChatOAuthEnabled:                  weChatEnabled,
@@ -434,6 +440,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ForceEmailOnThirdPartySignup        bool                     `json:"force_email_on_third_party_signup"`
 		RegistrationEmailSuffixWhitelist    []string                 `json:"registration_email_suffix_whitelist"`
 		RegistrationEmailDomainQuotaEnabled bool                     `json:"registration_email_domain_quota_enabled"`
+		UserEmailChangeEnabled              bool                     `json:"user_email_change_enabled"` // 是否允许已有邮箱的用户换绑主邮箱
 		PromoCodeEnabled                    bool                     `json:"promo_code_enabled"`
 		PasswordResetEnabled                bool                     `json:"password_reset_enabled"`
 		InvitationCodeEnabled               bool                     `json:"invitation_code_enabled"`
@@ -481,6 +488,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CustomEndpoints                     json.RawMessage          `json:"custom_endpoints"`
 		FooterLinks                         json.RawMessage          `json:"footer_links"`
 		FooterText                          string                   `json:"footer_text,omitempty"`
+		HomeFeaturedModels                  json.RawMessage          `json:"home_featured_models"`
 		LinuxDoOAuthEnabled                 bool                     `json:"linuxdo_oauth_enabled"`
 		DingTalkOAuthEnabled                bool                     `json:"dingtalk_oauth_enabled"`
 		WeChatOAuthEnabled                  bool                     `json:"wechat_oauth_enabled"`
@@ -492,6 +500,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		TeamEnabled                         bool                     `json:"team_enabled"`
 		TeamSelfServiceEnabled              bool                     `json:"team_self_service_enabled"`
 		DataSharingEnabled                  bool                     `json:"data_sharing_enabled"`
+		CreativeEnabled                     bool                     `json:"creative_enabled"`
 		OIDCOAuthEnabled                    bool                     `json:"oidc_oauth_enabled"`
 		OIDCOAuthProviderName               string                   `json:"oidc_oauth_provider_name"`
 		GitHubOAuthEnabled                  bool                     `json:"github_oauth_enabled"`
@@ -518,6 +527,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		ForceEmailOnThirdPartySignup:        settings.ForceEmailOnThirdPartySignup,
 		RegistrationEmailSuffixWhitelist:    settings.RegistrationEmailSuffixWhitelist,
 		RegistrationEmailDomainQuotaEnabled: settings.RegistrationEmailDomainQuotaEnabled,
+		UserEmailChangeEnabled:              settings.UserEmailChangeEnabled,
 		PromoCodeEnabled:                    settings.PromoCodeEnabled,
 		PasswordResetEnabled:                settings.PasswordResetEnabled,
 		InvitationCodeEnabled:               settings.InvitationCodeEnabled,
@@ -565,6 +575,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		CustomEndpoints:                     safeRawJSONArray(settings.CustomEndpoints),
 		FooterLinks:                         safeRawJSONArray(settings.FooterLinks),
 		FooterText:                          settings.FooterText,
+		HomeFeaturedModels:                  safeRawJSONArray(settings.HomeFeaturedModels),
 		LinuxDoOAuthEnabled:                 settings.LinuxDoOAuthEnabled,
 		DingTalkOAuthEnabled:                settings.DingTalkOAuthEnabled,
 		WeChatOAuthEnabled:                  settings.WeChatOAuthEnabled,
@@ -576,6 +587,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		TeamEnabled:                         settings.TeamEnabled,
 		TeamSelfServiceEnabled:              settings.TeamSelfServiceEnabled,
 		DataSharingEnabled:                  settings.DataSharingEnabled,
+		CreativeEnabled:                     settings.CreativeEnabled,
 		OIDCOAuthEnabled:                    settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:               settings.OIDCOAuthProviderName,
 		GitHubOAuthEnabled:                  settings.GitHubOAuthEnabled,

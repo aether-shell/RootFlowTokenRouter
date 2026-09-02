@@ -97,6 +97,9 @@ func TestCORS_AllowedOrigin_HasAllowHeaders(t *testing.T) {
 			c, _ := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequest(tt.method, "/", nil)
 			c.Request.Header.Set("Origin", "https://allowed.example.com")
+			if tt.method == http.MethodOptions {
+				c.Request.Header.Set("Access-Control-Request-Headers", "X-Creative-Workspace-ID")
+			}
 
 			middleware(c)
 
@@ -105,6 +108,8 @@ func TestCORS_AllowedOrigin_HasAllowHeaders(t *testing.T) {
 				"允许的 origin 应收到 Allow-Headers")
 			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "X-Admin-UI-Request")
 			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "X-User-UI-Request")
+			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "X-Creative-Workspace-ID")
+			assert.Contains(t, w.Header().Get("Access-Control-Allow-Headers"), "Idempotency-Key")
 			assert.NotEmpty(t, w.Header().Get("Access-Control-Allow-Methods"),
 				"允许的 origin 应收到 Allow-Methods")
 			assert.Contains(t, w.Header().Get("Access-Control-Expose-Headers"), "Server-Timing")

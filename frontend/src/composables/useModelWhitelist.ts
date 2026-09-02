@@ -197,6 +197,7 @@ const xaiModels = [
   'grok-4.20-reasoning',
   'grok-4.20-non-reasoning',
   'grok-imagine',
+  'grok-imagine-edit',
   'grok-imagine-image-quality',
   'grok-imagine-image',
   'grok-imagine-image-2.0',

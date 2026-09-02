@@ -455,6 +455,20 @@ func (_c *APIKeyCreate) SetNillableFallbackToDefaultGroupWhenUnavailable(v *bool
 	return _c
 }
 
+// SetManagedBy sets the "managed_by" field.
+func (_c *APIKeyCreate) SetManagedBy(v string) *APIKeyCreate {
+	_c.mutation.SetManagedBy(v)
+	return _c
+}
+
+// SetNillableManagedBy sets the "managed_by" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableManagedBy(v *string) *APIKeyCreate {
+	if v != nil {
+		_c.SetManagedBy(*v)
+	}
+	return _c
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_c *APIKeyCreate) SetUser(v *User) *APIKeyCreate {
 	return _c.SetUserID(v.ID)
@@ -711,6 +725,11 @@ func (_c *APIKeyCreate) check() error {
 	if _, ok := _c.mutation.FallbackToDefaultGroupWhenUnavailable(); !ok {
 		return &ValidationError{Name: "fallback_to_default_group_when_unavailable", err: errors.New(`ent: missing required field "APIKey.fallback_to_default_group_when_unavailable"`)}
 	}
+	if v, ok := _c.mutation.ManagedBy(); ok {
+		if err := apikey.ManagedByValidator(v); err != nil {
+			return &ValidationError{Name: "managed_by", err: fmt.Errorf(`ent: validator failed for field "APIKey.managed_by": %w`, err)}
+		}
+	}
 	if len(_c.mutation.UserIDs()) == 0 {
 		return &ValidationError{Name: "user", err: errors.New(`ent: missing required edge "APIKey.user"`)}
 	}
@@ -864,6 +883,10 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FallbackToDefaultGroupWhenUnavailable(); ok {
 		_spec.SetField(apikey.FieldFallbackToDefaultGroupWhenUnavailable, field.TypeBool, value)
 		_node.FallbackToDefaultGroupWhenUnavailable = value
+	}
+	if value, ok := _c.mutation.ManagedBy(); ok {
+		_spec.SetField(apikey.FieldManagedBy, field.TypeString, value)
+		_node.ManagedBy = &value
 	}
 	if nodes := _c.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1540,6 +1563,24 @@ func (u *APIKeyUpsert) UpdateFallbackToDefaultGroupWhenUnavailable() *APIKeyUpse
 	return u
 }
 
+// SetManagedBy sets the "managed_by" field.
+func (u *APIKeyUpsert) SetManagedBy(v string) *APIKeyUpsert {
+	u.Set(apikey.FieldManagedBy, v)
+	return u
+}
+
+// UpdateManagedBy sets the "managed_by" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateManagedBy() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldManagedBy)
+	return u
+}
+
+// ClearManagedBy clears the value of the "managed_by" field.
+func (u *APIKeyUpsert) ClearManagedBy() *APIKeyUpsert {
+	u.SetNull(apikey.FieldManagedBy)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -2212,6 +2253,27 @@ func (u *APIKeyUpsertOne) SetFallbackToDefaultGroupWhenUnavailable(v bool) *APIK
 func (u *APIKeyUpsertOne) UpdateFallbackToDefaultGroupWhenUnavailable() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateFallbackToDefaultGroupWhenUnavailable()
+	})
+}
+
+// SetManagedBy sets the "managed_by" field.
+func (u *APIKeyUpsertOne) SetManagedBy(v string) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetManagedBy(v)
+	})
+}
+
+// UpdateManagedBy sets the "managed_by" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateManagedBy() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateManagedBy()
+	})
+}
+
+// ClearManagedBy clears the value of the "managed_by" field.
+func (u *APIKeyUpsertOne) ClearManagedBy() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.ClearManagedBy()
 	})
 }
 
@@ -3053,6 +3115,27 @@ func (u *APIKeyUpsertBulk) SetFallbackToDefaultGroupWhenUnavailable(v bool) *API
 func (u *APIKeyUpsertBulk) UpdateFallbackToDefaultGroupWhenUnavailable() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateFallbackToDefaultGroupWhenUnavailable()
+	})
+}
+
+// SetManagedBy sets the "managed_by" field.
+func (u *APIKeyUpsertBulk) SetManagedBy(v string) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetManagedBy(v)
+	})
+}
+
+// UpdateManagedBy sets the "managed_by" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateManagedBy() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateManagedBy()
+	})
+}
+
+// ClearManagedBy clears the value of the "managed_by" field.
+func (u *APIKeyUpsertBulk) ClearManagedBy() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.ClearManagedBy()
 	})
 }
 

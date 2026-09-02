@@ -47,6 +47,18 @@ describe('DataTable', () => {
     localStorage.clear()
   })
 
+  it('uses the shared 1024px desktop breakpoint', () => {
+    const wrapper = mount(DataTable, {
+      props: {
+        columns: [{ key: 'name', label: 'Name' }],
+        data: [{ id: 1, name: 'Key' }]
+      }
+    })
+
+    expect(window.matchMedia).toHaveBeenCalledWith('(min-width: 1024px)')
+    wrapper.unmount()
+  })
+
   it('renders paired sort arrows and highlights the active direction', async () => {
     const wrapper = mount(DataTable, {
       props: {

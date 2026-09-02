@@ -89,6 +89,8 @@ type APIKey struct {
 	DataSharingConfirmedAt *time.Time `json:"data_sharing_confirmed_at,omitempty"`
 	// 绑定分组不可用时自动回退到同平台默认分组
 	FallbackToDefaultGroupWhenUnavailable bool `json:"fallback_to_default_group_when_unavailable,omitempty"`
+	// 托管来源标识：creative_studio 表示创作台隐藏执行 Key，NULL 表示普通用户 Key
+	ManagedBy *string `json:"managed_by,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the APIKeyQuery when eager-loading is set.
 	Edges        APIKeyEdges `json:"edges"`
@@ -176,7 +178,7 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case apikey.FieldID, apikey.FieldUserID, apikey.FieldTeamID, apikey.FieldGroupID, apikey.FieldPreferredSubscriptionID, apikey.FieldDataSharingNoticeVersion, apikey.FieldDataSharingConfirmedGroupID:
 			values[i] = new(sql.NullInt64)
-		case apikey.FieldKey, apikey.FieldName, apikey.FieldStatus, apikey.FieldFastModePolicy, apikey.FieldBillingMode:
+		case apikey.FieldKey, apikey.FieldName, apikey.FieldStatus, apikey.FieldFastModePolicy, apikey.FieldBillingMode, apikey.FieldManagedBy:
 			values[i] = new(sql.NullString)
 		case apikey.FieldCreatedAt, apikey.FieldUpdatedAt, apikey.FieldDeletedAt, apikey.FieldLastUsedAt, apikey.FieldExpiresAt, apikey.FieldWindow5hStart, apikey.FieldWindow1dStart, apikey.FieldWindow7dStart, apikey.FieldDataSharingConfirmedAt:
 			values[i] = new(sql.NullTime)
@@ -422,6 +424,13 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.FallbackToDefaultGroupWhenUnavailable = value.Bool
 			}
+		case apikey.FieldManagedBy:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field managed_by", values[i])
+			} else if value.Valid {
+				_m.ManagedBy = new(string)
+				*_m.ManagedBy = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -606,6 +615,11 @@ func (_m *APIKey) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("fallback_to_default_group_when_unavailable=")
 	builder.WriteString(fmt.Sprintf("%v", _m.FallbackToDefaultGroupWhenUnavailable))
+	builder.WriteString(", ")
+	if v := _m.ManagedBy; v != nil {
+		builder.WriteString("managed_by=")
+		builder.WriteString(*v)
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

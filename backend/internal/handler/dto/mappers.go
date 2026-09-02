@@ -886,6 +886,30 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 	}
 }
 
+// UsageLogTimingFromService 转换管理员使用记录需要展示的阶段耗时，避免暴露系统日志其它字段。
+func UsageLogTimingFromService(timing *service.OpsRequestTiming) *UsageLogTiming {
+	if timing == nil {
+		return nil
+	}
+	return &UsageLogTiming{
+		RequestContentLength:           timing.RequestContentLength,
+		AccountSlotAcquiredMs:          timing.AccountSlotAcquiredMs,
+		UpstreamGetConnMs:              timing.UpstreamGetConnMs,
+		UpstreamGotConnMs:              timing.UpstreamGotConnMs,
+		UpstreamWroteRequestMs:         timing.UpstreamWroteRequestMs,
+		UpstreamFirstResponseByteMs:    timing.UpstreamFirstResponseByteMs,
+		UpstreamFirstSSEDataMs:         timing.UpstreamFirstSSEDataMs,
+		FirstVisibleOutputMs:           timing.FirstVisibleOutputMs,
+		FirstDownstreamFlushMs:         timing.FirstDownstreamFlushMs,
+		UpstreamGetConnCount:           timing.UpstreamGetConnCount,
+		UpstreamGotConnCount:           timing.UpstreamGotConnCount,
+		UpstreamAttemptCount:           timing.UpstreamAttemptCount,
+		UpstreamFirstResponseByteCount: timing.UpstreamFirstResponseByteCount,
+		UpstreamConnectionReused:       timing.UpstreamConnectionReused,
+		UpstreamWroteRequestError:      timing.UpstreamWroteRequestError,
+	}
+}
+
 func UsageCleanupTaskFromService(task *service.UsageCleanupTask) *UsageCleanupTask {
 	if task == nil {
 		return nil

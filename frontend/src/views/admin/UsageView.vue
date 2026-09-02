@@ -5,17 +5,17 @@
       <!-- Charts Section -->
       <div class="space-y-4">
         <div class="card p-4">
-          <div class="flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
+          <div class="time-controls flex flex-wrap items-center justify-between gap-2">
+            <div class="flex min-w-0 items-center gap-2">
+              <span class="time-control-label text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
               <DateRangePicker
                 v-model:start-date="startDate"
                 v-model:end-date="endDate"
                 @change="onDateRangeChange"
               />
             </div>
-            <div class="ml-auto flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
+            <div class="flex shrink-0 items-center gap-2">
+              <span class="time-control-label text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
               <div class="w-28">
                 <Select v-model="granularity" :options="granularityOptions" @change="loadChartData" />
               </div>
@@ -40,6 +40,7 @@
             v-model:metric="groupDistributionMetric"
             :group-stats="groupStats"
             :loading="chartsLoading"
+            chart-type="bar"
             :show-metric-toggle="true"
             :start-date="startDate"
             :end-date="endDate"
@@ -54,6 +55,7 @@
             :upstream-endpoint-stats="upstreamEndpointStats"
             :endpoint-path-stats="endpointPathStats"
             :loading="endpointStatsLoading"
+            chart-type="bar"
             :show-source-toggle="true"
             :show-metric-toggle="true"
             :title="t('usage.endpointDistribution')"
@@ -72,7 +74,7 @@
             :key="tab.key"
             type="button"
             data-testid="usage-detail-tab"
-            class="-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-medium transition-colors sm:px-4"
+            class="-mb-px inline-flex h-9 items-center gap-1.5 border-b-2 px-3 py-1.5 text-sm font-medium transition-colors sm:px-4"
             :class="activeTab === tab.key
               ? 'border-primary-500 text-primary-600 dark:text-primary-400'
               : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-dark-500 dark:hover:text-gray-200'"
@@ -93,14 +95,14 @@
             />
             <div v-if="activeTab !== 'ranking'" class="relative" ref="columnDropdownRef">
               <button
+                type="button"
                 @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary px-2 md:px-3"
+                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                :aria-label="t('admin.users.columnSettings')"
                 :title="t('admin.users.columnSettings')"
               >
-                <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                </svg>
-                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+                <Icon name="grid" size="sm" />
+                <span class="hidden">{{ t('admin.users.columnSettings') }}</span>
               </button>
               <div
                 v-if="showColumnDropdown"
@@ -581,6 +583,28 @@ const getRequestTypeLabel = (log: AdminUsageLog): string => {
   return t('usage.unknown')
 }
 
+// 导出时把阶段耗时压缩为单元格文本，保留原始毫秒值便于后续分析。
+const formatDetailedTimingForExport = (row: AdminUsageLog): string => {
+  const timing = row.detailed_timing
+  if (!timing) return ''
+  const stages: Array<[string, number | null | undefined]> = [
+    ['slot', timing.account_slot_acquired_ms],
+    ['get_conn', timing.upstream_get_conn_ms],
+    ['got_conn', timing.upstream_got_conn_ms],
+    ['write', timing.upstream_wrote_request_ms],
+    ['first_byte', timing.upstream_first_response_byte_ms],
+    ['first_sse', timing.upstream_first_sse_data_ms],
+    ['visible', timing.first_visible_output_ms],
+    ['flush', timing.first_downstream_flush_ms],
+  ]
+  const details = stages.filter(([, value]) => value != null).map(([name, value]) => `${name}=${value}ms`)
+  if (timing.request_content_length != null) details.unshift(`request_bytes=${timing.request_content_length}`)
+  if (timing.upstream_attempt_count != null) details.push(`attempts=${timing.upstream_attempt_count}`)
+  if (timing.upstream_connection_reused) details.push('reused=true')
+  if (timing.upstream_wrote_request_error) details.push('write_error=true')
+  return details.join('; ')
+}
+
 const exportToExcel = async () => {
   if (exporting.value) return; exporting.value = true; exportProgress.show = true
   const c = new AbortController(); exportAbortController = c
@@ -597,7 +621,7 @@ const exportToExcel = async () => {
       t('admin.usage.inputCost'), t('admin.usage.outputCost'),
       t('admin.usage.cacheReadCost'), t('admin.usage.cacheCreationCost'),
       t('usage.rate'), t('usage.accountMultiplier'), t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'),
-      t('usage.firstToken'), t('usage.duration'),
+      t('usage.firstToken'), t('usage.duration'), t('usage.detailedTiming'),
       t('admin.usage.requestId'), t('usage.userAgent'), t('admin.usage.ipAddress')
     ]
     const ws = XLSX.utils.aoa_to_sheet([headers])
@@ -617,6 +641,7 @@ const exportToExcel = async () => {
         log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
         log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
         ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
+        formatDetailedTimingForExport(log),
         log.request_id || '', log.user_agent || '', log.ip_address || ''
       ])
       if (rows.length) {

@@ -1,25 +1,45 @@
 <template>
   <AppLayout>
-    <div class="space-y-4">
-      <!-- Filters -->
-      <div class="card p-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="flex-1 sm:max-w-64">
+    <TablePageLayout>
+      <template #filters>
+      <!-- 搜索和筛选工具栏 -->
+      <div class="flex items-center gap-2 sm:justify-between">
+        <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-2">
+          <div class="min-w-0 flex-1 sm:flex-none sm:w-64">
             <input v-model="orderSearch" type="text" :placeholder="t('payment.admin.searchOrders')" class="input" @input="debounceLoadOrders" />
           </div>
-          <Select v-model="orderFilters.status" :options="statusFilterOptions" class="w-36" @change="loadOrders" />
-          <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" class="w-40" @change="loadOrders" />
-          <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" class="w-36" @change="loadOrders" />
-          <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
-            <button @click="loadOrders" :disabled="ordersLoading" class="btn btn-secondary" :title="t('common.refresh')">
-              <Icon name="refresh" size="md" :class="ordersLoading ? 'animate-spin' : ''" />
+          <div ref="filterDropdownRef" class="relative shrink-0">
+            <button type="button" class="btn btn-secondary relative h-9 w-9 p-0" :aria-expanded="showFilterDropdown" :aria-label="t('common.filter')" :title="t('common.filter')" @click="showFilterDropdown = !showFilterDropdown">
+              <Icon name="filter" size="sm" />
+              <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">{{ activeFilterCount }}</span>
             </button>
+            <div v-if="showFilterDropdown" class="absolute left-auto right-0 top-full z-[60] mt-2 w-80 rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0 sm:right-auto" @click.stop>
+              <div class="mb-3 flex items-center justify-between">
+                <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
+                <button v-if="activeFilterCount > 0" type="button" class="text-xs font-medium text-primary-600 dark:text-primary-400" @click="resetOrderFilters">{{ t('common.reset') }}</button>
+              </div>
+              <div class="space-y-3">
+                <Select v-model="orderFilters.status" :options="statusFilterOptions" @change="loadOrders" />
+                <Select v-model="orderFilters.payment_type" :options="paymentTypeFilterOptions" @change="loadOrders" />
+                <Select v-model="orderFilters.order_type" :options="orderTypeFilterOptions" @change="loadOrders" />
+              </div>
+            </div>
           </div>
         </div>
+        <button
+          @click="loadOrders"
+          :disabled="ordersLoading"
+          class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+          :title="t('common.refresh')"
+        >
+          <Icon name="refresh" size="md" :class="ordersLoading ? 'animate-spin' : ''" />
+        </button>
       </div>
+      </template>
 
-      <!-- Table -->
-      <OrderTable :orders="orders" :loading="ordersLoading" show-user>
+      <template #table>
+        <!-- 订单表格复用与 API Keys 相同的 TablePageLayout/DataTable 容器，订单字段和操作仍由本组件定制。 -->
+        <OrderTable :orders="orders" :loading="ordersLoading" show-user>
         <template #actions="{ row }">
           <div class="flex items-center gap-1">
             <button @click="showOrderDetail(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-dark-600">
@@ -63,9 +83,13 @@
             </button>
           </div>
         </template>
-      </OrderTable>
-      <Pagination v-if="orderPagination.total > 0" :page="orderPagination.page" :total="orderPagination.total" :page-size="orderPagination.page_size" @update:page="handleOrderPageChange" @update:pageSize="handleOrderPageSizeChange" />
-    </div>
+        </OrderTable>
+      </template>
+
+      <template #pagination>
+        <Pagination v-if="orderPagination.total > 0" :page="orderPagination.page" :total="orderPagination.total" :page-size="orderPagination.page_size" @update:page="handleOrderPageChange" @update:pageSize="handleOrderPageSizeChange" />
+      </template>
+    </TablePageLayout>
 
     <!-- Order Detail Dialog -->
     <BaseDialog :show="showDetailDialog" :title="t('payment.admin.orderDetail')" width="wide" @close="showDetailDialog = false">
@@ -165,7 +189,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
@@ -174,6 +198,7 @@ import { formatOrderDateTime } from '@/components/payment/orderUtils'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { PaymentOrder } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -199,6 +224,9 @@ const ordersLoading = ref(false)
 const orders = ref<PaymentOrder[]>([])
 const orderSearch = ref('')
 const orderFilters = reactive({ status: '', payment_type: '', order_type: '' })
+const showFilterDropdown = ref(false)
+const filterDropdownRef = ref<HTMLElement | null>(null)
+const activeFilterCount = computed(() => [orderFilters.status, orderFilters.payment_type, orderFilters.order_type].filter(Boolean).length)
 const orderPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const selectedOrder = ref<PaymentOrder | null>(null)
 const showDetailDialog = ref(false)
@@ -213,6 +241,20 @@ const refundRequireForce = ref(false)
 const refundWarning = ref('')
 const refundQueryingIds = ref(new Set<number>())
 const orderAuditLogs = ref<AuditLog[]>([])
+
+function resetOrderFilters() {
+  orderFilters.status = ''
+  orderFilters.payment_type = ''
+  orderFilters.order_type = ''
+  orderPagination.page = 1
+  loadOrders()
+}
+
+function handleOrderClickOutside(event: MouseEvent) {
+  const target = event.target
+  if (target instanceof Node && filterDropdownRef.value?.contains(target)) return
+  showFilterDropdown.value = false
+}
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 function debounceLoadOrders() {
@@ -429,5 +471,10 @@ async function handleQueryRefund(order: PaymentOrder) {
 
 function formatDateTime(dateStr: string): string { return formatOrderDateTime(dateStr) }
 
-onMounted(() => loadOrders())
+onMounted(() => {
+  loadOrders()
+  document.addEventListener('click', handleOrderClickOutside)
+})
+
+onUnmounted(() => document.removeEventListener('click', handleOrderClickOutside))
 </script>

@@ -52,9 +52,11 @@ type ModelMarketplacePricingInterval struct {
 }
 
 type ModelMarketplaceModel struct {
-	ID          string                  `json:"id"`
-	DisplayName string                  `json:"display_name"`
-	Pricing     ModelMarketplacePricing `json:"pricing"`
+	ID               string                  `json:"id"`
+	DisplayName      string                  `json:"display_name"`
+	Pricing          ModelMarketplacePricing `json:"pricing"`
+	InputModalities  []string                `json:"input_modalities,omitempty"`
+	OutputModalities []string                `json:"output_modalities,omitempty"`
 }
 
 type ModelMarketplaceCapacity struct {
@@ -109,9 +111,11 @@ func ModelMarketplaceGroupsFromService(groups []service.ModelMarketplaceGroup) [
 		models := make([]ModelMarketplaceModel, 0, len(group.Models))
 		for _, model := range group.Models {
 			models = append(models, ModelMarketplaceModel{
-				ID:          model.ID,
-				DisplayName: model.DisplayName,
-				Pricing:     modelMarketplacePricingFromService(model.Pricing),
+				ID:               model.ID,
+				DisplayName:      model.DisplayName,
+				Pricing:          modelMarketplacePricingFromService(model.Pricing),
+				InputModalities:  model.InputModalities,
+				OutputModalities: model.OutputModalities,
 			})
 		}
 

@@ -3,12 +3,12 @@
     <TablePageLayout>
       <template #filters>
         <!-- Top Toolbar: Left (search + filters) / Right (actions) -->
-        <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <!-- Left: Fuzzy user search + filters (wrap to multiple lines) -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
+          <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-3">
             <!-- User Search -->
             <div
-              class="relative w-full sm:w-64"
+              class="relative min-w-0 flex-1 sm:flex-none sm:w-64"
               data-filter-user-search
             >
               <Icon
@@ -65,38 +65,68 @@
             </div>
 
             <!-- Filters -->
-            <div class="w-full sm:w-40">
-              <Select
-                v-model="filters.status"
-                :options="statusOptions"
-                :placeholder="t('admin.subscriptions.allStatus')"
-                @change="applyFilters"
-              />
-            </div>
-            <div class="w-full sm:w-48">
-              <Select
-                v-model="filters.plan_id"
-                :options="planOptions"
-                :placeholder="t('admin.announcements.form.selectPackages')"
-                @change="applyFilters"
-              />
-            </div>
-            <div class="w-full sm:w-40">
-              <Select
-                v-model="filters.platform"
-                :options="platformFilterOptions"
-                :placeholder="t('admin.subscriptions.allPlatforms')"
-                @change="applyFilters"
-              />
+            <div ref="filterDropdownRef" class="relative shrink-0">
+              <button
+                ref="filterDropdownButtonRef"
+                type="button"
+                class="btn btn-secondary relative h-9 w-9 p-0"
+                :aria-expanded="showFilterDropdown"
+                :aria-label="t('common.filter')"
+                :title="t('common.filter')"
+                @click="toggleFilterDropdown"
+              >
+                <Icon name="filter" size="sm" />
+                <span
+                  v-if="activeFilterCount > 0"
+                  class="pointer-events-none absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300"
+                >
+                  {{ activeFilterCount }}
+                </span>
+              </button>
+
+              <Teleport to="body">
+                <div
+                  v-if="showFilterDropdown"
+                  class="fixed z-[60] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl dark:border-dark-600 dark:bg-dark-900"
+                  :style="filterDropdownStyle"
+                  @click.stop
+                >
+                <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-dark-700">
+                  <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
+                  <button
+                    v-if="activeFilterCount > 0"
+                    type="button"
+                    class="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                    @click="resetSubscriptionFilters"
+                  >
+                    {{ t('common.reset') }}
+                  </button>
+                </div>
+                <div class="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+                  <div>
+                    <label class="input-label">{{ t('admin.subscriptions.columns.status') }}</label>
+                    <Select v-model="filters.status" :options="statusOptions" :placeholder="t('admin.subscriptions.allStatus')" @change="applyFilters" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('admin.subscriptions.form.group') }}</label>
+                    <Select v-model="filters.plan_id" :options="planOptions" :placeholder="t('admin.announcements.form.selectPackages')" @change="applyFilters" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="input-label">{{ t('admin.accounts.columns.platform') }}</label>
+                    <Select v-model="filters.platform" :options="platformFilterOptions" :placeholder="t('admin.subscriptions.allPlatforms')" @change="applyFilters" />
+                  </div>
+                </div>
+                </div>
+              </Teleport>
             </div>
           </div>
 
           <!-- Right: Actions -->
-          <div class="ml-auto flex flex-wrap items-center justify-end gap-3">
+          <div class="flex shrink-0 flex-wrap items-center justify-end gap-3">
             <button
               @click="loadSubscriptions"
               :disabled="loading"
-              class="btn btn-secondary"
+              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
               :title="t('common.refresh')"
             >
               <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -105,13 +135,13 @@
             <div class="relative" ref="columnDropdownRef">
               <button
                 @click="showColumnDropdown = !showColumnDropdown"
-                class="btn btn-secondary px-2 md:px-3"
+                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
                 :title="t('admin.users.columnSettings')"
               >
-                <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
                 </svg>
-                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+                <span class="hidden">{{ t('admin.users.columnSettings') }}</span>
               </button>
               <!-- Dropdown menu -->
               <div
@@ -154,12 +184,12 @@
             </div>
             <button
               @click="showGuideModal = true"
-              class="btn btn-secondary"
+              class="btn btn-secondary h-9 w-9 shrink-0 p-0"
               :title="t('admin.subscriptions.guide.showGuide')"
             >
               <Icon name="questionCircle" size="md" />
             </button>
-            <button @click="showAssignModal = true" class="btn btn-primary">
+            <button @click="showAssignModal = true" class="btn btn-primary h-9 whitespace-nowrap">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.subscriptions.assignSubscription') }}
             </button>
@@ -180,16 +210,12 @@
         >
           <template #cell-user="{ row }">
             <div class="flex items-center gap-2">
-              <div
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30"
-              >
-                <span class="text-sm font-medium text-primary-700 dark:text-primary-300">
-                  {{ userColumnMode === 'email'
-                    ? (row.user?.email?.charAt(0).toUpperCase() || '?')
-                    : (row.user?.username?.charAt(0).toUpperCase() || '?')
-                  }}
-                </span>
-              </div>
+              <UserAvatar
+                :avatar-url="row.user?.avatar_url || ''"
+                :user-id="row.user_id"
+                :alt="row.user?.email || ''"
+                size-class="h-8 w-8"
+              />
               <span class="font-medium text-gray-900 dark:text-white">
                 {{ userColumnMode === 'email'
                   ? (row.user?.email || t('admin.redeem.userPrefix', { id: row.user_id }))
@@ -744,7 +770,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
@@ -762,9 +788,11 @@ import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { GROUP_PLATFORM_OPTIONS } from '@/constants/platforms'
+import { getFloatingPanelPosition } from '@/utils/floatingPanel'
 import {
   getRemainingDurationParts,
   getRemainingExpiryDuration,
@@ -928,6 +956,47 @@ const columns = computed<Column[]>(() =>
 // Column dropdown state
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
+const showFilterDropdown = ref(false)
+const filterDropdownRef = ref<HTMLElement | null>(null)
+const filterDropdownButtonRef = ref<HTMLElement | null>(null)
+const filterDropdownPosition = reactive({
+  top: null as number | null,
+  bottom: null as number | null,
+  left: 16,
+  width: 512,
+  maxHeight: 0
+})
+const filterDropdownStyle = computed(() => ({
+  top: filterDropdownPosition.top == null ? 'auto' : `${filterDropdownPosition.top}px`,
+  bottom: filterDropdownPosition.bottom == null ? 'auto' : `${filterDropdownPosition.bottom}px`,
+  left: `${filterDropdownPosition.left}px`,
+  width: `${filterDropdownPosition.width}px`,
+  maxHeight: `${filterDropdownPosition.maxHeight}px`
+}))
+
+// 过滤面板挂载到 body 后按触发按钮重新定位，确保桌面端和窄屏都不越界。
+const updateFilterDropdownPosition = () => {
+  if (!showFilterDropdown.value) return
+  const trigger = filterDropdownButtonRef.value
+  if (!trigger) return
+  Object.assign(
+    filterDropdownPosition,
+    getFloatingPanelPosition(
+      trigger.getBoundingClientRect(),
+      document.documentElement.clientWidth || window.innerWidth,
+      window.innerHeight,
+      { maxWidth: 512, mobileBreakpoint: 768 }
+    )
+  )
+}
+
+const toggleFilterDropdown = async () => {
+  showFilterDropdown.value = !showFilterDropdown.value
+  if (showFilterDropdown.value) {
+    await nextTick()
+    updateFilterDropdownPosition()
+  }
+}
 
 // Filter options
 const statusOptions = computed(() => [
@@ -966,6 +1035,15 @@ const filters = reactive({
   platform: '',
   user_id: null as number | null
 })
+
+const activeFilterCount = computed(() => [filters.status, filters.plan_id, filters.platform].filter(Boolean).length)
+
+const resetSubscriptionFilters = () => {
+  filters.status = ''
+  filters.plan_id = ''
+  filters.platform = ''
+  applyFilters()
+}
 
 // Sorting state
 const sortState = reactive({
@@ -1491,6 +1569,9 @@ const handleClickOutside = (event: MouseEvent) => {
   if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
     showColumnDropdown.value = false
   }
+  if (filterDropdownRef.value && !filterDropdownRef.value.contains(target)) {
+    showFilterDropdown.value = false
+  }
 }
 
 onMounted(() => {
@@ -1499,10 +1580,14 @@ onMounted(() => {
   loadSubscriptions()
   loadPlans()
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('resize', updateFilterDropdownPosition)
+  window.addEventListener('scroll', updateFilterDropdownPosition, true)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('resize', updateFilterDropdownPosition)
+  window.removeEventListener('scroll', updateFilterDropdownPosition, true)
   if (filterUserSearchTimeout) {
     clearTimeout(filterUserSearchTimeout)
   }

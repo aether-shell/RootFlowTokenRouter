@@ -323,7 +323,7 @@ func TestGetUserSpendingRankingFromAnalyticsReturnsCurrentUsername(t *testing.T)
 
 	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
 		WillReturnRows(sqlmock.NewRows([]string{"live_watermark", "coverage_start"}).AddRow(end, start))
-	mock.ExpectQuery("(?s)user_spend AS \\(.*COALESCE\\(u.username, ''\\)").
+	mock.ExpectQuery("(?s)user_spend AS \\(.*SELECT billing_user_id AS user_id.*GROUP BY billing_user_id.*COALESCE\\(u.username, ''\\)").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"user_id", "email", "username", "actual_cost", "requests", "tokens",
 			"total_actual_cost", "total_requests", "total_tokens",
@@ -336,6 +336,61 @@ func TestGetUserSpendingRankingFromAnalyticsReturnsCurrentUsername(t *testing.T)
 		{UserID: 7, Email: "rank@example.com", Username: "rank-user", ActualCost: 12.5, Requests: 9, Tokens: 900},
 	}, got.Ranking)
 	require.Equal(t, 12.5, got.TotalActualCost)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestGetUsageRankingFromAnalyticsGroupsByBillingUser 验证公开排行按付款主体合并团队成员用量。
+func TestGetUsageRankingFromAnalyticsGroupsByBillingUser(t *testing.T) {
+	db, mock := newSQLMock(t)
+	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
+		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	})
+	repo := &usageLogRepository{sql: db, preAggregation: settings}
+	start := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	end := start.Add(4 * time.Hour)
+
+	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
+		WillReturnRows(sqlmock.NewRows([]string{"live_watermark", "coverage_start"}).AddRow(end, start))
+	mock.ExpectQuery("(?s)user_usage AS \\(.*SELECT billing_user_id AS user_id.*GROUP BY billing_user_id.*LEFT JOIN users u ON u.id = r.user_id").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"rank", "user_id", "email", "username", "avatar_url", "requests",
+			"input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens",
+			"total_tokens", "actual_cost", "total_requests", "ranking_total_tokens", "total_actual_cost",
+		}).AddRow(1, int64(9), "owner@example.com", "owner", "", int64(3), int64(100), int64(20), int64(0), int64(0), int64(120), 2.5, int64(3), int64(120), 2.5))
+
+	got, ok, err := repo.getUsageRankingFromAnalytics(context.Background(), start, end, 20, service.UsageRankingSortByTotalTokens)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Len(t, got.Ranking, 1)
+	require.Equal(t, int64(9), got.Ranking[0].UserID)
+	require.Equal(t, int64(3), got.Ranking[0].Requests)
+	require.Equal(t, int64(120), got.Ranking[0].TotalTokens)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestGetUserUsageTrendFromAnalyticsGroupsByBillingUser 验证 Top 用户趋势按付款主体合并团队成员用量。
+func TestGetUserUsageTrendFromAnalyticsGroupsByBillingUser(t *testing.T) {
+	db, mock := newSQLMock(t)
+	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
+		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	})
+	repo := &usageLogRepository{sql: db, preAggregation: settings}
+	start := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	end := start.Add(4 * time.Hour)
+
+	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
+		WillReturnRows(sqlmock.NewRows([]string{"live_watermark", "coverage_start"}).AddRow(end, start))
+	mock.ExpectQuery("(?s)top_users AS \\(.*SELECT billing_user_id AS user_id.*GROUP BY billing_user_id.*c\\.billing_user_id AS user_id.*LEFT JOIN users u ON u\\.id = c\\.billing_user_id").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "user_id", "email", "username", "requests", "tokens", "cost", "actual_cost",
+		}).AddRow("2026-08-01", int64(9), "owner@example.com", "owner", int64(3), int64(120), 2.5, 2.5))
+
+	got, ok, err := repo.getUserUsageTrendFromAnalytics(context.Background(), start, end, "day", 12)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, []usagestats.UserUsageTrendPoint{
+		{Date: "2026-08-01", UserID: 9, Email: "owner@example.com", Username: "owner", Requests: 3, Tokens: 120, Cost: 2.5, ActualCost: 2.5},
+	}, got)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

@@ -59,6 +59,28 @@ type advancedAccountRuntimeStats struct {
 	switchCount  atomic.Int64
 }
 
+// advancedSchedulerFeedbackConfig 保存一次请求回写运行时反馈时使用的 EWMA 系数。
+// 统计仍按账号共享，但系数由请求最终命中的分组决定。
+type advancedSchedulerFeedbackConfig struct {
+	errorRateAlpha float64
+	ttftAlpha      float64
+}
+
+const (
+	defaultAdvancedSchedulerErrorRateAlpha = 0.2
+	defaultAdvancedSchedulerTTFTAlpha      = 0.2
+)
+
+func normalizeAdvancedSchedulerFeedbackConfig(value advancedSchedulerFeedbackConfig) advancedSchedulerFeedbackConfig {
+	if value.errorRateAlpha <= 0 || value.errorRateAlpha > 1 || math.IsNaN(value.errorRateAlpha) || math.IsInf(value.errorRateAlpha, 0) {
+		value.errorRateAlpha = defaultAdvancedSchedulerErrorRateAlpha
+	}
+	if value.ttftAlpha <= 0 || value.ttftAlpha > 1 || math.IsNaN(value.ttftAlpha) || math.IsInf(value.ttftAlpha, 0) {
+		value.ttftAlpha = defaultAdvancedSchedulerTTFTAlpha
+	}
+	return value
+}
+
 func (s *advancedAccountRuntimeStats) reportSwitch() {
 	if s != nil {
 		s.switchCount.Add(1)
@@ -114,18 +136,24 @@ func updateAdvancedSchedulerEWMA(target *atomic.Uint64, sample float64, alpha fl
 	}
 }
 
-func (s *advancedAccountRuntimeStats) report(accountID int64, success bool, firstTokenMs *int) {
+func (s *advancedAccountRuntimeStats) report(accountID int64, success bool, firstTokenMs *int, feedback ...advancedSchedulerFeedbackConfig) {
 	if s == nil || accountID <= 0 {
 		return
 	}
-	const alpha = 0.2
+	feedbackConfig := advancedSchedulerFeedbackConfig{
+		errorRateAlpha: defaultAdvancedSchedulerErrorRateAlpha,
+		ttftAlpha:      defaultAdvancedSchedulerTTFTAlpha,
+	}
+	if len(feedback) > 0 {
+		feedbackConfig = normalizeAdvancedSchedulerFeedbackConfig(feedback[0])
+	}
 	stat := s.loadOrCreate(accountID)
 
 	errorSample := 1.0
 	if success {
 		errorSample = 0.0
 	}
-	updateAdvancedSchedulerEWMA(&stat.errorRateEWMABits, errorSample, alpha)
+	updateAdvancedSchedulerEWMA(&stat.errorRateEWMABits, errorSample, feedbackConfig.errorRateAlpha)
 	stat.errorSamples.Add(1)
 	stat.lastObservedUnixNano.Store(time.Now().UnixNano())
 
@@ -143,7 +171,7 @@ func (s *advancedAccountRuntimeStats) report(accountID int64, success bool, firs
 				}
 				continue
 			}
-			newValue := alpha*ttft + (1-alpha)*oldValue
+			newValue := feedbackConfig.ttftAlpha*ttft + (1-feedbackConfig.ttftAlpha)*oldValue
 			if stat.ttftEWMABits.CompareAndSwap(oldBits, math.Float64bits(newValue)) {
 				stat.ttftSamples.Add(1)
 				stat.lastTTFTObservedNanos.Store(time.Now().UnixNano())

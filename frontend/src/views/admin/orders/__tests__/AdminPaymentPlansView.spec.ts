@@ -41,6 +41,10 @@ const DataTableStub = {
   `,
 }
 
+const TablePageLayoutStub = {
+  template: '<div class="table-page-layout"><slot name="table" /></div>',
+}
+
 describe('AdminPaymentPlansView', () => {
   beforeEach(() => {
     getConfig.mockResolvedValue({ data: {} })
@@ -82,6 +86,7 @@ describe('AdminPaymentPlansView', () => {
         plugins: [createPinia()],
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: TablePageLayoutStub,
           DataTable: DataTableStub,
           ConfirmDialog: true,
           Icon: true,
@@ -95,5 +100,6 @@ describe('AdminPaymentPlansView', () => {
     expect(wrapper.text()).toContain('¥499.00CNY')
     expect(wrapper.text()).toContain('¥599.00')
     expect(wrapper.text()).toContain('$10.00')
+    expect(wrapper.findComponent(TablePageLayoutStub).exists()).toBe(true)
   })
 })

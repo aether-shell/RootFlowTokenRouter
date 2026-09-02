@@ -299,7 +299,7 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, end
 	query := fmt.Sprintf(`
 		WITH user_usage AS (
 			SELECT
-				u.user_id,
+				COALESCE(u.billing_user_id, u.user_id) as user_id,
 				COUNT(*) as requests,
 				COALESCE(SUM(u.input_tokens), 0) as input_tokens,
 				COALESCE(SUM(u.output_tokens), 0) as output_tokens,
@@ -309,7 +309,8 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, end
 				COALESCE(SUM(u.actual_cost), 0) as actual_cost
 			FROM usage_logs u
 			WHERE u.created_at >= $1 AND u.created_at < $2
-			GROUP BY u.user_id
+			-- 排行按付款主体归属，团队成员使用团队 Key 时计入团队 Owner。
+			GROUP BY COALESCE(u.billing_user_id, u.user_id)
 			HAVING %s
 		),
 		ranked AS (

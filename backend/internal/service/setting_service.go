@@ -194,21 +194,23 @@ type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[i
 
 // SettingService 系统设置服务
 type SettingService struct {
-	settingRepo                 SettingRepository
-	defaultSubPlanReader        DefaultSubscriptionPlanReader
-	proxyRepo                   ProxyRepository // for resolving websearch provider proxy URLs
-	cfg                         *config.Config
-	onUpdate                    func() // Callback when settings are updated (for cache invalidation)
-	version                     string // Application version
-	webSearchManagerBuilder     WebSearchManagerBuilder
-	antigravityUAVersionCache   atomic.Value // *cachedAntigravityUserAgentVersion
-	antigravityUAVersionSF      singleflight.Group
-	openAICodexUACache          atomic.Value // *cachedOpenAICodexUserAgent
-	openAICodexUASF             singleflight.Group
-	openAIAllowCodexPluginCache atomic.Value // *cachedOpenAIAllowCodexPlugin
-	openAIAllowCodexPluginSF    singleflight.Group
-	cyberSessionBlockCache      atomic.Value // *cachedCyberSessionBlockRuntime
-	cyberSessionBlockSF         singleflight.Group
+	settingRepo                  SettingRepository
+	defaultSubPlanReader         DefaultSubscriptionPlanReader
+	proxyRepo                    ProxyRepository // for resolving websearch provider proxy URLs
+	cfg                          *config.Config
+	onUpdate                     func() // Callback when settings are updated (for cache invalidation)
+	creativeWorkerCountCallback  func(int)
+	creativeWorkerStatusCallback func() CreativeWorkerStatus
+	version                      string // Application version
+	webSearchManagerBuilder      WebSearchManagerBuilder
+	antigravityUAVersionCache    atomic.Value // *cachedAntigravityUserAgentVersion
+	antigravityUAVersionSF       singleflight.Group
+	openAICodexUACache           atomic.Value // *cachedOpenAICodexUserAgent
+	openAICodexUASF              singleflight.Group
+	openAIAllowCodexPluginCache  atomic.Value // *cachedOpenAIAllowCodexPlugin
+	openAIAllowCodexPluginSF     singleflight.Group
+	cyberSessionBlockCache       atomic.Value // *cachedCyberSessionBlockRuntime
+	cyberSessionBlockSF          singleflight.Group
 
 	// panelRateLimitCache 面板 API 限流配置进程内缓存（*cachedPanelRateLimitSettings）。
 	// 面板每个认证请求都会读取，禁止在热路径上直接访问 DB。
@@ -442,6 +444,30 @@ func (s *SettingService) SetOnUpdateCallback(callback func()) {
 	s.onUpdate = callback
 }
 
+// SetCreativeWorkerCountCallback 设置创作台 worker 数量热更新回调。
+func (s *SettingService) SetCreativeWorkerCountCallback(callback func(int)) {
+	if s == nil {
+		return
+	}
+	s.creativeWorkerCountCallback = callback
+}
+
+// SetCreativeWorkerStatusCallback 设置创作台 worker 池状态读取回调。
+func (s *SettingService) SetCreativeWorkerStatusCallback(callback func() CreativeWorkerStatus) {
+	if s == nil {
+		return
+	}
+	s.creativeWorkerStatusCallback = callback
+}
+
+// CreativeWorkerStatus 返回创作台 worker 池状态快照；回调未注入时返回未运行的零值快照。
+func (s *SettingService) CreativeWorkerStatus() CreativeWorkerStatus {
+	if s == nil || s.creativeWorkerStatusCallback == nil {
+		return CreativeWorkerStatus{}
+	}
+	return s.creativeWorkerStatusCallback()
+}
+
 // SetVersion sets the application version for injection into public settings
 func (s *SettingService) SetVersion(version string) {
 	s.version = version
@@ -614,6 +640,35 @@ func (s *SettingService) IsRegistrationEmailNormalizationEnabled(ctx context.Con
 		return false
 	}
 	return value == "true"
+}
+
+// IsCreativeEnabled 读取创作台数据库运行时开关（键缺失或读取失败时默认开启，
+// 与 team_enabled 保持同款"缺省 true"语义；进程级 creative.enabled 由调用方另行校验）。
+func (s *SettingService) IsCreativeEnabled(ctx context.Context) bool {
+	if s == nil || s.settingRepo == nil {
+		return true
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyCreativeEnabled)
+	if err != nil {
+		return true
+	}
+	return value != "false"
+}
+
+// GetCreativeModelSettings 读取创作台模型白名单；缺失、损坏或读取失败均按空列表处理。
+// 空列表是明确的 fail-closed 语义，不会因为数据库异常误放行生图模型。
+func (s *SettingService) GetCreativeModelSettings(ctx context.Context) []CreativeModelSetting {
+	if s == nil || s.settingRepo == nil {
+		return []CreativeModelSetting{}
+	}
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyCreativeModelSettings)
+	if err != nil {
+		if !errors.Is(err, ErrSettingNotFound) {
+			slog.Warn("failed to read creative model settings", "error", err)
+		}
+		return []CreativeModelSetting{}
+	}
+	return parseCreativeModelSettings(raw)
 }
 
 // SetDefaultSubscriptionPlanReader injects an optional plan reader for default subscription validation.

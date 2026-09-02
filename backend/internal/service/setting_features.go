@@ -43,6 +43,16 @@ func (s *SettingService) IsRegistrationEmailDomainQuotaEnabled(ctx context.Conte
 	return value == "true"
 }
 
+// IsUserEmailChangeEnabled 检查是否允许已有邮箱身份的用户换绑主邮箱。
+// 设置缺失或读取失败时按关闭处理，避免升级后意外放宽账号身份变更权限。
+func (s *SettingService) IsUserEmailChangeEnabled(ctx context.Context) bool {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyUserEmailChangeEnabled)
+	if err != nil {
+		return false
+	}
+	return value == "true"
+}
+
 // GetRegistrationEmailSuffixWhitelist returns normalized registration email suffix whitelist.
 func (s *SettingService) GetRegistrationEmailSuffixWhitelist(ctx context.Context) []string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailSuffixWhitelist)

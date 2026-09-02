@@ -2,16 +2,19 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-wrap-reverse items-start justify-between gap-3">
-          <AccountTableFilters
-            v-model:searchQuery="params.search"
-            :filters="params"
-            :groups="groups"
-            @update:filters="(newFilters) => Object.assign(params, newFilters)"
-            @change="debouncedReload"
-            @update:searchQuery="debouncedReload"
-          />
+        <div class="flex flex-col-reverse gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div class="min-w-0 flex-1">
+            <AccountTableFilters
+              v-model:searchQuery="params.search"
+              :filters="params"
+              :groups="groups"
+              @update:filters="(newFilters) => Object.assign(params, newFilters)"
+              @change="debouncedReload"
+              @update:searchQuery="debouncedReload"
+            />
+          </div>
           <AccountTableActions
+            class="shrink-0 lg:justify-end"
             :loading="loading"
             @refresh="handleManualRefresh"
             @create="openCreateAccount()"
@@ -22,11 +25,10 @@
                 <button
                   ref="autoRefreshButtonRef"
                   @click="toggleAutoRefreshDropdown"
-                  class="btn btn-secondary justify-center px-2 md:min-w-[7.5rem] md:px-3"
+                  class="btn btn-secondary h-9 w-9 shrink-0 justify-center p-0"
                   :title="autoRefreshButtonTitle"
                 >
-                  <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
-                  <span class="hidden md:inline">{{ t('admin.accounts.autoRefresh') }}</span>
+                  <Icon name="clock" size="sm" :class="autoRefreshEnabled ? 'text-primary-500' : ''" />
                 </button>
                 <div
                   v-if="showAutoRefreshDropdown"
@@ -60,13 +62,13 @@
                 <button
                   ref="accountToolsButtonRef"
                   @click="toggleAccountToolsDropdown"
-                  class="btn btn-secondary px-2 md:px-3"
+                  class="btn btn-secondary h-9 w-9 justify-center p-0 lg:w-auto lg:px-3 lg:py-1.5"
                   :title="t('admin.accounts.moreActions')"
                   :aria-expanded="showAccountToolsDropdown"
                 >
-                  <Icon name="more" size="sm" class="md:mr-1.5" />
-                  <span class="hidden md:inline">{{ t('admin.accounts.moreActions') }}</span>
-                  <Icon name="chevronDown" size="xs" class="ml-1 hidden md:inline" />
+                  <Icon name="more" size="sm" class="lg:hidden" />
+                  <span class="hidden lg:inline">{{ t('admin.accounts.moreActions') }}</span>
+                  <Icon name="chevronDown" size="xs" class="ml-1 hidden lg:inline" />
                 </button>
                 <Teleport to="body">
                   <div
@@ -534,6 +536,7 @@ import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import { sanitizeUrl } from '@/utils/url'
 import { getFloatingPanelPosition } from '@/utils/floatingPanel'
+import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
 import type {
   Account,
   AccountPlatform,
@@ -724,9 +727,8 @@ const todayStatsReqSeq = ref(0)
 const pendingTodayStatsRefresh = ref(false)
 const usageManualRefreshToken = ref(0)
 
-const desktopViewportQuery = '(min-width: 768px)'
 const isDesktopViewport = ref(
-  typeof window === 'undefined' ? true : window.matchMedia(desktopViewportQuery).matches
+  typeof window === 'undefined' ? true : window.matchMedia(TABLE_DESKTOP_MEDIA_QUERY).matches
 )
 let desktopViewportMediaQuery: MediaQueryList | null = null
 let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
@@ -2987,7 +2989,7 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(async () => {
   if (typeof window !== 'undefined') {
-    desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
+    desktopViewportMediaQuery = window.matchMedia(TABLE_DESKTOP_MEDIA_QUERY)
     isDesktopViewport.value = desktopViewportMediaQuery.matches
     desktopViewportListener = (event: MediaQueryListEvent) => {
       isDesktopViewport.value = event.matches

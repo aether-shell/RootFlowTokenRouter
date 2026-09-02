@@ -769,6 +769,7 @@ func TestOpenAIGatewayService_BuildOpenAIWSHeadersDeviceModePreservesNamespacedC
 	c.Request.Header.Set("session-id", "client-session")
 	c.Request.Header.Set("thread-id", "client-thread")
 	c.Request.Header.Set("x-client-request-id", "client-request")
+	c.Request.Header.Set("x-sub2api-request-id", "internal-request")
 
 	account := newTestOAuthAccount(1300, map[string]any{codexFingerprintModeExtraKey: "device"})
 	ids := resolveCodexFingerprintIDsFromRequest(account, c.Request.Header)
@@ -797,6 +798,7 @@ func TestOpenAIGatewayService_BuildOpenAIWSHeadersDeviceModePreservesNamespacedC
 	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "session", "client-session"), headers.Get("session-id"))
 	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "thread", "client-thread"), headers.Get("thread-id"))
 	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "request", "client-request"), headers.Get("x-client-request-id"))
+	require.Empty(t, headers.Get("x-sub2api-request-id"))
 }
 
 func TestLogOpenAIWSBindResponseAccountWarn(t *testing.T) {

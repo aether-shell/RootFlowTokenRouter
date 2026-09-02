@@ -8,7 +8,9 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/apikey"
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -25,6 +27,8 @@ var (
 	ErrSubscriptionAlreadyExists   = infraerrors.Conflict("SUBSCRIPTION_ALREADY_EXISTS", "subscription already exists")
 	ErrSubscriptionNotRevoked      = infraerrors.Conflict("SUBSCRIPTION_NOT_REVOKED", "subscription is not revoked")
 	ErrSubscriptionRestoreConflict = infraerrors.Conflict("SUBSCRIPTION_RESTORE_CONFLICT", "subscription already exists for this user and plan")
+	ErrSubscriptionNotActive       = infraerrors.Conflict("SUBSCRIPTION_NOT_ACTIVE", "subscription is not active")
+	ErrSubscriptionQuotaAvailable  = infraerrors.Conflict("SUBSCRIPTION_QUOTA_NOT_EXHAUSTED", "subscription still has available quota")
 	ErrInvalidInput                = infraerrors.BadRequest("INVALID_INPUT", "at least one of resetDaily, resetWeekly, or resetMonthly must be true")
 	ErrDailyLimitExceeded          = infraerrors.TooManyRequests("DAILY_LIMIT_EXCEEDED", "daily usage limit exceeded")
 	ErrWeeklyLimitExceeded         = infraerrors.TooManyRequests("WEEKLY_LIMIT_EXCEEDED", "weekly usage limit exceeded")
@@ -38,6 +42,13 @@ type SubscriptionService struct {
 	userSubRepo         UserSubscriptionRepository
 	billingCacheService *BillingCacheService
 	entClient           *dbent.Client
+}
+
+// SelfRevokeSubscriptionResult 描述用户撤销耗尽套餐后的接续结果。
+type SelfRevokeSubscriptionResult struct {
+	RevokedSubscriptionID     int64
+	ReplacementSubscriptionID *int64
+	ReboundAPIKeyCount        int
 }
 
 func NewSubscriptionService(groupRepo GroupRepository, userSubRepo UserSubscriptionRepository, billingCacheService *BillingCacheService, entClient *dbent.Client, _ *config.Config) *SubscriptionService {
@@ -379,6 +390,137 @@ func (s *SubscriptionService) RevokeSubscription(ctx context.Context, subscripti
 		}
 		return nil
 	})
+}
+
+// RevokeOwnExhaustedSubscription 仅允许用户撤销本人当前且最高层额度已耗尽的订阅。
+// 撤销、后续订阅平移和显式订阅 Key 改绑必须在同一个事务中完成。
+func (s *SubscriptionService) RevokeOwnExhaustedSubscription(ctx context.Context, userID, subscriptionID int64) (*SelfRevokeSubscriptionResult, error) {
+	if userID <= 0 || subscriptionID <= 0 {
+		return nil, ErrSubscriptionNotFound
+	}
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		return s.revokeOwnExhaustedSubscriptionInTx(ctx, tx, userID, subscriptionID)
+	}
+	if s.entClient == nil {
+		return s.revokeOwnExhaustedSubscriptionInTx(ctx, nil, userID, subscriptionID)
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	result, err := s.revokeOwnExhaustedSubscriptionInTx(dbent.NewTxContext(ctx, tx), tx, userID, subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+	return result, nil
+}
+
+func (s *SubscriptionService) revokeOwnExhaustedSubscriptionInTx(ctx context.Context, tx *dbent.Tx, userID, subscriptionID int64) (*SelfRevokeSubscriptionResult, error) {
+	sub, err := s.userSubRepo.GetByIDIncludeDeleted(ctx, subscriptionID)
+	if err != nil || sub == nil || sub.UserID != userID {
+		return nil, ErrSubscriptionNotFound
+	}
+	if sub.DeletedAt != nil {
+		return nil, ErrSubscriptionNotActive
+	}
+
+	// 锁定订阅行，避免额度结算在校验与撤销之间并发写入；用户行锁与现有续订路径保持一致。
+	if tx != nil {
+		if _, err := tx.User.Query().Where(dbuser.IDEQ(userID)).ForUpdate().Only(ctx); err != nil {
+			return nil, fmt.Errorf("lock user %d: %w", userID, err)
+		}
+		if _, err := tx.UserSubscription.Query().Where(usersubscription.IDEQ(subscriptionID)).ForUpdate().Only(ctx); err != nil {
+			return nil, ErrSubscriptionNotFound
+		}
+	}
+
+	now := time.Now()
+	if sub.EffectiveStatus(now) != SubscriptionStatusActive {
+		return nil, ErrSubscriptionNotActive
+	}
+	if err := s.CheckAndActivateWindow(ctx, sub); err != nil {
+		return nil, err
+	}
+	if err := s.CheckAndResetWindows(ctx, sub); err != nil {
+		return nil, err
+	}
+	sub, err = s.userSubRepo.GetByID(ctx, subscriptionID)
+	if err != nil || sub == nil || sub.UserID != userID {
+		return nil, ErrSubscriptionNotFound
+	}
+	now = time.Now()
+	if sub.EffectiveStatus(now) != SubscriptionStatusActive {
+		return nil, ErrSubscriptionNotActive
+	}
+	if !sub.HighestQuotaExhausted() {
+		return nil, ErrSubscriptionQuotaAvailable
+	}
+
+	chain, err := s.userSubRepo.ListByUserIDAndPlanID(ctx, sub.UserID, sub.PlanID)
+	if err != nil {
+		return nil, err
+	}
+	var replacement *UserSubscription
+	for i := range chain {
+		item := chain[i]
+		if item.ID == sub.ID ||
+			item.StartsAt.Before(sub.ExpiresAt) ||
+			!item.ExpiresAt.After(now) ||
+			item.Status != SubscriptionStatusPending ||
+			item.EffectiveStatus(now) != SubscriptionStatusPending {
+			continue
+		}
+		if replacement == nil || item.StartsAt.Before(replacement.StartsAt) {
+			candidate := item
+			replacement = &candidate
+		}
+	}
+
+	if err := s.userSubRepo.Delete(ctx, sub.ID); err != nil {
+		return nil, err
+	}
+	if delta := revokeChainDelta(sub, now); delta != 0 {
+		if err := s.shiftLaterChain(ctx, chain, sub, delta); err != nil {
+			return nil, err
+		}
+	}
+
+	result := &SelfRevokeSubscriptionResult{RevokedSubscriptionID: sub.ID}
+	if replacement != nil {
+		result.ReplacementSubscriptionID = &replacement.ID
+		count, err := s.rebindSubscriptionAPIKeys(ctx, sub.ID, replacement.ID, tx)
+		if err != nil {
+			return nil, err
+		}
+		result.ReboundAPIKeyCount = count
+	}
+	return result, nil
+}
+
+// rebindSubscriptionAPIKeys 只改绑显式 subscription 模式的有效 Key；auto、balance 和已删除 Key 不受影响。
+func (s *SubscriptionService) rebindSubscriptionAPIKeys(ctx context.Context, oldSubscriptionID, newSubscriptionID int64, tx *dbent.Tx) (int, error) {
+	if s.entClient == nil || oldSubscriptionID <= 0 || newSubscriptionID <= 0 {
+		return 0, nil
+	}
+	client := s.entClient
+	if tx != nil {
+		client = tx.Client()
+	}
+	return client.APIKey.Update().
+		Where(
+			apikey.BillingModeEQ(APIKeyBillingModeSubscription),
+			apikey.PreferredSubscriptionIDEQ(oldSubscriptionID),
+			apikey.DeletedAtIsNil(),
+		).
+		SetPreferredSubscriptionID(newSubscriptionID).
+		SetUpdatedAt(time.Now()).
+		Save(ctx)
 }
 
 // RestoreSubscription 恢复已撤销订阅。

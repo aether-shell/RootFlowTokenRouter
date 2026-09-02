@@ -484,7 +484,9 @@ func (s *OpenAIGatewayService) captureOpenAIDataSharingBestEffort(input *OpenAIR
 	})
 }
 
-// calculateOpenAIRecordUsageCost 保留旧测试和内部调用的兼容入口。
+// calculateOpenAIRecordUsageCost 保留旧 unit 测试的兼容入口。
+//
+//nolint:unused // 该入口只供带 unit tag 的历史计费测试调用。
 func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	ctx context.Context,
 	result *OpenAIForwardResult,

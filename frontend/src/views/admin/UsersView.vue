@@ -3,11 +3,11 @@
     <TablePageLayout>
       <!-- Single Row: Search, Filters, and Actions -->
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
           <!-- Left: Search + Active Filters -->
-          <div class="flex flex-1 flex-wrap items-center gap-3">
+          <div class="flex min-w-0 w-full flex-1 flex-wrap items-center gap-3 sm:w-auto">
             <!-- Search Box -->
-            <div class="relative w-full md:w-64">
+            <div class="relative min-w-0 flex-1 sm:flex-none sm:w-64">
               <Icon
                 name="search"
                 size="md"
@@ -20,6 +20,44 @@
                 class="input pl-10"
                 @input="handleSearch"
               />
+            </div>
+
+            <!-- 筛选设置下拉菜单 -->
+            <div class="relative shrink-0" ref="filterDropdownRef">
+              <button
+                type="button"
+                @click="showFilterDropdown = !showFilterDropdown"
+                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
+                :title="t('admin.users.filterSettings')"
+                :aria-label="t('admin.users.filterSettings')"
+              >
+                <Icon name="filter" size="sm" />
+              </button>
+              <div
+                v-if="showFilterDropdown"
+                class="absolute left-auto right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800 sm:left-0 sm:right-auto"
+                @click.stop
+              >
+                <button
+                  v-for="filter in builtInFilters"
+                  :key="filter.key"
+                  @click="toggleBuiltInFilter(filter.key)"
+                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                >
+                  <span>{{ filter.name }}</span>
+                  <Icon v-if="visibleFilters.has(filter.key)" name="check" size="sm" class="text-primary-500" :stroke-width="2" />
+                </button>
+                <div v-if="filterableAttributes.length > 0" class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
+                <button
+                  v-for="attr in filterableAttributes"
+                  :key="attr.id"
+                  @click="toggleAttributeFilter(attr)"
+                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                >
+                  <span>{{ attr.name }}</span>
+                  <Icon v-if="visibleFilters.has(`attr_${attr.id}`)" name="check" size="sm" class="text-primary-500" :stroke-width="2" />
+                </button>
+              </div>
             </div>
 
             <!-- Role Filter (visible when enabled) -->
@@ -124,83 +162,29 @@
           </div>
 
           <!-- Right: Actions and Settings -->
-          <div class="flex flex-wrap items-center justify-end gap-2">
+          <div class="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             <!-- Mobile: Secondary buttons (icon only) -->
             <div class="flex items-center gap-2 md:contents">
               <!-- Refresh Button -->
               <button
                 @click="loadUsers"
                 :disabled="loading"
-                class="btn btn-secondary px-2 md:px-3"
+                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
                 :title="t('common.refresh')"
               >
                 <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
               </button>
-              <!-- Filter Settings Dropdown -->
-              <div class="relative" ref="filterDropdownRef">
-                <button
-                  @click="showFilterDropdown = !showFilterDropdown"
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.users.filterSettings')"
-                >
-                  <Icon name="filter" size="sm" class="md:mr-1.5" />
-                  <span class="hidden md:inline">{{ t('admin.users.filterSettings') }}</span>
-                </button>
-                <!-- Dropdown menu -->
-                <div
-                  v-if="showFilterDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-                >
-                  <!-- Built-in filters -->
-                  <button
-                    v-for="filter in builtInFilters"
-                    :key="filter.key"
-                    @click="toggleBuiltInFilter(filter.key)"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                  >
-                    <span>{{ filter.name }}</span>
-                    <Icon
-                      v-if="visibleFilters.has(filter.key)"
-                      name="check"
-                      size="sm"
-                      class="text-primary-500"
-                      :stroke-width="2"
-                    />
-                  </button>
-                  <!-- Divider if custom attributes exist -->
-                  <div
-                    v-if="filterableAttributes.length > 0"
-                    class="my-1 border-t border-gray-100 dark:border-dark-700"
-                  ></div>
-                  <!-- Custom attribute filters -->
-                  <button
-                    v-for="attr in filterableAttributes"
-                    :key="attr.id"
-                    @click="toggleAttributeFilter(attr)"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-                  >
-                    <span>{{ attr.name }}</span>
-                    <Icon
-                      v-if="visibleFilters.has(`attr_${attr.id}`)"
-                      name="check"
-                      size="sm"
-                      class="text-primary-500"
-                      :stroke-width="2"
-                    />
-                  </button>
-                </div>
-              </div>
               <!-- Column Settings Dropdown -->
               <div class="relative" ref="columnDropdownRef">
                 <button
                   @click="showColumnDropdown = !showColumnDropdown"
-                  class="btn btn-secondary px-2 md:px-3"
+                  class="btn btn-secondary h-9 w-9 shrink-0 p-0"
                   :title="t('admin.users.columnSettings')"
                 >
-                  <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
                   </svg>
-                  <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+                  <span class="hidden">{{ t('admin.users.columnSettings') }}</span>
                 </button>
                 <!-- Dropdown menu -->
                 <div
@@ -234,17 +218,17 @@
               <!-- Attributes Config Button -->
               <button
                 @click="showAttributesModal = true"
-                class="btn btn-secondary px-2 md:px-3"
+                class="btn btn-secondary h-9 w-9 shrink-0 p-0"
                 :title="t('admin.users.attributes.configButton')"
               >
-                <Icon name="cog" size="sm" class="md:mr-1.5" />
-                <span class="hidden md:inline">{{ t('admin.users.attributes.configButton') }}</span>
+                <Icon name="cog" size="sm" />
+                <span class="hidden">{{ t('admin.users.attributes.configButton') }}</span>
               </button>
             </div>
 
             <button
               v-if="selectedCount > 0"
-              class="btn btn-secondary flex-1 md:flex-initial"
+              class="btn btn-secondary h-9 flex-none whitespace-nowrap px-3 md:flex-initial"
               data-test="bulk-edit-limits"
               @click="showBulkEditModal = true"
             >
@@ -253,7 +237,7 @@
             </button>
 
             <!-- Create User Button (full width on mobile, auto width on desktop) -->
-            <button @click="showCreateModal = true" class="btn btn-primary flex-1 md:flex-initial">
+            <button @click="showCreateModal = true" class="btn btn-primary h-9 flex-none whitespace-nowrap px-3 md:flex-initial">
               <Icon name="plus" size="md" class="mr-2" />
               {{ t('admin.users.createUser') }}
             </button>
@@ -279,15 +263,14 @@
           @sort="handleSort"
           @update:selected-keys="handleSelectedKeysUpdate"
         >
-          <template #cell-email="{ value }">
+          <template #cell-email="{ value, row }">
             <div class="flex items-center gap-2">
-              <div
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30"
-              >
-                <span class="text-sm font-medium text-primary-700 dark:text-primary-300">
-                  {{ value.charAt(0).toUpperCase() }}
-                </span>
-              </div>
+              <UserAvatar
+                :avatar-url="row.avatar_url || ''"
+                :user-id="row.id"
+                :alt="value"
+                size-class="h-8 w-8"
+              />
               <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
             </div>
           </template>
@@ -782,6 +765,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import UserAvatar from '@/components/common/UserAvatar.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import Select from '@/components/common/Select.vue'
 import { buildApiKeyGroupFilterOptions } from './apiKeyGroupFilterOptions'

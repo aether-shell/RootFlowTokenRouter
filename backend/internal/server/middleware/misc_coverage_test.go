@@ -28,14 +28,72 @@ func TestClientRequestID_GeneratesWhenMissing(t *testing.T) {
 		id, ok := v.(string)
 		require.True(t, ok)
 		require.NotEmpty(t, id)
+		require.Empty(t, c.Request.Header.Get(clientRequestIDHeader))
+		require.Empty(t, c.Request.Header.Get(internalRequestIDHeader))
 		c.Status(http.StatusOK)
 	})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	req.Header.Set(internalRequestIDHeader, "spoofed-internal-request-id")
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotEmpty(t, w.Header().Get("X-Client-Request-Id"))
+	require.NotEqual(t, "spoofed-internal-request-id", w.Header().Get(internalRequestIDHeader))
+}
+
+func TestClientRequestIDSeparatesInternalAndParentIDs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var internalID string
+	r := gin.New()
+	r.Use(ClientRequestID())
+	r.POST("/t", func(c *gin.Context) {
+		id, ok := c.Request.Context().Value(ctxkey.ClientRequestID).(string)
+		require.True(t, ok)
+		require.NotEqual(t, "upstream-request-123", id)
+		require.Len(t, id, 36)
+		internalID = id
+		parentID, ok := c.Request.Context().Value(ctxkey.ParentClientRequestID).(string)
+		require.True(t, ok)
+		require.Equal(t, "upstream-request-123", parentID)
+		require.Equal(t, parentID, c.Request.Header.Get(clientRequestIDHeader))
+		require.Equal(t, parentID, c.Writer.Header().Get(clientRequestIDHeader))
+		require.Empty(t, c.Request.Header.Get(internalRequestIDHeader))
+		require.Equal(t, id, c.Writer.Header().Get(internalRequestIDHeader))
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/t", nil)
+	req.Header.Set(clientRequestIDHeader, "upstream-request-123")
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "upstream-request-123", w.Header().Get(clientRequestIDHeader))
+	require.Equal(t, internalID, w.Header().Get(internalRequestIDHeader))
+}
+
+func TestClientRequestIDRejectsUnsafeIncomingHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := gin.New()
+	r.Use(ClientRequestID())
+	r.GET("/t", func(c *gin.Context) {
+		id, ok := c.Request.Context().Value(ctxkey.ClientRequestID).(string)
+		require.True(t, ok)
+		require.Len(t, id, 36)
+		_, parentOK := c.Request.Context().Value(ctxkey.ParentClientRequestID).(string)
+		require.False(t, parentOK)
+		require.Equal(t, "request id with spaces", c.Request.Header.Get(clientRequestIDHeader))
+		require.Equal(t, id, c.Writer.Header().Get(clientRequestIDHeader))
+		c.Status(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	req.Header.Set(clientRequestIDHeader, "request id with spaces")
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
 }
 
 func TestClientRequestID_PreservesExisting(t *testing.T) {

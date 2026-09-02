@@ -454,7 +454,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Chart as ChartJS,
@@ -476,6 +476,7 @@ import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { adminAPI } from '@/api/admin'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import type { Account, AccountUsageStatsResponse } from '@/types'
 
 ChartJS.register(
@@ -488,6 +489,8 @@ ChartJS.register(
   Legend,
   Filler
 )
+
+onBeforeUnmount(hideExternalTooltip)
 
 const { t } = useI18n()
 const {
@@ -581,6 +584,8 @@ const lineChartOptions = computed(() => ({
       }
     },
     tooltip: {
+      enabled: false,
+      external: externalTooltipHandler,
       callbacks: {
         label: (context: any) => {
           const label = context.dataset.label || ''

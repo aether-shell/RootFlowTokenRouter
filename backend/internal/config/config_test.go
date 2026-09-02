@@ -140,6 +140,31 @@ func TestLoadAdvancedSchedulerStickyEscapeZeroBoundaries(t *testing.T) {
 	}
 }
 
+func TestLoadAdvancedSchedulerEWMAAlphaFromYAMLAndEnvironment(t *testing.T) {
+	t.Run("YAML", func(t *testing.T) {
+		resetViperWithJWTSecret(t)
+		configFile := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(configFile, []byte("gateway:\n  advanced_scheduler:\n    ewma_error_rate_alpha: 0.35\n    ewma_ttft_alpha: 1\n"), 0o600))
+		t.Setenv("CONFIG_FILE", configFile)
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		require.Equal(t, 0.35, cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha)
+		require.Equal(t, 1.0, cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha)
+	})
+
+	t.Run("环境变量", func(t *testing.T) {
+		resetViperWithJWTSecret(t)
+		t.Setenv("GATEWAY_ADVANCED_SCHEDULER_EWMA_ERROR_RATE_ALPHA", "0.05")
+		t.Setenv("GATEWAY_ADVANCED_SCHEDULER_EWMA_TTFT_ALPHA", "0.9")
+
+		cfg, err := Load()
+		require.NoError(t, err)
+		require.Equal(t, 0.05, cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha)
+		require.Equal(t, 0.9, cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha)
+	})
+}
+
 func TestLoadRedisUsernameFromEnvironment(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("REDIS_USERNAME", "app-user")
@@ -533,6 +558,12 @@ func TestLoadDefaultOpenAIWSConfig(t *testing.T) {
 	}
 	if cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate != 0.5 {
 		t.Fatalf("Gateway.AdvancedScheduler.StickyEscapeErrorRate = %v, want 0.5", cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate)
+	}
+	if cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha != 0.2 {
+		t.Fatalf("Gateway.AdvancedScheduler.EWMAErrorRateAlpha = %v, want 0.2", cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha)
+	}
+	if cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha != 0.2 {
+		t.Fatalf("Gateway.AdvancedScheduler.EWMATTFTAlpha = %v, want 0.2", cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha)
 	}
 	if !cfg.Gateway.OpenAIWS.SessionHashReadOldFallback {
 		t.Fatalf("Gateway.OpenAIWS.SessionHashReadOldFallback = false, want true")
@@ -2363,6 +2394,26 @@ func TestValidateConfig_OpenAIWSRules(t *testing.T) {
 			name:    "lb_top_k 必须为正数",
 			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.LBTopK = 0 },
 			wantErr: "gateway.advanced_scheduler.lb_top_k",
+		},
+		{
+			name:    "error rate EWMA alpha 必须大于 0",
+			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha = 0 },
+			wantErr: "gateway.advanced_scheduler.ewma_error_rate_alpha",
+		},
+		{
+			name:    "TTFT EWMA alpha 不能大于 1",
+			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.EWMATTFTAlpha = 1.1 },
+			wantErr: "gateway.advanced_scheduler.ewma_ttft_alpha",
+		},
+		{
+			name:    "error rate EWMA alpha 不能为 NaN",
+			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.EWMAErrorRateAlpha = math.NaN() },
+			wantErr: "gateway.advanced_scheduler.ewma_error_rate_alpha",
+		},
+		{
+			name:    "TTFT EWMA alpha 不能为 Inf",
+			mutate:  func(c *Config) { c.Gateway.AdvancedScheduler.EWMATTFTAlpha = math.Inf(1) },
+			wantErr: "gateway.advanced_scheduler.ewma_ttft_alpha",
 		},
 		{
 			name:    "sticky_session_ttl_seconds 必须为正数",

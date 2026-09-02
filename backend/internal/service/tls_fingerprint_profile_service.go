@@ -69,6 +69,16 @@ func NewTLSFingerprintProfileService(
 	return svc
 }
 
+// Stop 停止缓存订阅，确保 Redis 关闭前订阅协程已经退出。
+func (s *TLSFingerprintProfileService) Stop() {
+	if s == nil || s.cache == nil {
+		return
+	}
+	if stopper, ok := s.cache.(interface{ StopSubscription() }); ok {
+		stopper.StopSubscription()
+	}
+}
+
 // --- CRUD ---
 
 // List 获取所有模板

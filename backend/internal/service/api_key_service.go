@@ -519,15 +519,21 @@ func (s *APIKeyService) compileAPIKeyIPRules(apiKey *APIKey) {
 
 // GenerateKey 生成随机API Key
 func (s *APIKeyService) GenerateKey() (string, error) {
+	prefix := s.cfg.Default.APIKeyPrefix
+	if prefix == "" {
+		prefix = "sk-"
+	}
+	return GenerateAPIKeyString(prefix)
+}
+
+// GenerateAPIKeyString 生成带前缀的随机 API Key 字符串，供 Key 服务与创作台托管 Key 共用。
+func GenerateAPIKeyString(prefix string) (string, error) {
 	// 生成32字节随机数据
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", fmt.Errorf("generate random bytes: %w", err)
 	}
-
-	// 转换为十六进制字符串并添加前缀
-	prefix := s.cfg.Default.APIKeyPrefix
-	if prefix == "" {
+	if strings.TrimSpace(prefix) == "" {
 		prefix = "sk-"
 	}
 
@@ -1053,6 +1059,10 @@ func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) 
 	if err != nil {
 		return nil, fmt.Errorf("get api key: %w", err)
 	}
+	if apiKey != nil && apiKey.ManagedBy != nil {
+		// 服务端托管的隐藏 Key（如创作台执行 Key）不暴露存在性。
+		return nil, fmt.Errorf("get api key: %w", ErrAPIKeyNotFound)
+	}
 	s.compileAPIKeyIPRules(apiKey)
 	if apiKey != nil {
 		apiKey.CurrentConcurrency = s.currentConcurrencyForAPIKey(ctx, apiKey.ID)
@@ -1310,6 +1320,10 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	apiKey, err := s.apiKeyRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("get api key: %w", err)
+	}
+	if apiKey != nil && apiKey.ManagedBy != nil {
+		// 服务端托管的隐藏 Key（如创作台执行 Key）禁止一切用户侧操作。
+		return nil, fmt.Errorf("get api key: %w", ErrAPIKeyNotFound)
 	}
 
 	// 验证所有权
@@ -1681,13 +1695,17 @@ func (s *APIKeyService) validateCurrentDataSharingConsent(ctx context.Context, g
 
 // Delete 删除API Key
 func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) error {
-	key, ownerID, err := s.apiKeyRepo.GetKeyAndOwnerID(ctx, id)
+	existing, err := s.apiKeyRepo.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("get api key: %w", err)
 	}
+	if existing != nil && existing.ManagedBy != nil {
+		// 服务端托管的隐藏 Key（如创作台执行 Key）禁止删除，且不暴露存在性。
+		return fmt.Errorf("get api key: %w", ErrAPIKeyNotFound)
+	}
 
 	// 验证当前用户是否为该 API Key 的所有者
-	if ownerID != userID {
+	if existing == nil || existing.UserID != userID {
 		return ErrInsufficientPerms
 	}
 
@@ -1700,7 +1718,7 @@ func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) erro
 	if s.cache != nil {
 		_ = s.cache.DeleteCreateAttemptCount(ctx, userID)
 	}
-	s.InvalidateAuthCacheByKey(ctx, key)
+	s.InvalidateAuthCacheByKey(ctx, existing.Key)
 	s.lastUsedTouchL1.Delete(id)
 
 	return nil

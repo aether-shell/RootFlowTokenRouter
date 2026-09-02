@@ -76,6 +76,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		idempotencyCleanupSvc,
 		&service.BatchImageCleanupService{},
 		nil, // batchImageWorker
+		nil, // creativeWorker
 		pricingSvc,
 		emailQueueSvc,
 		billingCacheSvc,
@@ -96,6 +97,8 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil, // paymentOrderExpiry
 		nil, // quotaFlusher
 		nil, // tlsFingerprintCollector
+		nil, // tlsFingerprintProfile
+		nil, // tlsFingerprintRouter
 		nil, // ollamaCloudUsage
 		nil, // auditLog
 		nil, // 国产供应商用量监控

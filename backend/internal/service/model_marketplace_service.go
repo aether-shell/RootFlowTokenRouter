@@ -52,6 +52,10 @@ type ModelMarketplaceModel struct {
 	ID          string
 	DisplayName string
 	Pricing     ModelDisplayPricing
+	// InputModalities/OutputModalities 来自定价文件的模型能力元数据；
+	// 查询不到时为 nil，前端能力标签降级为本地规则。
+	InputModalities  []string
+	OutputModalities []string
 }
 
 type ModelMarketplaceService struct {
@@ -405,15 +409,30 @@ func (s *ModelMarketplaceService) buildPublicModelsForGroup(ctx context.Context,
 		if s.billingService != nil && !modelDef.PricingAmbiguous {
 			pricing = s.getRequestableModelDisplayPricing(ctx, group, modelDef, imageConfig)
 		}
+		inputModalities, outputModalities := s.marketplaceModelModalities(modelDef)
 
 		models = append(models, ModelMarketplaceModel{
-			ID:          modelDef.ID,
-			DisplayName: modelDef.DisplayName,
-			Pricing:     pricing,
+			ID:               modelDef.ID,
+			DisplayName:      modelDef.DisplayName,
+			Pricing:          pricing,
+			InputModalities:  inputModalities,
+			OutputModalities: outputModalities,
 		})
 	}
 
 	return models
+}
+
+// marketplaceModelModalities 用共享定价服务解析模型能力元数据；解析不到时返回 nil。
+func (s *ModelMarketplaceService) marketplaceModelModalities(modelDef marketplaceModelDef) ([]string, []string) {
+	if s.billingService == nil || s.billingService.pricingService == nil {
+		return nil, nil
+	}
+	pricingModel := strings.TrimSpace(modelDef.PricingModel)
+	if pricingModel == "" {
+		pricingModel = modelDef.ID
+	}
+	return s.billingService.pricingService.GetModelModalities(pricingModel)
 }
 
 // getRequestableModelDisplayPricing 使用共享解析器确定的定价模型，避免展示层再次推导映射链。

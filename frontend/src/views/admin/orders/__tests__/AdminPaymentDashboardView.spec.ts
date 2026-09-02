@@ -50,7 +50,7 @@ function mountView() {
   return mount(AdminPaymentDashboardView, {
     global: {
       stubs: {
-        AppLayout: { template: '<div><slot /></div>' },
+        AppLayout: { template: '<div><slot name="page-heading-actions" /><slot /></div>' },
         LoadingSpinner: true,
         Icon: true,
         OrderStatsCards: true,

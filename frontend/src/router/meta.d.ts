@@ -74,6 +74,12 @@ declare module 'vue-router' {
     requiresUsageRanking?: boolean
 
     /**
+     * 是否要求创作台功能开关已启用
+     * @default false
+     */
+    requiresCreative?: boolean
+
+    /**
      * 是否要求邀请返利功能开关已启用
      * @default false
      */
@@ -88,5 +94,15 @@ declare module 'vue-router' {
      * i18n key for the page description
      */
     descriptionKey?: string
+
+    /**
+     * 页面自身已经提供标题区时，隐藏 AppLayout 的通用标题。
+     */
+    hidePageHeading?: boolean
+
+    /**
+     * 全屏工作区页面（如创作台）隐藏侧栏，内容区不再预留侧栏宽度。
+     */
+    hideSidebar?: boolean
   }
 }

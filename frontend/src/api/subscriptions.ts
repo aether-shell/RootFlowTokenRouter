@@ -10,6 +10,13 @@ import type {
   SubscriptionProgressInfo
 } from '@/types'
 
+// 撤销订阅接口返回被撤销记录、接续记录和改绑 Key 数量。
+export interface RevokeSubscriptionResponse {
+  revoked_subscription_id: number
+  replacement_subscription_id: number | null
+  rebound_api_key_count: number
+}
+
 /**
  * Subscription summary for user dashboard
  */
@@ -75,10 +82,21 @@ export async function getSubscriptionProgress(
   return response.data
 }
 
+/** 撤销当前用户额度耗尽的订阅，并在有接续包时改绑显式订阅 Key。 */
+export async function revokeExhaustedSubscription(
+  subscriptionId: number
+): Promise<RevokeSubscriptionResponse> {
+  const response = await apiClient.post<RevokeSubscriptionResponse>(
+    `/subscriptions/${subscriptionId}/revoke`
+  )
+  return response.data
+}
+
 export default {
   getMySubscriptions,
   getActiveSubscriptions,
   getSubscriptionsProgress,
   getSubscriptionSummary,
-  getSubscriptionProgress
+  getSubscriptionProgress,
+  revokeExhaustedSubscription
 }

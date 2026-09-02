@@ -11,6 +11,7 @@ type opsRepoMock struct {
 	BatchInsertErrorLogsFn        func(ctx context.Context, inputs []*OpsInsertErrorLogInput) (int64, error)
 	BatchInsertSystemLogsFn       func(ctx context.Context, inputs []*OpsInsertSystemLogInput) (int64, error)
 	ListSystemLogsFn              func(ctx context.Context, filter *OpsSystemLogFilter) (*OpsSystemLogList, error)
+	ListRequestTimingsFn          func(ctx context.Context, clientRequestIDs []string) (map[string]*OpsRequestTiming, error)
 	DeleteSystemLogsFn            func(ctx context.Context, filter *OpsSystemLogCleanupFilter) (int64, error)
 	InsertSystemLogCleanupAuditFn func(ctx context.Context, input *OpsSystemLogCleanupAudit) error
 }
@@ -53,6 +54,13 @@ func (m *opsRepoMock) ListSystemLogs(ctx context.Context, filter *OpsSystemLogFi
 		return m.ListSystemLogsFn(ctx, filter)
 	}
 	return &OpsSystemLogList{Logs: []*OpsSystemLog{}, Total: 0, Page: 1, PageSize: 50}, nil
+}
+
+func (m *opsRepoMock) ListRequestTimings(ctx context.Context, clientRequestIDs []string) (map[string]*OpsRequestTiming, error) {
+	if m.ListRequestTimingsFn != nil {
+		return m.ListRequestTimingsFn(ctx, clientRequestIDs)
+	}
+	return map[string]*OpsRequestTiming{}, nil
 }
 
 func (m *opsRepoMock) DeleteSystemLogs(ctx context.Context, filter *OpsSystemLogCleanupFilter) (int64, error) {

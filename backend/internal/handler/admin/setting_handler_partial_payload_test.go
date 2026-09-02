@@ -3,11 +3,15 @@
 package admin
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -61,6 +65,176 @@ func TestUpdateSettingsSMTPFromAliasIsWritable(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	require.Equal(t, "new@example.com", repo.values[service.SettingKeySMTPFrom])
+}
+
+// 创作台开关与 team/data_sharing 同款部分更新语义：显式发送时写入，省略时保留存储值。
+func TestUpdateSettingsCreativeEnabledPartialSemantics(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
+		service.SettingKeyCreativeEnabled: "true",
+	})
+
+	rec := doUpdateSettings(t, h, map[string]any{"creative_enabled": false}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "false", repo.values[service.SettingKeyCreativeEnabled])
+
+	h2, repo2 := newStepUpSwitchTestHandler(t, map[string]string{
+		service.SettingKeyCreativeEnabled: "false",
+	})
+	rec = doUpdateSettings(t, h2, map[string]any{"risk_control_enabled": true}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "false", repo2.values[service.SettingKeyCreativeEnabled],
+		"未发送 creative_enabled 时必须保留存储值")
+}
+
+func TestUpdateSettingsCreativeModelSettingsPartialSemantics(t *testing.T) {
+	stored := `[{"group_id":12,"model":"gpt-image-2","operations":["generate"]}]`
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
+		service.SettingKeyCreativeModelSettings: stored,
+	})
+
+	// 省略字段时保持现有白名单，不因整份设置表单的其它字段而清空。
+	rec := doUpdateSettings(t, h, map[string]any{"risk_control_enabled": true}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, stored, repo.values[service.SettingKeyCreativeModelSettings])
+
+	// 显式空数组表示管理员主动关闭全部生图模型。
+	rec = doUpdateSettings(t, h, map[string]any{"creative_model_settings": []any{}}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, "[]", repo.values[service.SettingKeyCreativeModelSettings])
+
+	// 非法能力在保存前拒绝，原值不被覆盖。
+	rec = doUpdateSettings(t, h, map[string]any{
+		"creative_model_settings": []map[string]any{{
+			"group_id":   12,
+			"model":      "gpt-image-2",
+			"operations": []string{"upscale"},
+		}},
+	}, nil)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.JSONEq(t, "[]", repo.values[service.SettingKeyCreativeModelSettings])
+}
+
+// TestUpdateSettingsCreativeWorkerCountPartialSemantics 验证 worker 数量可部分更新且保留旧值。
+func TestUpdateSettingsCreativeWorkerCountPartialSemantics(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
+		service.SettingKeyCreativeWorkerCount: "4",
+	})
+
+	rec := doUpdateSettings(t, h, map[string]any{"creative_worker_count": 7}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "7", repo.values[service.SettingKeyCreativeWorkerCount])
+
+	rec = doUpdateSettings(t, h, map[string]any{"risk_control_enabled": true}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "7", repo.values[service.SettingKeyCreativeWorkerCount])
+}
+
+// TestUpdateSettingsRejectsInvalidCreativeWorkerCount 验证 worker 数量必须为正整数。
+func TestUpdateSettingsRejectsInvalidCreativeWorkerCount(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
+		service.SettingKeyCreativeWorkerCount: "4",
+	})
+
+	for _, value := range []int{0, -1} {
+		rec := doUpdateSettings(t, h, map[string]any{"creative_worker_count": value}, nil)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+		require.Equal(t, "4", repo.values[service.SettingKeyCreativeWorkerCount])
+	}
+}
+
+// TestUpdateSettingsNormalizesGeminiInpaintBeforeSave 校验管理员保存会清理旧 Gemini inpaint。
+func TestUpdateSettingsNormalizesGeminiInpaintBeforeSave(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
+	h.SetCreativeModelReader(&creativeModelCandidateReaderStub{sanitizeGemini: true})
+
+	rec := doUpdateSettings(t, h, map[string]any{
+		"creative_model_settings": []map[string]any{{
+			"group_id":   12,
+			"model":      "gemini-3.1-flash-image",
+			"operations": []string{"generate", "inpaint"},
+		}},
+	}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, `[{"group_id":12,"model":"gemini-3.1-flash-image","operations":["generate"]}]`, repo.values[service.SettingKeyCreativeModelSettings])
+}
+
+type creativeModelCandidateReaderStub struct {
+	candidates     []service.CreativeModelCandidate
+	sanitizeGemini bool
+}
+
+func (s *creativeModelCandidateReaderStub) ListCreativeModelCandidates(context.Context) ([]service.CreativeModelCandidate, error) {
+	return s.candidates, nil
+}
+
+func (s *creativeModelCandidateReaderStub) NormalizeCreativeModelSettingsForSave(_ context.Context, input []service.CreativeModelSetting) ([]service.CreativeModelSetting, error) {
+	if !s.sanitizeGemini {
+		return input, nil
+	}
+	normalized, err := service.NormalizeCreativeModelSettings(input)
+	if err != nil {
+		return nil, err
+	}
+	for i := range normalized {
+		if normalized[i].GroupID != 12 {
+			continue
+		}
+		filtered := normalized[i].Operations[:0]
+		for _, operation := range normalized[i].Operations {
+			if operation != service.CreativeOperationInpaint {
+				filtered = append(filtered, operation)
+			}
+		}
+		normalized[i].Operations = filtered
+	}
+	return normalized, nil
+}
+
+func TestListCreativeModelCandidates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewSettingHandler(service.NewSettingService(&settingHandlerRepoStub{values: map[string]string{}}, &config.Config{}), nil, nil, nil, nil, nil, nil)
+	h.SetCreativeModelReader(&creativeModelCandidateReaderStub{candidates: []service.CreativeModelCandidate{{
+		GroupID:    12,
+		GroupName:  "Exclusive Images",
+		Platform:   "grok",
+		Model:      "grok-imagine",
+		Operations: []string{service.CreativeOperationGenerate},
+	}}})
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/settings/creative-model-candidates", nil)
+	h.ListCreativeModelCandidates(c)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), "Exclusive Images")
+	require.Contains(t, rec.Body.String(), "grok-imagine")
+}
+
+// TestGetCreativeWorkerStatus 验证创作台 worker 状态接口返回回调快照，未注入回调时返回未运行零值。
+func TestGetCreativeWorkerStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := service.NewSettingService(&settingHandlerRepoStub{values: map[string]string{}}, &config.Config{})
+	h := NewSettingHandler(svc, nil, nil, nil, nil, nil, nil)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/settings/creative-worker-status", nil)
+	h.GetCreativeWorkerStatus(c)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"running":false`)
+	require.Contains(t, rec.Body.String(), `"worker_count":0`)
+	require.Contains(t, rec.Body.String(), `"busy_workers":0`)
+
+	svc.SetCreativeWorkerStatusCallback(func() service.CreativeWorkerStatus {
+		return service.CreativeWorkerStatus{Running: true, WorkerCount: 128, BusyWorkers: 60}
+	})
+	rec = httptest.NewRecorder()
+	c, _ = gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/settings/creative-worker-status", nil)
+	h.GetCreativeWorkerStatus(c)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"running":true`)
+	require.Contains(t, rec.Body.String(), `"worker_count":128`)
+	require.Contains(t, rec.Body.String(), `"busy_workers":60`)
 }
 
 func TestUpdateSettingsGrokDefaultBaseURLModeIsWritable(t *testing.T) {

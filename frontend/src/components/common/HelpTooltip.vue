@@ -6,10 +6,13 @@ const props = withDefaults(defineProps<{
   trigger?: 'hover' | 'click' | 'both'
   placement?: 'top' | 'bottom'
   widthClass?: string
+  // 是否显示右上角关闭按钮；纯说明性的短提示可以关闭，靠点击外部/Esc 关闭。
+  closable?: boolean
 }>(), {
   trigger: 'hover',
   placement: 'top',
   widthClass: 'w-64',
+  closable: true,
 })
 
 const show = ref(false)
@@ -175,7 +178,7 @@ onBeforeUnmount(() => {
         v-show="show"
         role="tooltip"
         :class="[
-          'fixed z-[99999] max-h-[calc(100vh-1.5rem)] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 overflow-y-auto rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-white shadow-xl ring-1 ring-white/10 dark:bg-gray-800',
+          'fixed z-[99999] max-w-[calc(100vw-1.5rem)] -translate-x-1/2 rounded-lg bg-gray-900 text-white shadow-xl ring-1 ring-white/10 dark:bg-gray-800',
           resolvedPlacement === 'top' ? '-translate-y-full' : 'translate-y-0',
           props.widthClass,
         ]"
@@ -186,18 +189,21 @@ onBeforeUnmount(() => {
           left: tooltipStyle.left,
         }"
       >
-        <button
-          v-if="clickEnabled()"
-          type="button"
-          class="absolute right-1.5 top-1.5 rounded p-1 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
-          aria-label="Close"
-          @click.stop="closeTooltip"
-        >
-          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        <slot>{{ content }}</slot>
+        <!-- 滚动只发生在内容层，避免小箭头伸出边框被 overflow 裁剪或挤出滚动条。 -->
+        <div class="relative max-h-[calc(100vh-1.5rem)] overflow-y-auto p-3 text-xs leading-relaxed">
+          <button
+            v-if="clickEnabled() && closable"
+            type="button"
+            class="absolute right-1.5 top-1.5 rounded p-1 text-gray-300 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Close"
+            @click.stop="closeTooltip"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <slot>{{ content }}</slot>
+        </div>
         <div
           class="absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-gray-900 dark:bg-gray-800"
           :class="resolvedPlacement === 'top' ? '-bottom-1' : '-top-1'"

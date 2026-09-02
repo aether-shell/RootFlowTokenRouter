@@ -86,7 +86,7 @@ func (r *usageLogRepository) GetAPIKeyUsageTrend(ctx context.Context, startTime,
 	return results, nil
 }
 
-// GetUserUsageTrend returns usage trend data grouped by user and date
+// GetUserUsageTrend 返回按付款主体和日期聚合的最活跃用户趋势。
 func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int) (results []UserUsageTrendPoint, err error) {
 	if aggregated, ok, aggregateErr := r.getUserUsageTrendFromAnalytics(ctx, startTime, endTime, granularity, limit); aggregateErr == nil && ok {
 		return aggregated, nil
@@ -97,16 +97,17 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 
 	query := fmt.Sprintf(`
 		WITH top_users AS (
-			SELECT user_id
+			SELECT COALESCE(billing_user_id, user_id) AS user_id
 			FROM usage_logs
 			WHERE created_at >= $1 AND created_at < $2
-			GROUP BY user_id
+			-- 团队成员使用团队 Key 时，Top 用户应按付款主体合并用量。
+			GROUP BY COALESCE(billing_user_id, user_id)
 			ORDER BY SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) DESC
 			LIMIT $3
 		)
 		SELECT
 			TO_CHAR(u.created_at, '%s') as date,
-			u.user_id,
+			COALESCE(u.billing_user_id, u.user_id) AS user_id,
 			COALESCE(us.email, '') as email,
 			COALESCE(us.username, '') as username,
 			COUNT(*) as requests,
@@ -114,10 +115,10 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 			COALESCE(SUM(u.total_cost), 0) as cost,
 			COALESCE(SUM(u.actual_cost), 0) as actual_cost
 		FROM usage_logs u
-		LEFT JOIN users us ON u.user_id = us.id
-		WHERE u.user_id IN (SELECT user_id FROM top_users)
+		LEFT JOIN users us ON COALESCE(u.billing_user_id, u.user_id) = us.id
+		WHERE COALESCE(u.billing_user_id, u.user_id) IN (SELECT user_id FROM top_users)
 		  AND u.created_at >= $4 AND u.created_at < $5
-		GROUP BY date, u.user_id, us.email, us.username
+		GROUP BY date, COALESCE(u.billing_user_id, u.user_id), us.email, us.username
 		ORDER BY date ASC, tokens DESC
 	`, dateFormat)
 
@@ -149,7 +150,7 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 	return results, nil
 }
 
-// GetUserSpendingRanking returns user spending ranking aggregated within the time range.
+// GetUserSpendingRanking 返回按付款主体聚合的消费排行；团队成员用团队 Key 的用量归到 Owner。
 func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (result *UserSpendingRankingResponse, err error) {
 	if limit <= 0 {
 		limit = 12
@@ -163,16 +164,17 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 	query := `
 		WITH user_spend AS (
 			SELECT
-				u.user_id,
+				COALESCE(u.billing_user_id, u.user_id) as user_id,
 				COALESCE(us.email, '') as email,
 				COALESCE(us.username, '') as username,
 				COALESCE(SUM(u.actual_cost), 0) as actual_cost,
 				COUNT(*) as requests,
 				COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) as tokens
 			FROM usage_logs u
-			LEFT JOIN users us ON u.user_id = us.id
+			LEFT JOIN users us ON COALESCE(u.billing_user_id, u.user_id) = us.id
 			WHERE u.created_at >= $1 AND u.created_at < $2
-			GROUP BY u.user_id, us.email, us.username
+			-- 排行按付款主体归属，团队成员使用团队 Key 时计入团队 Owner。
+			GROUP BY COALESCE(u.billing_user_id, u.user_id), us.email, us.username
 		),
 		ranked AS (
 			SELECT
@@ -642,7 +644,7 @@ func (r *usageLogRepository) getGroupStatsWithFilters(ctx context.Context, start
 	return results, nil
 }
 
-// GetUserBreakdownStats returns per-user usage breakdown within a specific dimension.
+// GetUserBreakdownStats 返回按付款主体聚合的管理员用量排行明细。
 func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTime, endTime time.Time, dim usagestats.UserBreakdownDimension, limit int) (results []usagestats.UserBreakdownItem, err error) {
 	if aggregated, ok, aggregateErr := r.getUserBreakdownStatsFromAnalytics(ctx, startTime, endTime, dim, limit); aggregateErr == nil && ok {
 		return aggregated, nil
@@ -651,7 +653,7 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 	}
 	query := `
 		SELECT
-			COALESCE(ul.user_id, 0) as user_id,
+			COALESCE(ul.billing_user_id, ul.user_id, 0) as user_id,
 			COALESCE(u.email, '') as email,
 			COUNT(*) as requests,
 			COALESCE(SUM(ul.input_tokens), 0) as input_tokens,
@@ -662,7 +664,7 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 			COALESCE(SUM(ul.actual_cost), 0) as actual_cost,
 			COALESCE(SUM(COALESCE(ul.account_stats_cost, ul.total_cost) * COALESCE(ul.account_rate_multiplier, 1)), 0) as account_cost
 		FROM usage_logs ul
-		LEFT JOIN users u ON u.id = ul.user_id
+		LEFT JOIN users u ON u.id = COALESCE(ul.billing_user_id, ul.user_id)
 		WHERE ul.created_at >= $1 AND ul.created_at < $2
 	`
 	args := []any{startTime, endTime}
@@ -712,7 +714,8 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 	case "total_tokens", "input_tokens", "output_tokens", "cache_tokens", "requests", "cost", "actual_cost":
 		orderBy = dim.SortBy
 	}
-	query += " GROUP BY ul.user_id, u.email ORDER BY " + orderBy + " DESC"
+	// 排行按付款主体归属，团队成员使用团队 Key 时计入团队 Owner。
+	query += " GROUP BY COALESCE(ul.billing_user_id, ul.user_id, 0), u.email ORDER BY " + orderBy + " DESC"
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}

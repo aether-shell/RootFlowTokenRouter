@@ -46,7 +46,7 @@ vi.mock('vue-i18n', async (importOriginal) => {
       t: (key: string, params?: Record<string, string>) => {
         if (key === 'profile.avatar.title') return 'Profile avatar'
         if (key === 'profile.avatar.description') return 'Upload and manage your avatar'
-        if (key === 'profile.avatar.uploadAction') return 'Upload image'
+        if (key === 'profile.avatar.uploadAction') return 'Upload'
         if (key === 'profile.avatar.uploadHint') return 'Uploaded images are compressed to 20KB when possible'
         if (key === 'profile.avatar.saveSuccess') return 'Avatar updated'
         if (key === 'profile.avatar.deleteSuccess') return 'Avatar removed'
@@ -55,7 +55,6 @@ vi.mock('vue-i18n', async (importOriginal) => {
         if (key === 'profile.avatar.compressTooLarge') return 'Unable to compress this image below 20KB'
         if (key === 'profile.avatar.compressFailed') return 'Failed to compress the selected image'
         if (key === 'profile.avatar.readFailed') return 'Failed to read the selected image'
-        if (key === 'common.save') return 'Save'
         if (key === 'common.delete') return 'Delete'
         if (key === 'profile.avatar.compressedReady') return `Compressed from ${params?.from} to ${params?.to}`
         if (key === 'profile.avatar.sizeReady') return `Ready: ${params?.size}`
@@ -86,6 +85,12 @@ function createUser(overrides: Partial<User> = {}): User {
 }
 
 async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
   await Promise.resolve()
   await Promise.resolve()
   await Promise.resolve()
@@ -175,7 +180,7 @@ describe('ProfileAvatarCard', () => {
     expect(wrapper.find('[data-testid="profile-avatar-input"]').exists()).toBe(false)
   })
 
-  it('compresses an uploaded image that exceeds the 20KB target before saving', async () => {
+  it('compresses an uploaded image that exceeds the 20KB target before uploading', async () => {
     installAvatarCompressionMocks()
     const updatedUser = createUser({ avatar_url: 'data:image/webp;base64,Y29tcHJlc3NlZC1hdmF0YXI=' })
     updateProfileMock.mockResolvedValue(updatedUser)
@@ -200,16 +205,19 @@ describe('ProfileAvatarCard', () => {
 
     await fileInput.trigger('change')
     await flushAsyncWork()
-    await wrapper.get('[data-testid="profile-avatar-save"]').trigger('click')
 
     expect(updateProfileMock).toHaveBeenCalledWith({
       avatar_url: 'data:image/webp;base64,Y29tcHJlc3NlZC1hdmF0YXI='
     })
+    expect(authStoreState.user).toEqual(updatedUser)
+    expect(showSuccessMock).toHaveBeenCalledWith('Avatar updated')
     expect(showErrorMock).not.toHaveBeenCalled()
   })
 
-  it('shows a preview after selecting an avatar in embedded mode', async () => {
+  it('uploads the selected avatar immediately in embedded mode', async () => {
     installAvatarCompressionMocks()
+    const updatedUser = createUser({ avatar_url: 'data:image/webp;base64,Y29tcHJlc3NlZC1hdmF0YXI=' })
+    updateProfileMock.mockResolvedValue(updatedUser)
     authStoreState.user = createUser()
 
     const wrapper = mount(ProfileAvatarCard, {
@@ -233,8 +241,11 @@ describe('ProfileAvatarCard', () => {
     await fileInput.trigger('change')
     await flushAsyncWork()
 
-    const preview = wrapper.get('[data-testid="profile-avatar-preview"]')
-    expect(preview.attributes('src')).toBe('data:image/webp;base64,Y29tcHJlc3NlZC1hdmF0YXI=')
+    expect(updateProfileMock).toHaveBeenCalledWith({
+      avatar_url: 'data:image/webp;base64,Y29tcHJlc3NlZC1hdmF0YXI='
+    })
+    expect(authStoreState.user).toEqual(updatedUser)
+    expect(showSuccessMock).toHaveBeenCalledWith('Avatar updated')
   })
 
   it('deletes the current avatar', async () => {

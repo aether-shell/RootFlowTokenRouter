@@ -118,6 +118,7 @@ func TestSettingService_GetPublicSettings_ExposesPageFeatureFlags(t *testing.T) 
 		values: map[string]string{
 			SettingKeyTeamEnabled:        "false",
 			SettingKeyDataSharingEnabled: "false",
+			SettingKeyCreativeEnabled:    "false",
 		},
 	}
 	svc := NewSettingService(repo, &config.Config{Team: config.TeamConfig{Enabled: true}})
@@ -126,6 +127,24 @@ func TestSettingService_GetPublicSettings_ExposesPageFeatureFlags(t *testing.T) 
 	require.NoError(t, err)
 	require.False(t, settings.TeamEnabled)
 	require.False(t, settings.DataSharingEnabled)
+	require.False(t, settings.CreativeEnabled)
+}
+
+// 创作台开关缺省视为开启：旧版本库未写入该键时不能隐藏创作台入口。
+func TestSettingService_GetPublicSettings_CreativeEnabledDefaultsTrue(t *testing.T) {
+	repo := &settingPublicRepoStub{values: map[string]string{}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.CreativeEnabled)
+
+	// HTML 首屏注入配置必须与 /settings/public 保持一致，同样缺省开启。
+	payload, err := svc.GetPublicSettingsForInjection(context.Background())
+	require.NoError(t, err)
+	encoded, err := json.Marshal(payload)
+	require.NoError(t, err)
+	require.Contains(t, string(encoded), `"creative_enabled":true`)
 }
 
 func TestSettingService_GetPublicSettings_ExposesAllowUserViewErrorRequests(t *testing.T) {
@@ -148,9 +167,11 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 			SettingKeyAffiliateEnabled:                    "true",
 			SettingKeyForceEmailOnThirdPartySignup:        "true",
 			SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
+			SettingKeyUserEmailChangeEnabled:              "true",
 			SettingKeyAllowUserViewErrorRequests:          "true",
 			SettingKeyTeamEnabled:                         "true",
 			SettingKeyDataSharingEnabled:                  "false",
+			SettingKeyCreativeEnabled:                     "false",
 		},
 	}
 	svc := NewSettingService(repo, &config.Config{
@@ -170,8 +191,10 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 		AllowUserViewErrorRequests          bool `json:"allow_user_view_error_requests"`
 		TeamEnabled                         bool `json:"team_enabled"`
 		DataSharingEnabled                  bool `json:"data_sharing_enabled"`
+		CreativeEnabled                     bool `json:"creative_enabled"`
 		PasskeyEnabled                      bool `json:"passkey_enabled"`
 		RegistrationEmailDomainQuotaEnabled bool `json:"registration_email_domain_quota_enabled"`
+		UserEmailChangeEnabled              bool `json:"user_email_change_enabled"`
 	}
 	require.NoError(t, json.Unmarshal(encoded, &settings))
 	require.True(t, settings.AffiliateEnabled)
@@ -179,8 +202,10 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 	require.True(t, settings.AllowUserViewErrorRequests)
 	require.True(t, settings.TeamEnabled)
 	require.False(t, settings.DataSharingEnabled)
+	require.False(t, settings.CreativeEnabled)
 	require.True(t, settings.PasskeyEnabled)
 	require.True(t, settings.RegistrationEmailDomainQuotaEnabled)
+	require.True(t, settings.UserEmailChangeEnabled)
 }
 
 func TestSettingService_GetPublicSettings_ExposesWeChatOAuthModeCapabilities(t *testing.T) {

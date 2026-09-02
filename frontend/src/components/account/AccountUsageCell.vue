@@ -780,6 +780,7 @@ import type {
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber } from '@/utils/format'
+import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
 import Icon from '@/components/icons/Icon.vue'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
@@ -829,11 +830,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const { formatBalanceAmount, formatUsdAmount } = useBalanceDisplay()
-const desktopViewportQuery = '(min-width: 768px)'
 const canUseMatchMedia =
   typeof window !== 'undefined' && typeof window.matchMedia === 'function'
 const getDesktopViewportMatches = () =>
-  canUseMatchMedia ? window.matchMedia(desktopViewportQuery).matches : true
+  canUseMatchMedia ? window.matchMedia(TABLE_DESKTOP_MEDIA_QUERY).matches : true
 
 const unmounted = ref(false)
 onBeforeUnmount(() => { unmounted.value = true })
@@ -1758,7 +1758,7 @@ const formatKeyUserCost = computed(() => {
 
 onMounted(() => {
   if (canUseMatchMedia) {
-    desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
+    desktopViewportMediaQuery = window.matchMedia(TABLE_DESKTOP_MEDIA_QUERY)
     isDesktopViewport.value = desktopViewportMediaQuery.matches
     desktopViewportListener = (event: MediaQueryListEvent) => {
       isDesktopViewport.value = event.matches

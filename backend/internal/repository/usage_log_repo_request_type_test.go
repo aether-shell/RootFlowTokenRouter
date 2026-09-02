@@ -809,7 +809,7 @@ func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 		AddRow(int64(1), "alpha@example.com", "alpha", 12.5, int64(8), int64(800), 40.0, int64(30), int64(2600)).
 		AddRow(int64(3), "gamma@example.com", "", 4.25, int64(5), int64(300), 40.0, int64(30), int64(2600))
 
-	mock.ExpectQuery("WITH user_spend AS \\(").
+	mock.ExpectQuery("(?s)WITH user_spend AS \\(.*COALESCE\\(u\\.billing_user_id, u\\.user_id\\).*GROUP BY COALESCE\\(u\\.billing_user_id, u\\.user_id\\)").
 		WithArgs(start, end, 12).
 		WillReturnRows(rows)
 
@@ -824,6 +824,27 @@ func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 		TotalActualCost: 40.0,
 		TotalRequests:   30,
 		TotalTokens:     2600,
+	}, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestUsageLogRepositoryGetUserUsageTrendGroupsByBillingUser 验证原始 Top 用户趋势按付款主体合并团队成员用量。
+func TestUsageLogRepositoryGetUserUsageTrendGroupsByBillingUser(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+	start := time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	mock.ExpectQuery("(?s)WITH top_users AS \\(.*SELECT COALESCE\\(billing_user_id, user_id\\) AS user_id.*GROUP BY COALESCE\\(billing_user_id, user_id\\).*COALESCE\\(u\\.billing_user_id, u\\.user_id\\) AS user_id.*LEFT JOIN users us ON COALESCE\\(u\\.billing_user_id, u\\.user_id\\) = us\\.id").
+		WithArgs(start, end, 12, start, end).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "user_id", "email", "username", "requests", "tokens", "cost", "actual_cost",
+		}).AddRow("2025-01-03", int64(9), "owner@example.com", "owner", int64(3), int64(120), 2.5, 2.5))
+
+	got, err := repo.GetUserUsageTrend(context.Background(), start, end, "day", 12)
+	require.NoError(t, err)
+	require.Equal(t, []usagestats.UserUsageTrendPoint{
+		{Date: "2025-01-03", UserID: 9, Email: "owner@example.com", Username: "owner", Requests: 3, Tokens: 120, Cost: 2.5, ActualCost: 2.5},
 	}, got)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
@@ -855,7 +876,7 @@ func TestUsageLogRepositoryGetUsageRankingMasksEmail(t *testing.T) {
 		AddRow(1, int64(2), "beta@example.com", "beta", "https://cdn.example/beta.png", int64(9), int64(400), int64(300), int64(100), int64(100), int64(900), 1.25, int64(17), int64(1700), 2.0).
 		AddRow(2, int64(1), "alpha@example.com", "", "", int64(8), int64(300), int64(300), int64(100), int64(100), int64(800), 0.75, int64(17), int64(1700), 2.0)
 
-	mock.ExpectQuery("LEFT JOIN users us ON r\\.user_id = us\\.id").
+	mock.ExpectQuery("(?s)COALESCE\\(u\\.billing_user_id, u\\.user_id\\).*LEFT JOIN users us ON r\\.user_id = us\\.id").
 		WithArgs(start, end, 20).
 		WillReturnRows(rows)
 

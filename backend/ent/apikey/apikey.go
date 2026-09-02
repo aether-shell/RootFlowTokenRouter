@@ -83,6 +83,8 @@ const (
 	FieldDataSharingConfirmedAt = "data_sharing_confirmed_at"
 	// FieldFallbackToDefaultGroupWhenUnavailable holds the string denoting the fallback_to_default_group_when_unavailable field in the database.
 	FieldFallbackToDefaultGroupWhenUnavailable = "fallback_to_default_group_when_unavailable"
+	// FieldManagedBy holds the string denoting the managed_by field in the database.
+	FieldManagedBy = "managed_by"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// EdgeGroup holds the string denoting the group edge name in mutations.
@@ -169,6 +171,7 @@ var Columns = []string{
 	FieldDataSharingConfirmedGroupID,
 	FieldDataSharingConfirmedAt,
 	FieldFallbackToDefaultGroupWhenUnavailable,
+	FieldManagedBy,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -237,6 +240,8 @@ var (
 	DefaultDataSharingNoticeVersion int
 	// DefaultFallbackToDefaultGroupWhenUnavailable holds the default value on creation for the "fallback_to_default_group_when_unavailable" field.
 	DefaultFallbackToDefaultGroupWhenUnavailable bool
+	// ManagedByValidator is a validator for the "managed_by" field. It is called by the builders before save.
+	ManagedByValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the APIKey queries.
@@ -400,6 +405,11 @@ func ByDataSharingConfirmedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByFallbackToDefaultGroupWhenUnavailable orders the results by the fallback_to_default_group_when_unavailable field.
 func ByFallbackToDefaultGroupWhenUnavailable(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFallbackToDefaultGroupWhenUnavailable, opts...).ToFunc()
+}
+
+// ByManagedBy orders the results by the managed_by field.
+func ByManagedBy(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldManagedBy, opts...).ToFunc()
 }
 
 // ByUserField orders the results by user field.

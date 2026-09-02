@@ -33,6 +33,7 @@ func hasOpenAIConfigurationPatch(credentials, extra map[string]any) bool {
 	for _, key := range []string{
 		openai_compat.ExtraKeyTextRouteMode,
 		openai_compat.ExtraKeyResponsesProbeStatus,
+		openai_compat.ExtraKeyResponsesContinuationSupported,
 		legacyOpenAIResponsesModeExtraKey,
 		legacyOpenAIResponsesSupportedExtraKey,
 	} {
@@ -65,6 +66,9 @@ func normalizeOpenAIAPIKeyConfiguration(account *Account) error {
 		return err
 	}
 	normalizeOpenAIResponsesProbeStatus(account.Extra, true)
+	if err := normalizeOpenAIResponsesContinuationSupported(account.Extra, true); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -88,6 +92,9 @@ func normalizeOpenAIAPIKeyConfigurationPatch(credentials, extra map[string]any) 
 		return err
 	}
 	normalizeOpenAIResponsesProbeStatus(extra, false)
+	if err := normalizeOpenAIResponsesContinuationSupported(extra, false); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -237,4 +244,28 @@ func normalizeOpenAIResponsesProbeStatus(extra map[string]any, applyDefault bool
 		status = openai_compat.NormalizeResponsesProbeStatus(value)
 	}
 	extra[openai_compat.ExtraKeyResponsesProbeStatus] = string(status)
+}
+
+// normalizeOpenAIResponsesContinuationSupported 规范化管理员维护的 HTTP continuation 能力开关。
+func normalizeOpenAIResponsesContinuationSupported(extra map[string]any, applyDefault bool) error {
+	if extra == nil {
+		return nil
+	}
+	raw, found := extra[openai_compat.ExtraKeyResponsesContinuationSupported]
+	if !found && !applyDefault {
+		return nil
+	}
+	if !found || raw == nil {
+		extra[openai_compat.ExtraKeyResponsesContinuationSupported] = false
+		return nil
+	}
+	supported, ok := raw.(bool)
+	if !ok {
+		return infraerrors.BadRequest(
+			"OPENAI_RESPONSES_CONTINUATION_INVALID",
+			"openai_responses_continuation_supported must be a boolean or null",
+		)
+	}
+	extra[openai_compat.ExtraKeyResponsesContinuationSupported] = supported
+	return nil
 }

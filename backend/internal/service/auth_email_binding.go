@@ -18,6 +18,12 @@ type normalizedEmailBindingConflictChecker interface {
 	ExistsByNormalizedEmailExcluding(ctx context.Context, normalizedEmail string, excludedUserID int64) (bool, error)
 }
 
+// emailIdentityAliasGuardRepository 提供换绑主邮箱所需的事务内原子写入能力。
+// 通过可选接口接入，保留无数据库测试桩的兼容性。
+type emailIdentityAliasGuardRepository interface {
+	UpdateEmailWithAliasGuard(ctx context.Context, userID int64, email string, passwordHash string) error
+}
+
 // BindEmailIdentity verifies and binds a local email/password identity to the
 // current user, or replaces the existing bound primary email.
 func (s *AuthService) BindEmailIdentity(
@@ -41,15 +47,17 @@ func (s *AuthService) BindEmailIdentity(
 	if strings.TrimSpace(password) == "" {
 		return nil, ErrPasswordRequired
 	}
+	currentUser, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureUserEmailChangeAllowed(ctx, currentUser, normalizedEmail); err != nil {
+		return nil, err
+	}
 	if err := s.VerifyOAuthEmailCode(ctx, normalizedEmail, verifyCode); err != nil {
 		return nil, err
 	}
 	if err := s.validateRegistrationEmailPolicy(ctx, normalizedEmail); err != nil {
-		return nil, err
-	}
-
-	currentUser, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
 		return nil, err
 	}
 	firstRealEmailBind := !hasBindableEmailIdentitySubject(currentUser.Email)
@@ -118,17 +126,20 @@ func (s *AuthService) SendEmailIdentityBindCode(ctx context.Context, userID int6
 	if isReservedEmail(normalizedEmail) {
 		return ErrEmailReserved
 	}
-	if err := s.validateRegistrationEmailPolicy(ctx, normalizedEmail); err != nil {
-		return err
-	}
-	if s.emailService == nil {
-		return ErrServiceUnavailable
-	}
 	currentUser, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			return ErrUserNotFound
 		}
+		return ErrServiceUnavailable
+	}
+	if err := s.ensureUserEmailChangeAllowed(ctx, currentUser, normalizedEmail); err != nil {
+		return err
+	}
+	if err := s.validateRegistrationEmailPolicy(ctx, normalizedEmail); err != nil {
+		return err
+	}
+	if s.emailService == nil {
 		return ErrServiceUnavailable
 	}
 	registrationNormalizedEmail := s.normalizeRegistrationEmailForBinding(ctx, normalizedEmail)
@@ -141,6 +152,20 @@ func (s *AuthService) SendEmailIdentityBindCode(ctx context.Context, userID int6
 		siteName = s.settingService.GetSiteName(ctx)
 	}
 	return s.emailService.SendVerifyCode(ctx, normalizedEmail, siteName, firstEmailLocale(locale))
+}
+
+// ensureUserEmailChangeAllowed 只限制真实邮箱发生变化；首次绑定或验证现有邮箱仍保持可用。
+func (s *AuthService) ensureUserEmailChangeAllowed(ctx context.Context, currentUser *User, targetEmail string) error {
+	if currentUser == nil {
+		return ErrUserNotFound
+	}
+	if !hasBindableEmailIdentitySubject(currentUser.Email) || strings.EqualFold(strings.TrimSpace(currentUser.Email), targetEmail) {
+		return nil
+	}
+	if s.settingService == nil || !s.settingService.IsUserEmailChangeEnabled(ctx) {
+		return ErrEmailChangeDisabled
+	}
+	return nil
 }
 
 func normalizeEmailForIdentityBinding(email string) (string, error) {
@@ -174,10 +199,16 @@ func (s *AuthService) ensureEmailBindingTargetAvailable(
 ) error {
 	existingUser, err := s.userRepo.GetByEmail(ctx, email)
 	switch {
-	case err == nil && existingUser != nil && currentUser != nil && existingUser.ID != currentUser.ID:
-		return ErrEmailExists
+	case err == nil:
+		if existingUser != nil && (currentUser == nil || existingUser.ID != currentUser.ID) {
+			return ErrEmailExists
+		}
 	case err != nil && !errors.Is(err, ErrUserNotFound):
 		return ErrServiceUnavailable
+	}
+
+	if err := s.ensureEmailAliasTargetAvailable(ctx, currentUser, email); err != nil {
+		return err
 	}
 
 	if registrationNormalizedEmail == "" {
@@ -189,6 +220,38 @@ func (s *AuthService) ensureEmailBindingTargetAvailable(
 		return ErrServiceUnavailable
 	}
 	if exists {
+		return ErrEmailExists
+	}
+	return nil
+}
+
+// ensureEmailAliasTargetAvailable 检查邮箱是否已被其他用户的收件箱身份占用。
+// 真实仓储提供 owner 查询，因此当前用户把自己的邮箱换成另一个 alias 时不会被误拒；
+// 只有旧仓储仅提供布尔查询时才采取保守拒绝策略。
+func (s *AuthService) ensureEmailAliasTargetAvailable(ctx context.Context, currentUser *User, email string) error {
+	if currentUser == nil {
+		return ErrUserNotFound
+	}
+	if lookup, ok := s.userRepo.(emailAliasOwnerLookupRepository); ok {
+		ownerID, exists, err := lookup.EmailAliasOwnerID(ctx, email, currentUser.ID)
+		if err != nil {
+			return ErrServiceUnavailable
+		}
+		if exists && ownerID != currentUser.ID {
+			return ErrEmailExists
+		}
+		return nil
+	}
+	lookup, ok := s.userRepo.(emailAliasLookupRepository)
+	if !ok {
+		return nil
+	}
+	exists, err := lookup.ExistsByEmailAlias(ctx, email)
+	if err != nil {
+		return ErrServiceUnavailable
+	}
+	if exists {
+		// 无法区分当前用户时拒绝，避免并发或历史重复数据造成占用绕过。
 		return ErrEmailExists
 	}
 	return nil
@@ -262,35 +325,37 @@ func (s *AuthService) updateBoundEmailIdentityWithClient(
 	}
 
 	oldEmail := currentUser.Email
-	updatedUser := *currentUser
-	updatedUser.Email = email
-	updatedUser.PasswordHash = hashedPassword
-
-	if registrationNormalizedEmail != "" {
-		// 绑定邮箱入口也要与注册/资料修改共用归一化唯一性约束。
-		if err := s.userRepo.LockRegistrationEmail(ctx, registrationNormalizedEmail); err != nil {
+	if guard, ok := s.userRepo.(emailIdentityAliasGuardRepository); ok {
+		// guard 在同一事务内锁定别名身份并复查，关闭前置查重与写入之间的窗口。
+		if err := guard.UpdateEmailWithAliasGuard(ctx, currentUser.ID, email, hashedPassword); err != nil {
+			return err
+		}
+	} else {
+		// 兼容尚未实现别名 guard 的测试桩，保留 fork 原有的归一化唯一性保护。
+		updatedUser := *currentUser
+		updatedUser.Email = email
+		updatedUser.PasswordHash = hashedPassword
+		if registrationNormalizedEmail != "" {
+			if err := s.userRepo.LockRegistrationEmail(ctx, registrationNormalizedEmail); err != nil {
+				return ErrServiceUnavailable
+			}
+			exists, err := s.hasNormalizedEmailBindingConflict(ctx, currentUser, registrationNormalizedEmail)
+			if err != nil {
+				return ErrServiceUnavailable
+			}
+			if exists {
+				return ErrEmailExists
+			}
+		}
+		if _, err := client.User.UpdateOneID(currentUser.ID).
+			SetEmail(updatedUser.Email).
+			SetPasswordHash(updatedUser.PasswordHash).
+			Save(ctx); err != nil {
+			if dbent.IsConstraintError(err) || errors.Is(err, ErrEmailExists) {
+				return ErrEmailExists
+			}
 			return ErrServiceUnavailable
 		}
-		exists, err := s.hasNormalizedEmailBindingConflict(ctx, currentUser, registrationNormalizedEmail)
-		if err != nil {
-			return ErrServiceUnavailable
-		}
-		if exists {
-			return ErrEmailExists
-		}
-	}
-
-	if _, err := client.User.UpdateOneID(currentUser.ID).
-		SetEmail(updatedUser.Email).
-		SetPasswordHash(updatedUser.PasswordHash).
-		Save(ctx); err != nil {
-		if dbent.IsConstraintError(err) {
-			return ErrEmailExists
-		}
-		if errors.Is(err, ErrEmailExists) {
-			return ErrEmailExists
-		}
-		return ErrServiceUnavailable
 	}
 
 	if err := replaceBoundEmailAuthIdentityWithClient(ctx, client, currentUser.ID, oldEmail, email, "auth_service_email_bind"); err != nil {

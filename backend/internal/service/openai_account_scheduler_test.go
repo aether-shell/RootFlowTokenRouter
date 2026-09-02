@@ -373,6 +373,11 @@ func TestOpenAIGatewayService_AdvancedSchedulerRuntimeSettings_DBOverridesConfig
 	repo := &advancedSchedulerSettingRepoStub{
 		values: map[string]string{
 			SettingKeyAdvancedSchedulerLBTopK:                 "3",
+			SettingKeyAdvancedSchedulerEWMAErrorRateAlpha:     "0.4",
+			SettingKeyAdvancedSchedulerEWMATTFTAlpha:          "0.6",
+			SettingKeyAdvancedSchedulerStickyEscapeEnabled:    "false",
+			SettingKeyAdvancedSchedulerStickyEscapeTTFTMs:     "9000",
+			SettingKeyAdvancedSchedulerStickyEscapeErrorRate:  "0.25",
 			SettingKeyAdvancedSchedulerWeightPriority:         "2.5",
 			SettingKeyAdvancedSchedulerWeightReset:            "0.25",
 			SettingKeyAdvancedSchedulerWeightPreviousResponse: "12",
@@ -391,6 +396,12 @@ func TestOpenAIGatewayService_AdvancedSchedulerRuntimeSettings_DBOverridesConfig
 	require.Equal(t, 0.25, weights.Reset)
 	require.Equal(t, 12.0, weights.Previous)
 	require.Equal(t, 10.0, weights.SessionSticky)
+	effective := svc.advancedSchedulerEffectiveSettingsForGroup(ctx, nil)
+	require.InDelta(t, 0.4, effective.feedback.errorRateAlpha, 0.000001)
+	require.InDelta(t, 0.6, effective.feedback.ttftAlpha, 0.000001)
+	require.False(t, effective.stickyEscape.enabled)
+	require.InDelta(t, 9000, effective.stickyEscape.ttftMs, 0.000001)
+	require.InDelta(t, 0.25, effective.stickyEscape.errorRate, 0.000001)
 }
 
 func TestOpenAIGatewayService_AdvancedSchedulerRuntimeSettings_InvalidWeightSumsFallBackToConfig(t *testing.T) {

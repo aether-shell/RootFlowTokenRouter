@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, BarElement, CategoryScale, Legend, LinearScale, Tooltip } from 'chart.js'
 import { Bar } from 'vue-chartjs'
@@ -9,6 +9,7 @@ import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 import {
   DEFAULT_LATENCY_BUCKET_BOUNDARIES,
   MAX_LATENCY_BUCKET_BOUNDARY_MS,
@@ -17,6 +18,8 @@ import {
 } from '../latencyBuckets'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend)
+
+onBeforeUnmount(hideExternalTooltip)
 
 interface Props {
   latencyData: OpsLatencyHistogramResponse | null
@@ -96,7 +99,11 @@ const options = computed(() => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: false }
+      legend: { display: false },
+      tooltip: {
+        enabled: false,
+        external: externalTooltipHandler
+      }
     },
     scales: {
       x: {

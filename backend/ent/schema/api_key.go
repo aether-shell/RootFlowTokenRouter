@@ -158,6 +158,12 @@ func (APIKey) Fields() []ent.Field {
 		field.Bool("fallback_to_default_group_when_unavailable").
 			Default(true).
 			Comment("绑定分组不可用时自动回退到同平台默认分组"),
+		// managed_by 标记服务端托管的隐藏 Key（如创作台执行 Key），普通用户接口不得暴露或操作。
+		field.String("managed_by").
+			MaxLen(32).
+			Optional().
+			Nillable().
+			Comment("托管来源标识：creative_studio 表示创作台隐藏执行 Key，NULL 表示普通用户 Key"),
 	}
 }
 

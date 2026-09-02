@@ -1515,11 +1515,10 @@
               {{ t('admin.accounts.accountSchedulingThresholdOverrideHint') }}
             </p>
           </div>
-          <input
+          <Toggle
             v-model="accountSchedulingThresholdOverrideEnabled"
             data-testid="account-scheduling-threshold-override-enabled"
-            type="checkbox"
-            class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            :aria-label="t('admin.accounts.accountSchedulingThresholdOverride')"
           />
         </div>
         <div v-if="accountSchedulingThresholdOverrideEnabled">
@@ -1571,7 +1570,6 @@
       <div v-if="!isSparkShadow">
         <div class="mb-1 flex items-center gap-2">
           <label class="input-label mb-0">{{ t('admin.accounts.proxy') }}</label>
-          <ProxyAdBanner />
         </div>
         <ProxySelector v-model="form.proxy_id" :proxies="proxies" />
       </div>
@@ -1698,8 +1696,8 @@
         v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
-        <div class="flex items-center justify-between">
-          <div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="min-w-0">
             <label class="input-label mb-0">{{ t('admin.accounts.openai.wsMode') }}</label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.openai.wsModeDesc') }}
@@ -1708,7 +1706,7 @@
               {{ t(openAIWSModeConcurrencyHintKey) }}
             </p>
           </div>
-          <div class="w-52">
+          <div class="w-full sm:w-52 sm:flex-shrink-0">
             <Select v-model="openaiResponsesWebSocketV2Mode" :options="openAIWSModeOptions" />
           </div>
         </div>
@@ -1753,6 +1751,22 @@
               data-testid="openai-text-route-mode-select"
             />
           </div>
+        </div>
+        <div class="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-dark-600 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <label class="input-label mb-0" for="edit-openai-continuation-supported">
+              {{ t('admin.accounts.openai.responsesContinuationSupported') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.responsesContinuationSupportedDesc') }}
+            </p>
+          </div>
+          <Toggle
+            id="edit-openai-continuation-supported"
+            v-model="openAIResponsesContinuationSupported"
+            data-testid="edit-openai-continuation-supported"
+            :aria-label="t('admin.accounts.openai.responsesContinuationSupported')"
+          />
         </div>
         <div
           class="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-dark-600 sm:flex-row sm:items-center sm:justify-between"
@@ -2813,7 +2827,6 @@ import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
-import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import CodexImageToolModeSelector from '@/components/account/CodexImageToolModeSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
@@ -3240,6 +3253,8 @@ const openAICompactMode = ref<OpenAICompactMode>('auto')
 const openAINativeCompactionV2Mode = ref<OpenAICompactMode>('auto')
 const openAITextRouteMode = ref<OpenAITextRouteMode>('preserve_client_protocol')
 const openAIWorkloadCapabilities = ref<OpenAIWorkloadCapability[]>(['text_generation', 'embeddings'])
+// HTTP continuation 缺省关闭，只有管理员确认上游支持时才发送 previous_response_id。
+const openAIResponsesContinuationSupported = ref(false)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyAllowClaudeCodeEnabled = ref(false)
@@ -3780,6 +3795,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   openAINativeCompactionV2Mode.value = 'auto'
   openAITextRouteMode.value = 'preserve_client_protocol'
   openAIWorkloadCapabilities.value = ['text_generation', 'embeddings']
+  openAIResponsesContinuationSupported.value = false
   openAICompactModelMappings.value = []
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
@@ -3808,6 +3824,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       openAIWorkloadCapabilities.value = readOpenAIWorkloadCapabilities(
         newAccount.credentials as Record<string, unknown> | undefined
       )
+      openAIResponsesContinuationSupported.value = extra?.openai_responses_continuation_supported === true
     }
     codexImageToolMode.value = readCodexImageToolMode(extra)
     openaiOAuthResponsesWebSocketV2Mode.value = resolveOpenAIWSModeFromExtra(extra, {
@@ -5330,12 +5347,13 @@ const handleSubmit = async () => {
       } else {
         newExtra.openai_native_compaction_v2_mode = openAINativeCompactionV2Mode.value
       }
-		if (props.account.type === 'apikey') {
-		  delete newExtra.openai_responses_mode
-		  delete newExtra.openai_responses_supported
-		  newExtra.openai_text_route_mode = openAITextRouteMode.value
-		  newExtra.openai_responses_probe_status = openAIResponsesProbeStatus.value
-		}
+      if (props.account.type === 'apikey') {
+		delete newExtra.openai_responses_mode
+		delete newExtra.openai_responses_supported
+		newExtra.openai_text_route_mode = openAITextRouteMode.value
+		newExtra.openai_responses_probe_status = openAIResponsesProbeStatus.value
+		newExtra.openai_responses_continuation_supported = openAIResponsesContinuationSupported.value
+	  }
 		if (autoPause5hThreshold.value != null && autoPause5hThreshold.value > 0) {
 			newExtra.auto_pause_5h_threshold = autoPause5hThreshold.value / 100
 		} else {

@@ -6,6 +6,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/servertiming"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -77,6 +78,10 @@ func Logger() gin.HandlerFunc {
 		if model != "" {
 			fields = append(fields, zap.String("model", model))
 		}
+		if c.Request.ContentLength >= 0 {
+			fields = append(fields, zap.Int64("request_content_length", c.Request.ContentLength))
+		}
+		fields = appendRequestStageFields(fields, c)
 
 		l := logger.FromContext(c.Request.Context()).With(fields...)
 		l.Info("http request completed", zap.Time("completed_at", endTime))
@@ -85,4 +90,59 @@ func Logger() gin.HandlerFunc {
 			l.Warn("http request contains gin errors", zap.String("errors", c.Errors.String()))
 		}
 	}
+}
+
+// appendRequestStageFields 将请求入口、账号槽位和出站 HTTP 阶段写入访问日志。
+// 这些字段只记录时间与计数，不记录请求体、凭据或上游响应内容。
+func appendRequestStageFields(fields []zap.Field, c *gin.Context) []zap.Field {
+	if c == nil || c.Request == nil {
+		return fields
+	}
+	ctx := c.Request.Context()
+	startedAt, _ := ctx.Value(ctxkey.RequestStartedAt).(time.Time)
+	appendTimestamp := func(key ctxkey.Key, name string) {
+		at, ok := ctx.Value(key).(time.Time)
+		if !ok || startedAt.IsZero() || at.Before(startedAt) {
+			return
+		}
+		fields = append(fields, zap.Int64(name, at.Sub(startedAt).Milliseconds()))
+	}
+	appendTimestamp(ctxkey.AccountSlotAcquiredAt, "account_slot_acquired_ms")
+	appendTimestamp(ctxkey.FirstSSEDataAt, "upstream_first_sse_data_ms")
+	appendTimestamp(ctxkey.FirstVisibleOutputAt, "first_visible_output_ms")
+	appendTimestamp(ctxkey.FirstDownstreamFlushAt, "first_downstream_flush_ms")
+
+	if snapshot, ok := servertiming.HTTPTraceSnapshotFromContext(ctx); ok {
+		if elapsed, valid := servertiming.HTTPTraceElapsedMs(snapshot, snapshot.GetConnAt); valid {
+			fields = append(fields, zap.Int64("upstream_get_conn_ms", elapsed))
+		}
+		if elapsed, valid := servertiming.HTTPTraceElapsedMs(snapshot, snapshot.GotConnAt); valid {
+			fields = append(fields, zap.Int64("upstream_got_conn_ms", elapsed))
+		}
+		if elapsed, valid := servertiming.HTTPTraceElapsedMs(snapshot, snapshot.WroteRequestAt); valid {
+			fields = append(fields, zap.Int64("upstream_wrote_request_ms", elapsed))
+		}
+		if elapsed, valid := servertiming.HTTPTraceElapsedMs(snapshot, snapshot.GotFirstResponseByteAt); valid {
+			fields = append(fields, zap.Int64("upstream_first_response_byte_ms", elapsed))
+		}
+		if snapshot.GotConnCount > 0 {
+			fields = append(fields, zap.Int("upstream_got_conn_count", snapshot.GotConnCount))
+		}
+		if snapshot.GetConnCount > 0 {
+			fields = append(fields, zap.Int("upstream_get_conn_count", snapshot.GetConnCount))
+		}
+		if snapshot.WroteRequestCount > 0 {
+			fields = append(fields, zap.Int("upstream_attempt_count", snapshot.WroteRequestCount))
+		}
+		if snapshot.FirstResponseByteCount > 0 {
+			fields = append(fields, zap.Int("upstream_first_response_byte_count", snapshot.FirstResponseByteCount))
+		}
+		if snapshot.ConnectionReused {
+			fields = append(fields, zap.Bool("upstream_connection_reused", true))
+		}
+		if snapshot.WroteRequestErrorObserved {
+			fields = append(fields, zap.Bool("upstream_wrote_request_error", true))
+		}
+	}
+	return fields
 }

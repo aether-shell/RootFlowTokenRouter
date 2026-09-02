@@ -444,28 +444,28 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
         <table v-else class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
           <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-950">
             <tr>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertEvents.table.time') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertEvents.table.severity') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertEvents.table.platform') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertEvents.table.ruleId') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertEvents.table.title') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertEvents.table.duration') }}
               </th>
-              <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertEvents.table.dimensions') }}
               </th>
-              <th class="px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              <th class="px-4 py-3 text-right text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.alertEvents.table.email') }}
               </th>
             </tr>
@@ -664,9 +664,9 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
             <table class="min-w-full divide-y divide-gray-100 dark:divide-dark-700">
               <thead class="bg-gray-50 dark:bg-dark-950">
                 <tr>
-                  <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.time') }}</th>
-                  <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.status') }}</th>
-                  <th class="px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.metric') }}</th>
+                  <th class="px-3 py-2 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.time') }}</th>
+                  <th class="px-3 py-2 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.status') }}</th>
+                  <th class="px-3 py-2 text-left text-[11px] font-bold tracking-wider text-gray-500 dark:text-gray-400">{{ t('admin.ops.alertEvents.table.metric') }}</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 dark:divide-dark-700">

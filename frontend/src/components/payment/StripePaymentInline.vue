@@ -47,7 +47,7 @@
       <div class="card p-6">
         <div ref="stripeMount" class="min-h-[200px]"></div>
         <p v-if="error" class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
-        <button class="btn btn-stripe mt-6 w-full py-3 text-base" :disabled="submitting || !ready" @click="handlePay">
+        <button class="btn btn-stripe h-9 mt-6 w-full py-0 text-base" :disabled="submitting || !ready" @click="handlePay">
           <span v-if="submitting" class="flex items-center justify-center gap-2">
             <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
             {{ t('common.processing') }}

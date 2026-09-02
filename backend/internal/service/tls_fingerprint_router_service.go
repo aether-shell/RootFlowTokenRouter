@@ -94,6 +94,16 @@ func NewTLSFingerprintRouterService(
 	return svc
 }
 
+// Stop 停止缓存订阅，确保 Redis 关闭前订阅协程已经退出。
+func (s *TLSFingerprintRouterService) Stop() {
+	if s == nil || s.cache == nil {
+		return
+	}
+	if stopper, ok := s.cache.(interface{ StopSubscription() }); ok {
+		stopper.StopSubscription()
+	}
+}
+
 // List 获取所有 TLS 路由器。
 func (s *TLSFingerprintRouterService) List(ctx context.Context) ([]*model.TLSFingerprintRouter, error) {
 	return s.repo.List(ctx)

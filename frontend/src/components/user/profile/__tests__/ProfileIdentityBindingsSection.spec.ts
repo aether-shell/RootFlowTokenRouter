@@ -64,8 +64,6 @@ vi.mock('vue-i18n', async (importOriginal) => {
         if (key === 'profile.authBindings.codeSentTo') return `Code sent to ${params?.email || ''}`.trim()
         if (key === 'profile.authBindings.bindSuccess') return 'Bind success'
         if (key === 'profile.authBindings.replaceSuccess') return 'Primary email updated'
-        if (key === 'profile.authBindings.notes.emailManagedByBinding')
-          return 'Primary email is managed through verified email binding'
         if (key === 'profile.authBindings.notes.canUnbind')
           return 'You can unbind this sign-in method'
         if (key === 'profile.authBindings.notes.bindAnotherBeforeUnbind')
@@ -407,7 +405,7 @@ describe('ProfileIdentityBindingsSection', () => {
     expect(wrapper.get('[data-testid="profile-binding-email-status"]').text()).toBe('Not bound')
   })
 
-  it('shows the bound email only once and localizes the email management note', () => {
+  it('shows the bound email only once without the email management note', () => {
     const wrapper = mount(ProfileIdentityBindingsSection, {
       global: {
         plugins: [pinia],
@@ -434,7 +432,7 @@ describe('ProfileIdentityBindingsSection', () => {
 
     expect(wrapper.text().match(/alice@example\.com/g)).toHaveLength(1)
     expect(wrapper.text()).not.toContain('a***e@example.com')
-    expect(wrapper.text()).toContain('Primary email is managed through verified email binding')
+    expect(wrapper.text()).not.toContain('Primary email is managed through verified email binding')
   })
 
   it('keeps the email form available for replacing a bound primary email', async () => {
@@ -450,6 +448,7 @@ describe('ProfileIdentityBindingsSection', () => {
     )
 
     const appStore = useAppStore()
+    appStore.cachedPublicSettings = { user_email_change_enabled: true } as any
     const authStore = useAuthStore()
     authStore.user = createUser({
       email: 'current@example.com',
@@ -499,6 +498,30 @@ describe('ProfileIdentityBindingsSection', () => {
     })
     expect(authStore.user?.email).toBe('new@example.com')
     expect(showSuccessSpy).toHaveBeenCalledWith('Primary email updated')
+  })
+
+  it('hides bound email replacement when the setting is disabled', () => {
+    const wrapper = mount(ProfileIdentityBindingsSection, {
+      global: {
+        plugins: [pinia],
+      },
+      props: {
+        user: createUser({
+          email: 'current@example.com',
+          email_bound: true,
+          auth_bindings: {
+            email: { bound: true },
+          },
+        }),
+        compact: true,
+        linuxdoEnabled: false,
+        oidcEnabled: false,
+        wechatEnabled: false,
+      },
+    })
+
+    expect(wrapper.find('[data-testid="profile-binding-email-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="profile-binding-email-toggle"]').exists()).toBe(false)
   })
 
   it('collapses the email binding form in compact mode until the user expands it', async () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Legend, Tooltip } from 'chart.js'
 import { Doughnut } from 'vue-chartjs'
@@ -7,8 +7,11 @@ import type { OpsErrorDistributionResponse } from '@/api/admin/ops'
 import type { ChartState } from '../types'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import { externalTooltipHandler, hideExternalTooltip } from '@/utils/chartExternalTooltip'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
+
+onBeforeUnmount(hideExternalTooltip)
 
 interface Props {
   data: OpsErrorDistributionResponse | null
@@ -100,9 +103,8 @@ const options = computed(() => ({
   plugins: {
     legend: { display: false },
     tooltip: {
-      backgroundColor: isDarkMode.value ? '#1F1F23' : '#ffffff',
-      titleColor: isDarkMode.value ? '#F4F4F5' : '#18181B',
-      bodyColor: isDarkMode.value ? '#D4D4D8' : '#52525B'
+      enabled: false,
+      external: externalTooltipHandler
     }
   }
 }))

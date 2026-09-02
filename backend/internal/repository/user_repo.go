@@ -1120,6 +1120,149 @@ func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 	return client.User.Query().Where(userEmailLookupPredicate(email)).Exist(ctx)
 }
 
+// emailAliasCandidateLimit 限制别名查重一次取回的候选数量，避免公开发码入口在
+// 异常数据下把整张用户表加载到内存。命中候选后还会再次执行完整归一化校验。
+const emailAliasCandidateLimit = 50
+
+// ExistsByEmailAlias 判断是否已有用户与 email 指向同一收件箱。
+// 软删除过滤由 User 的 SoftDelete 拦截器统一处理。
+func (r *userRepository) ExistsByEmailAlias(ctx context.Context, email string) (bool, error) {
+	_, exists, err := r.EmailAliasOwnerID(ctx, email, 0)
+	return exists, err
+}
+
+// EmailAliasOwnerID 返回别名收件箱的占用者。currentUserID 用于区分当前用户自身；
+// 若同时存在历史重复数据，优先返回其他用户，确保调用方不会错误放行。
+func (r *userRepository) EmailAliasOwnerID(ctx context.Context, email string, currentUserID int64) (int64, bool, error) {
+	return emailAliasOwnerIDWithClient(ctx, clientFromContext(ctx, r.client), email, currentUserID)
+}
+
+func emailAliasOwnerIDWithClient(ctx context.Context, client *dbent.Client, email string, currentUserID int64) (int64, bool, error) {
+	if client == nil {
+		return 0, false, nil
+	}
+	probes := service.EmailAliasDedupProbes(email)
+	if len(probes) == 0 {
+		return 0, false, nil
+	}
+
+	preds := make([]predicate.User, 0, 2*len(probes))
+	for _, probe := range probes {
+		probeEmail := probe.Local + "@" + probe.Domain
+		preds = append(preds,
+			dotStrippedEmailEQ(probeEmail),
+			// + 后缀未知，只能按本地部分前缀匹配；元字符已转义。
+			dotStrippedEmailLike(escapeLikeWildcards(probe.Local)+"+%@"+escapeLikeWildcards(probe.Domain)),
+		)
+	}
+
+	candidates, err := client.User.Query().
+		Where(dbuser.Or(preds...)).
+		Limit(emailAliasCandidateLimit).
+		Select(dbuser.FieldID, dbuser.FieldEmail).
+		All(ctx)
+	if err != nil {
+		return 0, false, err
+	}
+
+	identity := service.NormalizeEmailForAliasDedup(email)
+	var selfID int64
+	selfExists := false
+	for _, candidate := range candidates {
+		if service.NormalizeEmailForAliasDedup(candidate.Email) != identity {
+			continue
+		}
+		if candidate.ID != 0 && candidate.ID != currentUserID {
+			return candidate.ID, true, nil
+		}
+		if candidate.ID == currentUserID {
+			selfID = candidate.ID
+			selfExists = true
+		}
+	}
+	return selfID, selfExists, nil
+}
+
+// dotStrippedEmailExpr 生成用于别名探针的表达式。两侧去除点号可以同时覆盖
+// Gmail 本地部分点号和邮箱域名的 FQDN 根点；最终结果仍由 Go 归一化规则复核。
+func dotStrippedEmailExpr(b *entsql.Builder, s *entsql.Selector) *entsql.Builder {
+	return b.WriteString("REPLACE(LOWER(TRIM(").
+		Ident(s.C(dbuser.FieldEmail)).
+		WriteString(")), '.', '')")
+}
+
+func dotStrippedEmailEQ(value string) predicate.User {
+	return predicate.User(func(s *entsql.Selector) {
+		s.Where(entsql.P(func(b *entsql.Builder) {
+			dotStrippedEmailExpr(b, s).WriteString(" = ").Arg(value)
+		}))
+	})
+}
+
+func dotStrippedEmailLike(pattern string) predicate.User {
+	return predicate.User(func(s *entsql.Selector) {
+		s.Where(entsql.P(func(b *entsql.Builder) {
+			dotStrippedEmailExpr(b, s).WriteString(" LIKE ").Arg(pattern).WriteString(` ESCAPE '\'`)
+		}))
+	})
+}
+
+// escapeLikeWildcards 防止邮箱本地部分的 %、_ 或反斜杠被解释为 LIKE 通配符。
+var likeWildcardEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+
+func escapeLikeWildcards(value string) string {
+	return likeWildcardEscaper.Replace(value)
+}
+
+// UpdateEmailWithAliasGuard 在调用方事务内以收件箱身份加锁、复查占用情况并更新
+// 邮箱和密码哈希，关闭服务层查重与写入之间的并发窗口。
+func (r *userRepository) UpdateEmailWithAliasGuard(
+	ctx context.Context,
+	userID int64,
+	email string,
+	passwordHash string,
+) error {
+	if userID <= 0 {
+		return service.ErrUserNotFound
+	}
+	if strings.TrimSpace(email) == "" || passwordHash == "" {
+		return fmt.Errorf("email identity update requires email and password hash")
+	}
+	tx := dbent.TxFromContext(ctx)
+	if tx == nil {
+		return fmt.Errorf("email identity update requires a transaction")
+	}
+	client := tx.Client()
+
+	releaseEmailLock, err := lockRepositoryScopedKeys(
+		ctx,
+		client,
+		txAwareSQLExecutor(ctx, r.sql, r.client),
+		normalizedEmailUniquenessLockKey(email),
+		emailAliasUniquenessLockKey(email),
+	)
+	if err != nil {
+		return err
+	}
+	defer releaseEmailLock()
+
+	ownerID, exists, err := emailAliasOwnerIDWithClient(ctx, client, email, userID)
+	if err != nil {
+		return err
+	}
+	if exists && ownerID != userID {
+		return service.ErrEmailExists
+	}
+
+	if _, err := client.User.UpdateOneID(userID).
+		SetEmail(email).
+		SetPasswordHash(passwordHash).
+		Save(ctx); err != nil {
+		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
+	}
+	return nil
+}
+
 func (r *userRepository) ExistsByNormalizedEmail(ctx context.Context, normalizedEmail string) (bool, error) {
 	return r.existsByNormalizedEmail(ctx, normalizedEmail, 0)
 }
@@ -1216,6 +1359,15 @@ func normalizedEmailUniquenessLockKey(email string) string {
 		return ""
 	}
 	return "users:normalized-email:" + normalized
+}
+
+// emailAliasUniquenessLockKey 按收件箱身份加锁，使不同的 alias 变体在换绑时互斥。
+func emailAliasUniquenessLockKey(email string) string {
+	identity := service.NormalizeEmailForAliasDedup(email)
+	if identity == "" {
+		return ""
+	}
+	return "users:email-alias-identity:" + identity
 }
 
 func registrationEmailDomainLockKey(domain string) string {

@@ -355,6 +355,7 @@ export const useAppStore = defineStore('app', () => {
         force_email_on_third_party_signup: false,
         registration_email_suffix_whitelist: [],
         registration_email_domain_quota_enabled: false,
+        user_email_change_enabled: false,
         promo_code_enabled: true,
         password_reset_enabled: false,
         invitation_code_enabled: false,
@@ -383,6 +384,7 @@ export const useAppStore = defineStore('app', () => {
         // 页面功能默认开启，兼容尚未返回新字段的旧后端。
         team_enabled: true,
         data_sharing_enabled: true,
+        creative_enabled: true,
         table_default_page_size: 20,
         table_page_size_options: [10, 20, 50, 100],
         usage_ranking_limit: 20,

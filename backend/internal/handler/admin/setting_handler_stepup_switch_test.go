@@ -138,6 +138,7 @@ func TestUpdateSettingsOmittedSecuritySwitchesKeepStoredValues(t *testing.T) {
 		service.SettingKeyStepUpEnabled:                       "true",
 		service.SettingKeySessionBindingEnabled:               "true",
 		service.SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
+		service.SettingKeyUserEmailChangeEnabled:              "true",
 	})
 
 	rec := doUpdateSettings(t, h, map[string]any{"registration_enabled": true}, nil)
@@ -146,6 +147,7 @@ func TestUpdateSettingsOmittedSecuritySwitchesKeepStoredValues(t *testing.T) {
 	require.Equal(t, "true", repo.values[service.SettingKeyStepUpEnabled])
 	require.Equal(t, "true", repo.values[service.SettingKeySessionBindingEnabled])
 	require.Equal(t, "true", repo.values[service.SettingKeyRegistrationEmailDomainQuotaEnabled])
+	require.Equal(t, "true", repo.values[service.SettingKeyUserEmailChangeEnabled])
 }
 
 // 省略字段在开关本就关闭时同样保持关闭（默认值路径）。
@@ -158,6 +160,17 @@ func TestUpdateSettingsOmittedSecuritySwitchesKeepDisabled(t *testing.T) {
 	require.Equal(t, "false", repo.values[service.SettingKeyStepUpEnabled])
 	require.Equal(t, "false", repo.values[service.SettingKeySessionBindingEnabled])
 	require.Equal(t, "false", repo.values[service.SettingKeyRegistrationEmailDomainQuotaEnabled])
+	require.Equal(t, "false", repo.values[service.SettingKeyUserEmailChangeEnabled])
+}
+
+// 显式开启邮箱换绑开关时必须持久化，不能被部分载荷合并逻辑覆盖。
+func TestUpdateSettingsEnablesUserEmailChange(t *testing.T) {
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
+
+	rec := doUpdateSettings(t, h, map[string]any{"user_email_change_enabled": true}, nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "true", repo.values[service.SettingKeyUserEmailChangeEnabled])
 }
 
 // 旧客户端省略新字段时必须保留已有默认上限，不能把它静默改成 0。

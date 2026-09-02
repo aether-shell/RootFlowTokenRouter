@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -22,6 +23,9 @@ type openAICompatSessionResponseBinding struct {
 
 func openAICompatContinuationEnabled(account *Account, model string) bool {
 	if account == nil || account.Type != AccountTypeAPIKey {
+		return false
+	}
+	if !openai_compat.ResolveResponsesContinuationSupported(account.Extra) {
 		return false
 	}
 	return shouldAutoInjectPromptCacheKeyForCompat(model)
@@ -135,7 +139,8 @@ func isOpenAICompatPreviousResponseUnsupported(statusCode int, upstreamMsg strin
 		}
 		return strings.Contains(lower, "unsupported parameter") ||
 			strings.Contains(lower, "only supported on responses websocket") ||
-			strings.Contains(lower, "not supported")
+			strings.Contains(lower, "not supported") ||
+			strings.Contains(lower, "requires an openai api-key account for http requests")
 	}
 	if check(upstreamMsg) || check(string(upstreamBody)) {
 		return true

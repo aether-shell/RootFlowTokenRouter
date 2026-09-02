@@ -130,7 +130,7 @@ const ModelDistributionChartStub = {
   `,
 }
 const GroupDistributionChartStub = {
-  props: ['metric'],
+  props: ['metric', 'chartType'],
   emits: ['update:metric'],
   template: `
     <div data-test="group-chart">
@@ -138,6 +138,10 @@ const GroupDistributionChartStub = {
       <button class="switch-metric" @click="$emit('update:metric', 'actual_cost')">switch</button>
     </div>
   `,
+}
+const EndpointDistributionChartStub = {
+  props: ['chartType'],
+  template: '<div data-test="endpoint-chart" />',
 }
 
 const mountRouteFilteredUsageView = () => mount(UsageView, {
@@ -354,6 +358,7 @@ describe('admin UsageView distribution metric toggles', () => {
           TokenUsageTrend: true,
           ModelDistributionChart: ModelDistributionChartStub,
           GroupDistributionChart: GroupDistributionChartStub,
+          EndpointDistributionChart: EndpointDistributionChartStub,
           UserTokenRanking: true,
         },
       },
@@ -374,6 +379,8 @@ describe('admin UsageView distribution metric toggles', () => {
     const modelChart = wrapper.find('[data-test="model-chart"]')
     const groupChart = wrapper.find('[data-test="group-chart"]')
 
+    expect(wrapper.findComponent(GroupDistributionChartStub).props('chartType')).toBe('bar')
+    expect(wrapper.findComponent(EndpointDistributionChartStub).props('chartType')).toBe('bar')
     expect(modelChart.find('.metric').text()).toBe('tokens')
     expect(groupChart.find('.metric').text()).toBe('tokens')
 

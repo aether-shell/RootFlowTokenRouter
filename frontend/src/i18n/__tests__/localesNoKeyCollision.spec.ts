@@ -103,3 +103,40 @@ describe('account scheduling threshold locale hierarchy', () => {
     }
   })
 })
+
+// 高级调度诊断返回的设置键必须全部有本地化名称，否则界面会直接显示键路径。
+describe('advanced scheduler diagnostic locale keys', () => {
+  const settingKeys = [
+    'sticky_weighted_enabled',
+    'subscription_priority_enabled',
+    'ewma_error_rate_alpha',
+    'ewma_ttft_alpha',
+    'sticky_escape_enabled',
+    'sticky_escape_ttft_ms',
+    'sticky_escape_error_rate',
+    'lb_top_k',
+    'weight_priority',
+    'weight_load',
+    'weight_queue',
+    'weight_error_rate',
+    'weight_ttft',
+    'weight_reset',
+    'weight_quota_headroom',
+    'weight_previous_response',
+    'weight_session_sticky'
+  ]
+
+  it.each([
+    ['zh', zhAdminAccounts.accounts],
+    ['en', enAdminAccounts.accounts]
+  ] as const)('%s translates every diagnostic setting', (_locale, messages) => {
+    const settingNames = (messages as unknown as {
+      advancedSchedulerScore: { settingNames: Record<string, unknown> }
+    }).advancedSchedulerScore.settingNames
+
+    for (const key of settingKeys) {
+      expect(settingNames[key], `${_locale} missing setting name ${key}`).toEqual(expect.any(String))
+      expect(settingNames[key]).not.toBe(`admin.accounts.advancedSchedulerScore.settingNames.${key}`)
+    }
+  })
+})

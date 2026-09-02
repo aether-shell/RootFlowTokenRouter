@@ -112,6 +112,7 @@ export default {
     team: '团队',
     teams: '团队管理',
     batchImage: '批量生图',
+    creative: '创作台',
     usage: '使用记录',
     dataSharing: '数据共享',
     redeem: '兑换',

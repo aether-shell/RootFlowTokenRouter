@@ -131,6 +131,9 @@ describe('OpsConcurrencyCard', () => {
     expect(mockGetConcurrencyStats).toHaveBeenCalledWith('', null)
     expect(wrapper.get('h3').classes()).toContain('whitespace-nowrap')
     expect(wrapper.get('[role="group"]').classes()).toContain('grid-cols-4')
+    expect(wrapper.get('[data-test="concurrency-refresh"]').classes()).toEqual(
+      expect.arrayContaining(['h-7', 'w-7', 'justify-center', 'p-0'])
+    )
     expect(wrapper.text()).toContain('ANTHROPIC')
 
     await wrapper.get('[data-test="concurrency-dimension-group"]').trigger('click')

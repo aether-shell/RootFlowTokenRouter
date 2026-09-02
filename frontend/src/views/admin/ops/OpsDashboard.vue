@@ -187,7 +187,8 @@ import {
   defaultLatencyBucketBoundaries,
   normalizeLatencyBucketBoundaries,
   parseLatencyBucketBoundaries,
-  serializeLatencyBucketBoundaries
+  serializeLatencyBucketBoundaries,
+  LATENCY_BUCKET_STORAGE_KEY
 } from './latencyBuckets'
 
 const route = useRoute()
@@ -300,6 +301,32 @@ const readQueryNumber = (key: string): number | null => {
   return Number.isFinite(n) ? n : null
 }
 
+function readPersistedLatencyBucketBoundaries(): number[] | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = window.localStorage.getItem(LATENCY_BUCKET_STORAGE_KEY) || ''
+    return parseLatencyBucketBoundaries(raw)
+  } catch {
+    // 本地存储不可用时继续使用默认配置，不阻断运维页加载。
+    return null
+  }
+}
+
+function persistLatencyBucketBoundaries(boundaries: readonly number[]) {
+  if (typeof window === 'undefined') return
+
+  try {
+    if (areDefaultLatencyBucketBoundaries(boundaries)) {
+      window.localStorage.removeItem(LATENCY_BUCKET_STORAGE_KEY)
+      return
+    }
+    window.localStorage.setItem(LATENCY_BUCKET_STORAGE_KEY, serializeLatencyBucketBoundaries(boundaries))
+  } catch {
+    // 本地存储不可用时仍保留当前页面内的设置。
+  }
+}
+
 const applyRouteQueryToState = () => {
   const nextTimeRange = readQueryString(QUERY_KEYS.timeRange)
   if (nextTimeRange && allowedTimeRanges.has(nextTimeRange as TimeRange)) {
@@ -314,7 +341,7 @@ const applyRouteQueryToState = () => {
   const rawLatencyBounds = readQueryString(QUERY_KEYS.latencyBounds)
   const parsedLatencyBounds = parseLatencyBucketBoundaries(rawLatencyBounds)
   invalidLatencyBoundsQuery.value = rawLatencyBounds !== '' && parsedLatencyBounds === null
-  latencyBucketBoundaries.value = parsedLatencyBounds ?? defaultLatencyBucketBoundaries()
+  latencyBucketBoundaries.value = parsedLatencyBounds ?? readPersistedLatencyBucketBoundaries() ?? defaultLatencyBucketBoundaries()
 
   // Deep links
   const openRules = readQueryString(QUERY_KEYS.openAlertRules)
@@ -555,6 +582,7 @@ function onLatencyBucketBoundariesChange(values: number[]) {
   if (!normalized || areLatencyBucketBoundariesEqual(normalized, latencyBucketBoundaries.value)) return
 
   latencyBucketBoundaries.value = normalized
+  persistLatencyBucketBoundaries(normalized)
   syncQueryToRoute()
   if (opsEnabled.value) {
     void refreshLatencyHistogram()

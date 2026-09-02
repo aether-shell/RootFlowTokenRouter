@@ -1,6 +1,7 @@
 package service
 
 import (
+	"math"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
@@ -334,6 +335,40 @@ func (s *UserSubscription) AvailableQuotaUSD() float64 {
 		s.RemainingWeeklyUSD(),
 		s.RemainingMonthlyUSD(),
 	)
+}
+
+// @project-doc docs/domains/payments_and_entitlements.md#subscription_self_revoke
+// HighestQuotaExhausted 判断最高层有限额度是否已耗尽。
+// 月、周、日按优先级选择第一个正数额度；低层窗口耗尽但高层仍有额度时不能撤销套餐。
+func (s *UserSubscription) HighestQuotaExhausted() bool {
+	if s == nil {
+		return false
+	}
+	for _, quota := range []struct {
+		limit float64
+		used  float64
+		ok    bool
+	}{
+		{limit: valueOrZeroLimit(s.MonthlyLimitUSD), used: s.MonthlyUsageUSD, ok: finitePositiveSubscriptionLimit(s.MonthlyLimitUSD)},
+		{limit: valueOrZeroLimit(s.WeeklyLimitUSD), used: s.WeeklyUsageUSD, ok: finitePositiveSubscriptionLimit(s.WeeklyLimitUSD)},
+		{limit: valueOrZeroLimit(s.DailyLimitUSD), used: s.DailyUsageUSD, ok: finitePositiveSubscriptionLimit(s.DailyLimitUSD)},
+	} {
+		if quota.ok {
+			return quota.used >= quota.limit
+		}
+	}
+	return false
+}
+
+func valueOrZeroLimit(value *float64) float64 {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+func finitePositiveSubscriptionLimit(limit *float64) bool {
+	return positiveSubscriptionLimit(limit) && !math.IsNaN(*limit) && !math.IsInf(*limit, 0)
 }
 
 func remainingWindowAmount(limit *float64, used float64) *float64 {

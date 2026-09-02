@@ -440,7 +440,7 @@ func (s *AdvancedSchedulerScoreDiagnosticService) buildDetail(
 	eligibilityRequest := request
 	// 硬粘性逃逸后，生产调度会按普通候选执行费用与 RPM 门禁；诊断必须使用相同语义。
 	if !effective.stickyWeightedEnabled && request.StickyAccountID > 0 {
-		if _, _, _, escaped := shouldEscapeAdvancedStickyAccount(stats, request.StickyAccountID, s.stickyEscapeConfig()); escaped {
+		if _, _, _, escaped := shouldEscapeAdvancedStickyAccount(stats, request.StickyAccountID, effective.stickyEscape); escaped {
 			eligibilityRequest.StickyAccountID = 0
 		}
 	}
@@ -469,7 +469,7 @@ func (s *AdvancedSchedulerScoreDiagnosticService) buildDetail(
 		exclusions[reason]++
 	}
 
-	policyOutcome := diagnosticHardStickyPolicyOutcome(filtered, group, request, effective, stats, s.stickyEscapeConfig())
+	policyOutcome := diagnosticHardStickyPolicyOutcome(filtered, group, request, effective, stats, effective.stickyEscape)
 	deferredAccountIDs := map[int64]struct{}{}
 	if policyOutcome.forcedAccountID == 0 {
 		var subscriptionPoolActive bool
@@ -540,13 +540,6 @@ func (s *AdvancedSchedulerScoreDiagnosticService) effectiveSettings(ctx context.
 	}
 	runtime := gateway.advancedSchedulerRuntimeSettings(ctx)
 	return gateway.advancedSchedulerEffectiveSettingsForGroup(ctx, group), runtime
-}
-
-func (s *AdvancedSchedulerScoreDiagnosticService) stickyEscapeConfig() advancedStickyEscapeConfig {
-	if s == nil || s.rateLimitService == nil {
-		return advancedStickyEscapeConfig{}
-	}
-	return resolveAdvancedStickyEscapeConfig(s.rateLimitService.cfg)
 }
 
 func (s *AdvancedSchedulerScoreDiagnosticService) prepareEligibilityContext(ctx context.Context, group *Group, accounts []Account) context.Context {
@@ -1225,6 +1218,11 @@ func diagnosticEffectiveSettings(group *Group, runtime advancedSchedulerRuntimeS
 	settings := []AdvancedSchedulerScoreDiagnosticSetting{
 		{Key: "sticky_weighted_enabled", Value: strconv.FormatBool(effective.stickyWeightedEnabled), Source: settingSource(overrides.StickyWeightedEnabled != nil, true)},
 		{Key: "subscription_priority_enabled", Value: strconv.FormatBool(effective.subscriptionPriorityEnabled), Source: settingSource(overrides.SubscriptionPriorityEnabled != nil, true)},
+		{Key: "ewma_error_rate_alpha", Value: diagnosticFloat(effective.feedback.errorRateAlpha), Source: settingSource(overrides.EWMAErrorRateAlpha != nil, runtime.ewmaErrorRateAlphaSet)},
+		{Key: "ewma_ttft_alpha", Value: diagnosticFloat(effective.feedback.ttftAlpha), Source: settingSource(overrides.EWMATTFTAlpha != nil, runtime.ewmaTTFTAlphaSet)},
+		{Key: "sticky_escape_enabled", Value: strconv.FormatBool(effective.stickyEscape.enabled), Source: settingSource(overrides.StickyEscapeEnabled != nil, runtime.stickyEscapeEnabledSet)},
+		{Key: "sticky_escape_ttft_ms", Value: diagnosticFloat(effective.stickyEscape.ttftMs), Source: settingSource(overrides.StickyEscapeTTFTMs != nil, runtime.stickyEscapeTTFTMsSet)},
+		{Key: "sticky_escape_error_rate", Value: diagnosticFloat(effective.stickyEscape.errorRate), Source: settingSource(overrides.StickyEscapeErrorRate != nil, runtime.stickyEscapeErrorRateSet)},
 		{Key: "lb_top_k", Value: strconv.Itoa(effective.topK), Source: settingSource(overrides.LBTopK != nil, runtime.lbTopKOverride > 0)},
 	}
 	for _, item := range []struct {

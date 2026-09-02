@@ -567,6 +567,8 @@ type AccountSelectionResult struct {
 	ReleaseFunc       func()
 	WaitPlan          *AccountWaitPlan // nil means no wait allowed
 	AdvancedScheduler bool             // 仅内部转发链路使用，不对外序列化。
+	// AdvancedSchedulerFeedback 保存本次请求应使用的反馈 EWMA 系数。
+	AdvancedSchedulerFeedback *advancedSchedulerFeedbackConfig
 }
 
 // ClaudeUsage 表示Claude API返回的usage信息

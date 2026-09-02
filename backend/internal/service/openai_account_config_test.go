@@ -36,6 +36,7 @@ func TestBuildAccountForCreateNormalizesLegacyOpenAIConfigurationForCreateAndImp
 	require.Equal(t, []string{"text_generation"}, account.Credentials[openAIWorkloadCapabilitiesCredentialKey])
 	require.Equal(t, "force_responses", account.Extra[openai_compat.ExtraKeyTextRouteMode])
 	require.Equal(t, "unsupported", account.Extra[openai_compat.ExtraKeyResponsesProbeStatus])
+	require.Equal(t, false, account.Extra[openai_compat.ExtraKeyResponsesContinuationSupported])
 	require.Equal(t, map[string]any{"keep": true}, account.Extra["unrelated"])
 	require.NotContains(t, account.Credentials, legacyOpenAICapabilitiesCredentialKey)
 	require.NotContains(t, account.Extra, legacyOpenAIResponsesModeExtraKey)
@@ -50,6 +51,7 @@ func TestNormalizeOpenAIAPIKeyConfigurationDefaultsAndExplicitEmpty(t *testing.T
 		require.Equal(t, []string{"text_generation", "embeddings"}, account.Credentials[openAIWorkloadCapabilitiesCredentialKey])
 		require.Equal(t, "preserve_client_protocol", account.Extra[openai_compat.ExtraKeyTextRouteMode])
 		require.Equal(t, "unknown", account.Extra[openai_compat.ExtraKeyResponsesProbeStatus])
+		require.Equal(t, false, account.Extra[openai_compat.ExtraKeyResponsesContinuationSupported])
 	})
 
 	t.Run("显式空能力集合保持为空", func(t *testing.T) {
@@ -86,6 +88,37 @@ func TestNormalizeOpenAIAPIKeyConfigurationPatchSupportsLegacyBulkPayload(t *tes
 	require.NotContains(t, extra, legacyOpenAIResponsesSupportedExtraKey)
 }
 
+func TestNormalizeOpenAIResponsesContinuationSupported(t *testing.T) {
+	t.Run("explicit values are preserved", func(t *testing.T) {
+		extra := map[string]any{
+			openai_compat.ExtraKeyResponsesContinuationSupported: true,
+		}
+		require.NoError(t, normalizeOpenAIAPIKeyConfigurationPatch(nil, extra))
+		require.Equal(t, true, extra[openai_compat.ExtraKeyResponsesContinuationSupported])
+
+		extra[openai_compat.ExtraKeyResponsesContinuationSupported] = false
+		require.NoError(t, normalizeOpenAIAPIKeyConfigurationPatch(nil, extra))
+		require.Equal(t, false, extra[openai_compat.ExtraKeyResponsesContinuationSupported])
+	})
+
+	t.Run("null becomes false", func(t *testing.T) {
+		extra := map[string]any{
+			openai_compat.ExtraKeyResponsesContinuationSupported: nil,
+		}
+		require.NoError(t, normalizeOpenAIAPIKeyConfigurationPatch(nil, extra))
+		require.Equal(t, false, extra[openai_compat.ExtraKeyResponsesContinuationSupported])
+	})
+
+	t.Run("invalid type is rejected", func(t *testing.T) {
+		extra := map[string]any{
+			openai_compat.ExtraKeyResponsesContinuationSupported: "true",
+		}
+		err := normalizeOpenAIAPIKeyConfigurationPatch(nil, extra)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "OPENAI_RESPONSES_CONTINUATION_INVALID")
+	})
+}
+
 func TestNormalizeOpenAITextRouteModeRejectsInvalidNewValue(t *testing.T) {
 	extra := map[string]any{openai_compat.ExtraKeyTextRouteMode: "auto"}
 
@@ -106,8 +139,9 @@ func TestUpdateAccountLegacyPatchOverridesEchoedNewShape(t *testing.T) {
 			openAIWorkloadCapabilitiesCredentialKey: []any{"embeddings"},
 		},
 		Extra: map[string]any{
-			openai_compat.ExtraKeyTextRouteMode:        "preserve_client_protocol",
-			openai_compat.ExtraKeyResponsesProbeStatus: "supported",
+			openai_compat.ExtraKeyTextRouteMode:                  "preserve_client_protocol",
+			openai_compat.ExtraKeyResponsesProbeStatus:           "supported",
+			openai_compat.ExtraKeyResponsesContinuationSupported: true,
 		},
 	}
 	require.NoError(t, repo.Create(ctx, account))
@@ -130,6 +164,7 @@ func TestUpdateAccountLegacyPatchOverridesEchoedNewShape(t *testing.T) {
 	require.NotContains(t, updated.Credentials, legacyOpenAICapabilitiesCredentialKey)
 	require.Equal(t, "force_chat_completions", updated.Extra[openai_compat.ExtraKeyTextRouteMode])
 	require.Equal(t, "unsupported", updated.Extra[openai_compat.ExtraKeyResponsesProbeStatus])
+	require.Equal(t, true, updated.Extra[openai_compat.ExtraKeyResponsesContinuationSupported])
 	require.NotContains(t, updated.Extra, legacyOpenAIResponsesModeExtraKey)
 	require.NotContains(t, updated.Extra, legacyOpenAIResponsesSupportedExtraKey)
 }

@@ -3,9 +3,25 @@
     <TablePageLayout>
       <!-- 筛选条件 -->
       <template #filters>
-        <div class="card p-4 sm:p-6">
-          <div class="space-y-4">
-            <div class="flex flex-wrap items-end gap-4">
+        <div class="flex items-center justify-between gap-3">
+            <div ref="filterPanelRef" class="relative shrink-0">
+              <button
+                type="button"
+                class="btn btn-secondary relative h-9 w-9 p-0"
+                :aria-expanded="showFilterDropdown"
+                :aria-label="t('common.filter')"
+                :title="t('common.filter')"
+                @click="showFilterDropdown = !showFilterDropdown"
+              >
+                <Icon name="filter" size="sm" />
+                <span v-if="activeFilterCount > 0" class="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-100 px-1.5 text-xs font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-300">
+                  {{ activeFilterCount }}
+                </span>
+              </button>
+
+              <div v-show="showFilterDropdown" class="absolute -left-4 top-full z-[60] mt-2 max-h-[min(70vh,42rem)] w-[min(48rem,calc(100vw-3rem))] overflow-y-auto rounded-xl border border-gray-200 bg-white p-4 shadow-xl dark:border-dark-600 dark:bg-dark-900 sm:left-0" @click.stop>
+                <div class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">{{ t('common.filter') }}</div>
+                <div class="flex flex-wrap items-end gap-4">
               <div class="w-full sm:w-auto sm:min-w-[240px]">
                 <label class="input-label">{{ t('admin.audit.filters.q') }}</label>
                 <div class="relative">
@@ -62,21 +78,19 @@
                   @update:model-value="handleTimeRangeChange"
                 />
               </div>
+                </div>
+              </div>
             </div>
 
-            <div class="flex w-full flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-4 dark:border-dark-700">
-              <button type="button" class="btn btn-primary" :disabled="loading" @click="search">
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <button type="button" class="btn btn-primary h-9 whitespace-nowrap px-3 sm:px-4" :disabled="loading" @click="search">
                 {{ t('common.search') }}
               </button>
-              <button type="button" class="btn btn-secondary" :disabled="loading" @click="resetFilters">
-                {{ t('common.reset') }}
-              </button>
-              <button type="button" class="btn btn-danger" @click="openClearDialog">
+              <button type="button" class="btn btn-danger h-9 whitespace-nowrap px-3 sm:px-4" @click="openClearDialog">
                 <Icon name="trash" size="sm" class="mr-1.5" />
                 {{ t('admin.audit.clearAll') }}
               </button>
             </div>
-          </div>
         </div>
       </template>
 
@@ -349,7 +363,7 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI, type AuditLog } from '@/api/admin'
 import { totpAPI } from '@/api'
@@ -382,6 +396,9 @@ const filters = reactive({
   auth_method: '',
   success: ''
 })
+const showFilterDropdown = ref(false)
+const filterPanelRef = ref<HTMLElement | null>(null)
+const activeFilterCount = computed(() => Object.values(filters).filter((value) => String(value).trim() !== '').length + (timeRange.value ? 1 : 0))
 
 // 时间范围：预设窗口（同 /admin/ops 时间下拉）+ 自定义起止（datetime-local，支持时分）
 const timeRange = ref('')
@@ -548,20 +565,6 @@ function search() {
   fetchLogs()
 }
 
-function resetFilters() {
-  filters.q = ''
-  filters.actor_email = ''
-  filters.action = ''
-  filters.client_ip = ''
-  filters.method = ''
-  filters.auth_method = ''
-  filters.success = ''
-  timeRange.value = ''
-  customStartTime.value = ''
-  customEndTime.value = ''
-  search()
-}
-
 function onPageChange(p: number) {
   page.value = p
   fetchLogs()
@@ -678,5 +681,17 @@ function statusDotClass(status: number): string {
   return 'bg-green-500'
 }
 
-onMounted(fetchLogs)
+function handleFilterClickOutside(event: MouseEvent) {
+  const target = event.target
+  if (target instanceof Node && filterPanelRef.value?.contains(target)) return
+  if (target instanceof Element && target.closest('.select-dropdown-portal')) return
+  showFilterDropdown.value = false
+}
+
+onMounted(() => {
+  fetchLogs()
+  document.addEventListener('click', handleFilterClickOutside)
+})
+
+onUnmounted(() => document.removeEventListener('click', handleFilterClickOutside))
 </script>

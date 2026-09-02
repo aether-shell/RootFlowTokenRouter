@@ -64,10 +64,12 @@
 1. 初始化 bootstrap 日志并用 `LoadForBootstrap` 读取配置。启动阶段允许 JWT secret 暂空，但会使用临时值完成初次结构校验。
 2. 初始化正式日志；`simple` 模式在此明确发出跳过计费和配额的警告。
 3. Wire 构建依赖图。`repository.InitEnt` 先初始化时区和 PostgreSQL 连接池，在十分钟超时内执行嵌入式 SQL 迁移，再从配置或数据库补齐系统密钥并执行完整配置校验。`simple` 模式还会补齐默认分组与管理员并发值。
-4. 创建 Redis 客户端、仓储、服务、handler、中间件和 Gin server。多个 provider 会在构造后立即启动各自 worker，例如 token 刷新、到期处理、调度快照、用量记录、聚合、清理、备份、批量图片作业和支付订单过期处理。
+4. 创建 Redis 客户端、仓储、服务、handler、中间件和 Gin server。多个 provider 会在构造后立即启动各自 worker，例如 token 刷新、到期处理、调度快照、用量记录、聚合、清理、备份、批量图片作业、创作台队列（`CreativeWorkerRuntime`，`creative.queue_enabled` 时运行数据库设置 `creative_worker_count` 指定数量的任务 worker、一个 delayed mover、一个 stale active recovery、outbox reconciler 和 transient cleanup reconciler）和支付订单过期处理。
 5. 在 goroutine 中调用 `ListenAndServe`，主 goroutine 等待 `SIGINT` 或 `SIGTERM`。
 
 收到终止信号后先给 HTTP server 五秒完成优雅关闭，停止接收新请求；函数返回时执行应用 `Cleanup`。关闭过程有独立三十秒上下文：大部分互不依赖的 worker 并行停止，然后按顺序停止数据共享/配额等需要 drain 或 flush 的服务，最后关闭 Redis 和 Ent/PostgreSQL。单个关闭步骤失败会记录日志并继续，超时会告警而不会无限阻塞进程退出。
+
+依赖 Redis Pub/Sub 的 TLS 指纹 Profile/Router 缓存订阅由对应服务在 Redis 关闭前主动取消并等待退出；Redis 被动关闭导致的 channel 结束只作为异常路径记录告警。
 
 新增有 goroutine、定时器、缓冲写或外部连接的服务时，必须同时回答三个问题：由哪个 provider 启动、停止方法是否幂等、在 Redis/PostgreSQL 关闭前需要完成什么 drain/flush。只加入 Wire provider set 而不加入 `provideCleanup` 会留下关闭竞态。
 
@@ -80,6 +82,7 @@
 | 本地数据目录 | 定价快照、日志、前端覆盖、数据共享导出及部分部署配置 | 多实例默认不共享；容器部署必须挂载持久卷并在备份计划中显式纳入 |
 | S3 兼容存储 | 备份等可选大对象 | 备份客户端按运行时设置构造，不能在启动时固定旧凭据；对象可用性与数据库元数据生命周期必须协同 |
 | Google Cloud Storage | Vertex 批量图片输入、输出和中间 JSONL | 由 Vertex 批量图片 provider 按作业前缀管理；不得向 API 用户暴露内部 URI |
+| 创作台临时数据 | Redis `creative:payload:`、`creative:input:`、`creative:mask:`、`creative:output:` 键（TTL 默认 30 分钟）与 `creative:queue:*` 队列；PostgreSQL 存 `creative_runs`/`creative_run_outputs` 元数据及 `creative_run_outbox` durable 动作 | 素材与 prompt 明文不入 PostgreSQL，因此不进入备份；临时输出过期即不可恢复，任务降级 `result_lost`，客户端 ack 先写元数据再删除输出键，删除失败由 reconciler 补偿 |
 | 上游供应商 | 模型推理、OAuth、配额与供应商任务 | 失败通过平台适配器、账号状态和故障转移收敛；不能把上游瞬时错误写成永久本地事实 |
 
 Ent schema 是主要实体的代码模型，手写 SQL 迁移是已部署数据库的演进权威。repository 同时使用 Ent 和底层 `*sql.DB` 完成复杂聚合、批量更新及显式事务；两种访问方式共享同一连接池。

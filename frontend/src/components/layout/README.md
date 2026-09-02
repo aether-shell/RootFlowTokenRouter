@@ -26,9 +26,9 @@ import { AppLayout } from '@/components/layout'
 
 **Features:**
 
-- Responsive sidebar (collapsible)
-- Fixed header at top
-- Main content area with slot
+- Responsive sidebar (collapsible), positioned below the global header
+- Full-width global header with branding and account actions
+- Main content area with route title and slot
 - Automatically adjusts margin based on sidebar state
 
 ---
@@ -39,7 +39,7 @@ Navigation sidebar with user and admin sections.
 
 **Features:**
 
-- Logo/brand at top
+- Navigation links below the global header
 - User navigation links:
   - Dashboard
   - API Keys
@@ -68,8 +68,7 @@ Top header with user info and actions.
 
 **Features:**
 
-- Mobile menu toggle button
-- Page title (from route meta or slot)
+- Site branding and mobile menu toggle button
 - User balance display (desktop only)
 - User dropdown menu with:
   - Profile link
@@ -77,18 +76,6 @@ Top header with user info and actions.
 - User avatar with initials
 - Click-outside handling for dropdown
 - Responsive design
-
-**Usage with custom title:**
-
-```vue
-<template>
-  <AppLayout>
-    <template #title> Custom Page Title </template>
-
-    <!-- Your content -->
-  </AppLayout>
-</template>
-```
 
 **Used automatically by AppLayout** - no need to import separately.
 

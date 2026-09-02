@@ -29,3 +29,9 @@ describe('AppHeader theme toggle', () => {
     expect(componentSource).toContain('@apply flex items-center gap-1 sm:gap-2;')
   })
 })
+
+describe('AppHeader positioning', () => {
+  it('keeps the global header outside document scrolling', () => {
+    expect(componentSource).toContain('class="glass fixed inset-x-0 top-0 z-50')
+  })
+})

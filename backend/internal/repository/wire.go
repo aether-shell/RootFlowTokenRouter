@@ -62,6 +62,11 @@ func ProvideSchedulerCache(rdb *redis.Client, cfg *config.Config) service.Schedu
 	return newSchedulerCacheWithChunkSizes(rdb, mgetChunkSize, writeChunkSize)
 }
 
+// ProvideCreativeManagedKeyRepository 把 API Key 仓储以创作台托管 Key 窄接口注入。
+func ProvideCreativeManagedKeyRepository(client *ent.Client, sqlDB *sql.DB) service.CreativeManagedKeyRepository {
+	return newAPIKeyRepositoryWithSQL(client, sqlDB)
+}
+
 // ProviderSet is the Wire provider set for all repositories
 var ProviderSet = wire.NewSet(
 	NewUserRepository,
@@ -85,6 +90,11 @@ var ProviderSet = wire.NewSet(
 	NewDataShareExportArtifactRepository,
 	NewUsageBillingRepository,
 	NewBatchImageRepository,
+	NewCreativeRunRepository,
+	NewCreativeRunOutboxRepository,
+	NewCreativeTransientStore,
+	NewCreativeQueue,
+	ProvideCreativeManagedKeyRepository,
 	NewIdempotencyRepository,
 	NewUsageCleanupRepository,
 	NewDashboardAggregationRepository,

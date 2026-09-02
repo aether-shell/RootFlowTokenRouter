@@ -214,7 +214,7 @@
     <template v-if="backToList" #footer>
       <button
         type="button"
-        class="btn btn-secondary"
+        class="btn btn-secondary h-9"
         data-testid="error-detail-back-to-list"
         @click="goBack"
       >
