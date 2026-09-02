@@ -5,6 +5,7 @@
 ## 章节导航
 
 - [项目定位与边界](#项目定位与边界)：判断一个需求是否属于本仓库。
+- [Pro 与 TR 实例边界](#pro-与-tr-实例边界)：防止跨系统误判和误操作。
 - [运行时组成](#运行时组成)：理解进程、数据存储和可选依赖。
 - [仓库地图](#仓库地图)：确定代码和资料的规范所有者。
 - [核心术语](#核心术语)：统一路由、身份与计费语义。
@@ -23,9 +24,17 @@ TokenRouter 是基于上游 Sub2API 持续演进的 AI API 网关与管理平台
 - 管理前端、公开页面、首次设置流程和服务端配置。
 - PostgreSQL schema 演进、Redis 运行状态、后台任务以及官方构建部署资产。
 
-上游供应商自身的可用性、服务条款、模型真实性和外部支付机构的最终结算不由本系统保证。`docs/legal/` 是运行时展示的法律材料，部署与产品使用手册也可以位于 `docs/`；除非被目录规范列出，它们都不是 Project Doc 的当前状态权威来源。
+上游供应商自身的可用性、服务条款、模型真实性和外部支付机构的最终结算不由本系统保证。`docs/legal/` 是运行时展示的法律材料，部署与产品使用手册也可以位于 `docs/`；工程状态仍应以实现、测试和对应工程文档为准。
 
 仓库仍保留若干 `sub2api` 名称，包括二进制、服务名、环境变量、数据路径和 Go 包内兼容标识。它们是现有部署及上游兼容契约，不应仅为品牌统一而机械替换。
+
+## Pro 与 TR 实例边界
+
+当前仓库及其 fork 对应 `pro.tknhub.cc`（Pro）。`tr.tknhub.cc`（TR）是另一套完全独立的系统，不属于本仓库所定义的 Pro 发布链路。二者不是同一系统的测试与生产、灰度与正式、主站与备站或升级前后关系。
+
+因此，Pro 的版本分析、上游同步、构建、测试、部署、配置、数据库和运行状态只能以 Pro 自身为事实来源，不得引用 TR 状态推导结论，也不得把 TR 作为 Pro 的验证或发布目标。任何涉及 TR 的读取、比较或变更都必须由用户针对 TR 单独明确授权；只提出 Pro 需求不构成操作 TR 的授权。
+
+Pro 是持续跟进源项目的 fork。上游同步的目标是在 Pro fork 中吸收源项目更新，同时完整保留、适配并回归验证 Pro 二开功能。直接用源项目官方镜像替换 Pro、因冲突丢弃二开功能，或通过 TR 间接验证 Pro，均不符合本项目的升级定义。
 
 ## 运行时组成
 
@@ -55,7 +64,7 @@ Go 模块路径为 `github.com/TokenFlux/TokenRouter`。后端以 `backend/go.mo
 | `frontend/src/` | Vue 应用、路由、API 客户端、Pinia store、视图、组件和 i18n | 后端 API 契约变化通常需要同步类型、调用方和前端测试 |
 | `deploy/` | Compose、安装脚本、反向代理基线和运行配置示例 | 与根 Dockerfile、GoReleaser 和 workflow 共同定义发布形态 |
 | `.github/workflows/` | 后端 CI、安全扫描和 release 自动化 | 实际工具链版本和发布触发条件以 workflow 为准 |
-| `docs/` | Project Doc 与库外用户/法律资料 | 只有各级 `index.md` 规范列出的文档属于 Project Doc |
+| `docs/` | 工程文档与用户/法律资料 | 各级 `index.md` 负责分类和导航 |
 | `skills/`、`tools/` | 仓库专用操作技能和维护工具 | 不属于应用运行时；变更时仍需遵守相应输入输出契约 |
 
 ## 核心术语
@@ -100,6 +109,6 @@ Go 模块路径为 `github.com/TokenFlux/TokenRouter`。后端以 `backend/go.mo
 2. 数据结构看 Ent schema、SQL 迁移和 repository 查询；生成的 Ent 文件用于验证结果，不作为首选编辑源。
 3. 启动配置看 `backend/internal/config/config.go`、部署示例和配置测试；运行时设置看 Setting service、handler 及对应前端。
 4. 构建测试和发布看 manifest、Makefile、GoReleaser 与 `.github/workflows/`。
-5. Project Doc 记录跨文件后的当前结论；若与代码冲突，先把它视为漂移候选并用测试、调用方和历史核实，不凭文档反向猜测实现。
+5. 工程文档记录跨文件后的当前结论；若与代码冲突，先把它视为漂移候选并用测试、调用方和历史核实，不凭文档反向猜测实现。
 
 继续阅读：[架构](architecture/index.md)、[领域](domains/index.md)、[接口](interfaces/index.md)、[运维](operations/index.md)。
