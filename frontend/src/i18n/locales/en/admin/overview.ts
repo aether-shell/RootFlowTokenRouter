@@ -41,6 +41,7 @@ export default {
       userUsageTrend: 'User Usage Trend (Top 12)',
       model: 'Model',
       group: 'Group',
+      allGroups: 'All Groups',
       noGroup: 'No Group',
       requests: 'Requests',
       tokens: 'Tokens',
@@ -80,7 +81,8 @@ export default {
       groupPricingDesc: 'Configure batch discount and hold ratio',
       systemSettings: 'System Settings',
       configureSystem: 'Configure system settings',
-      failedToLoad: 'Failed to load dashboard statistics'
+      failedToLoad: 'Failed to load dashboard statistics',
+      failedToLoadGroups: 'Failed to load groups'
     },
 backup: {
       title: 'Database Backup',

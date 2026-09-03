@@ -88,22 +88,46 @@ func (r *usageLogRepository) GetAPIKeyUsageTrend(ctx context.Context, startTime,
 
 // GetUserUsageTrend 返回按付款主体和日期聚合的最活跃用户趋势。
 func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int) (results []UserUsageTrendPoint, err error) {
-	if aggregated, ok, aggregateErr := r.getUserUsageTrendFromAnalytics(ctx, startTime, endTime, granularity, limit); aggregateErr == nil && ok {
+	return r.GetUserUsageTrendByGroup(ctx, startTime, endTime, granularity, limit, 0)
+}
+
+// GetUserUsageTrendByGroup 返回指定分组内按付款主体和日期聚合的最活跃用户趋势。
+func (r *usageLogRepository) GetUserUsageTrendByGroup(ctx context.Context, startTime, endTime time.Time, granularity string, limit int, groupID int64) (results []UserUsageTrendPoint, err error) {
+	filters := UsageLogFilters{GroupID: groupID}
+	if aggregated, ok, aggregateErr := r.getUserUsageTrendFromAnalyticsWithFilters(ctx, startTime, endTime, granularity, limit, filters); aggregateErr == nil && ok {
 		return aggregated, nil
 	} else if aggregateErr != nil {
 		r.logUsageAnalyticsFallback("user_usage_trend", aggregateErr)
 	}
 	dateFormat := safeDateFormat(granularity)
 
+	args := []any{startTime, endTime}
+	topGroupCondition := ""
+	if groupID > 0 {
+		args = append(args, groupID)
+		topGroupCondition = fmt.Sprintf(" AND group_id = $%d", len(args))
+	}
+	args = append(args, limit)
+	limitPosition := len(args)
+	args = append(args, startTime, endTime)
+	detailStartPosition := len(args) - 1
+	detailEndPosition := len(args)
+	detailGroupCondition := ""
+	if groupID > 0 {
+		args = append(args, groupID)
+		detailGroupCondition = fmt.Sprintf(" AND u.group_id = $%d", len(args))
+	}
+
 	query := fmt.Sprintf(`
 		WITH top_users AS (
 			SELECT COALESCE(billing_user_id, user_id) AS user_id
 			FROM usage_logs
 			WHERE created_at >= $1 AND created_at < $2
+			  %s
 			-- 团队成员使用团队 Key 时，Top 用户应按付款主体合并用量。
 			GROUP BY COALESCE(billing_user_id, user_id)
 			ORDER BY SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) DESC
-			LIMIT $3
+			LIMIT $%d
 		)
 		SELECT
 			TO_CHAR(u.created_at, '%s') as date,
@@ -117,12 +141,13 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 		FROM usage_logs u
 		LEFT JOIN users us ON COALESCE(u.billing_user_id, u.user_id) = us.id
 		WHERE COALESCE(u.billing_user_id, u.user_id) IN (SELECT user_id FROM top_users)
-		  AND u.created_at >= $4 AND u.created_at < $5
+		  AND u.created_at >= $%d AND u.created_at < $%d
+		  %s
 		GROUP BY date, COALESCE(u.billing_user_id, u.user_id), us.email, us.username
 		ORDER BY date ASC, tokens DESC
-	`, dateFormat)
+	`, topGroupCondition, limitPosition, dateFormat, detailStartPosition, detailEndPosition, detailGroupCondition)
 
-	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit, startTime, endTime)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -152,16 +177,31 @@ func (r *usageLogRepository) GetUserUsageTrend(ctx context.Context, startTime, e
 
 // GetUserSpendingRanking 返回按付款主体聚合的消费排行；团队成员用团队 Key 的用量归到 Owner。
 func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (result *UserSpendingRankingResponse, err error) {
+	return r.GetUserSpendingRankingByGroup(ctx, startTime, endTime, limit, 0)
+}
+
+// GetUserSpendingRankingByGroup 返回指定分组内按付款主体聚合的消费排行。
+func (r *usageLogRepository) GetUserSpendingRankingByGroup(ctx context.Context, startTime, endTime time.Time, limit int, groupID int64) (result *UserSpendingRankingResponse, err error) {
 	if limit <= 0 {
 		limit = 12
 	}
-	if aggregated, ok, aggregateErr := r.getUserSpendingRankingFromAnalytics(ctx, startTime, endTime, limit); aggregateErr == nil && ok {
+	filters := UsageLogFilters{GroupID: groupID}
+	if aggregated, ok, aggregateErr := r.getUserSpendingRankingFromAnalyticsWithFilters(ctx, startTime, endTime, limit, filters); aggregateErr == nil && ok {
 		return aggregated, nil
 	} else if aggregateErr != nil {
 		r.logUsageAnalyticsFallback("user_spending_ranking", aggregateErr)
 	}
 
-	query := `
+	args := []any{startTime, endTime}
+	groupCondition := ""
+	if groupID > 0 {
+		args = append(args, groupID)
+		groupCondition = fmt.Sprintf(" AND u.group_id = $%d", len(args))
+	}
+	args = append(args, limit)
+	limitPosition := len(args)
+
+	query := fmt.Sprintf(`
 		WITH user_spend AS (
 			SELECT
 				COALESCE(u.billing_user_id, u.user_id) as user_id,
@@ -173,6 +213,7 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 			FROM usage_logs u
 			LEFT JOIN users us ON COALESCE(u.billing_user_id, u.user_id) = us.id
 			WHERE u.created_at >= $1 AND u.created_at < $2
+			  %s
 			-- 排行按付款主体归属，团队成员使用团队 Key 时计入团队 Owner。
 			GROUP BY COALESCE(u.billing_user_id, u.user_id), us.email, us.username
 		),
@@ -189,7 +230,7 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 				COALESCE(SUM(tokens) OVER (), 0) as total_tokens
 			FROM user_spend
 			ORDER BY actual_cost DESC, tokens DESC, user_id ASC
-			LIMIT $3
+			LIMIT $%d
 		)
 		SELECT
 			user_id,
@@ -203,9 +244,9 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 			total_tokens
 		FROM ranked
 		ORDER BY actual_cost DESC, tokens DESC, user_id ASC
-	`
+	`, groupCondition, limitPosition)
 
-	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

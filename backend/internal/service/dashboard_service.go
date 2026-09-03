@@ -33,6 +33,10 @@ type dashboardStatsRangeFetcher interface {
 	GetDashboardStatsWithRange(ctx context.Context, start, end time.Time) (*usagestats.DashboardStats, error)
 }
 
+type dashboardStatsByGroupFetcher interface {
+	GetDashboardStatsByGroup(ctx context.Context, groupID int64) (*usagestats.DashboardStats, error)
+}
+
 type dashboardPublicStatsFetcher interface {
 	GetDashboardPublicStats(ctx context.Context, start, end time.Time, useAggregates bool) (*DashboardPublicStats, error)
 }
@@ -155,6 +159,23 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context) (*usagestats.D
 	if err != nil {
 		return nil, fmt.Errorf("get dashboard stats: %w", err)
 	}
+	return stats, nil
+}
+
+// GetDashboardStatsByGroup 保留全局用户和密钥口径，仅按分组收窄账号与用量指标。
+func (s *DashboardService) GetDashboardStatsByGroup(ctx context.Context, groupID int64) (*usagestats.DashboardStats, error) {
+	if groupID <= 0 {
+		return s.GetDashboardStats(ctx)
+	}
+	fetcher, ok := s.usageRepo.(dashboardStatsByGroupFetcher)
+	if !ok {
+		return nil, errors.New("usage repository does not support grouped dashboard stats")
+	}
+	stats, err := fetcher.GetDashboardStatsByGroup(ctx, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("get dashboard stats by group: %w", err)
+	}
+	s.applyAggregationStatus(ctx, stats)
 	return stats, nil
 }
 
@@ -473,10 +494,48 @@ func (s *DashboardService) GetUserUsageTrend(ctx context.Context, startTime, end
 	return trend, nil
 }
 
+// GetUserUsageTrendByGroup 返回指定分组内按付款主体聚合的用户趋势。
+func (s *DashboardService) GetUserUsageTrendByGroup(ctx context.Context, startTime, endTime time.Time, granularity string, limit int, groupID int64) ([]usagestats.UserUsageTrendPoint, error) {
+	if groupID <= 0 {
+		return s.GetUserUsageTrend(ctx, startTime, endTime, granularity, limit)
+	}
+	type filteredRepository interface {
+		GetUserUsageTrendByGroup(context.Context, time.Time, time.Time, string, int, int64) ([]usagestats.UserUsageTrendPoint, error)
+	}
+	repo, ok := s.usageRepo.(filteredRepository)
+	if !ok {
+		return nil, errors.New("usage repository does not support grouped user trends")
+	}
+	trend, err := repo.GetUserUsageTrendByGroup(ctx, startTime, endTime, granularity, limit, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("get user usage trend by group: %w", err)
+	}
+	return trend, nil
+}
+
 func (s *DashboardService) GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (*usagestats.UserSpendingRankingResponse, error) {
 	ranking, err := s.usageRepo.GetUserSpendingRanking(ctx, startTime, endTime, limit)
 	if err != nil {
 		return nil, fmt.Errorf("get user spending ranking: %w", err)
+	}
+	return ranking, nil
+}
+
+// GetUserSpendingRankingByGroup 返回指定分组内按付款主体聚合的消费排行。
+func (s *DashboardService) GetUserSpendingRankingByGroup(ctx context.Context, startTime, endTime time.Time, limit int, groupID int64) (*usagestats.UserSpendingRankingResponse, error) {
+	if groupID <= 0 {
+		return s.GetUserSpendingRanking(ctx, startTime, endTime, limit)
+	}
+	type filteredRepository interface {
+		GetUserSpendingRankingByGroup(context.Context, time.Time, time.Time, int, int64) (*usagestats.UserSpendingRankingResponse, error)
+	}
+	repo, ok := s.usageRepo.(filteredRepository)
+	if !ok {
+		return nil, errors.New("usage repository does not support grouped user rankings")
+	}
+	ranking, err := repo.GetUserSpendingRankingByGroup(ctx, startTime, endTime, limit, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("get user spending ranking by group: %w", err)
 	}
 	return ranking, nil
 }

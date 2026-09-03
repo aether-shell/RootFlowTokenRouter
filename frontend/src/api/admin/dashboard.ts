@@ -20,8 +20,8 @@ import type {
  * Get dashboard statistics
  * @returns Dashboard statistics including users, keys, accounts, and token usage
  */
-export async function getStats(): Promise<DashboardStats> {
-  const { data } = await apiClient.get<DashboardStats>('/admin/dashboard/stats')
+export async function getStats(params?: Pick<TrendParams, 'group_id'>): Promise<DashboardStats> {
+  const { data } = await apiClient.get<DashboardStats>('/admin/dashboard/stats', { params })
   return data
 }
 
@@ -241,7 +241,7 @@ export interface UserTrendResponse {
 }
 
 export interface UserSpendingRankingParams
-  extends Pick<TrendParams, 'start_date' | 'end_date'> {
+  extends Pick<TrendParams, 'start_date' | 'end_date' | 'group_id'> {
   limit?: number
 }
 

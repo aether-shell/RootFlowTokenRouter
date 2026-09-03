@@ -202,6 +202,37 @@ func (r *usageLogRepository) getUsageStatsFromAnalytics(ctx context.Context, fil
 	return stats, true, nil
 }
 
+// getDashboardUsageStatsByGroupFromAnalytics 同时返回分组累计与今日摘要。
+func (r *usageLogRepository) getDashboardUsageStatsByGroupFromAnalytics(ctx context.Context, groupID int64, todayStart, now time.Time) (*UsageStats, *UsageStats, bool, error) {
+	if r == nil || r.preAggregation == nil || !r.preAggregation.UsageEnabled(ctx) {
+		return nil, nil, false, nil
+	}
+	var sourceOldest sql.NullTime
+	if err := scanSingleRow(ctx, r.sql, `
+		SELECT source_oldest_at
+		FROM usage_analytics_aggregation_state
+		WHERE id = 1
+	`, nil, &sourceOldest); err != nil {
+		return nil, nil, false, err
+	}
+	if !sourceOldest.Valid {
+		return nil, nil, false, nil
+	}
+
+	totalStart := sourceOldest.Time
+	totalFilters := UsageLogFilters{GroupID: groupID, StartTime: &totalStart, EndTime: &now}
+	total, ok, err := r.getUsageStatsFromAnalytics(ctx, totalFilters)
+	if err != nil || !ok {
+		return nil, nil, false, err
+	}
+	todayFilters := UsageLogFilters{GroupID: groupID, StartTime: &todayStart, EndTime: &now}
+	today, ok, err := r.getUsageStatsFromAnalytics(ctx, todayFilters)
+	if err != nil || !ok {
+		return nil, nil, false, err
+	}
+	return total, today, true, nil
+}
+
 func (r *usageLogRepository) getUsageTrendFromAnalytics(ctx context.Context, start, end time.Time, granularity string, filters UsageLogFilters) ([]TrendDataPoint, bool, error) {
 	query, ok, err := r.buildUsageAnalyticsQuery(ctx, filters, start, end, false)
 	if err != nil || !ok {
@@ -366,7 +397,11 @@ func (r *usageLogRepository) getAPIKeyUsageTrendFromAnalytics(ctx context.Contex
 
 // getUserUsageTrendFromAnalytics 从组合聚合源计算最活跃用户趋势。
 func (r *usageLogRepository) getUserUsageTrendFromAnalytics(ctx context.Context, start, end time.Time, granularity string, limit int) ([]UserUsageTrendPoint, bool, error) {
-	query, ok, err := r.buildUsageAnalyticsQuery(ctx, UsageLogFilters{}, start, end, false)
+	return r.getUserUsageTrendFromAnalyticsWithFilters(ctx, start, end, granularity, limit, UsageLogFilters{})
+}
+
+func (r *usageLogRepository) getUserUsageTrendFromAnalyticsWithFilters(ctx context.Context, start, end time.Time, granularity string, limit int, filters UsageLogFilters) ([]UserUsageTrendPoint, bool, error) {
+	query, ok, err := r.buildUsageAnalyticsQuery(ctx, filters, start, end, false)
 	if err != nil || !ok {
 		return nil, false, err
 	}
@@ -377,9 +412,12 @@ func (r *usageLogRepository) getUserUsageTrendFromAnalytics(ctx context.Context,
 	timezonePosition := len(query.args) - 1
 	limitPosition := len(query.args)
 	rows, err := r.sql.QueryContext(ctx, query.cte+fmt.Sprintf(`,
+		filtered AS (
+			SELECT * FROM combined %s
+		),
 		top_users AS (
 			SELECT billing_user_id AS user_id
-			FROM combined
+			FROM filtered
 			-- 聚合表同时保留行为用户和付款主体，Top 用户按付款主体合并团队用量。
 			GROUP BY billing_user_id
 			ORDER BY SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) DESC
@@ -394,11 +432,11 @@ func (r *usageLogRepository) getUserUsageTrendFromAnalytics(ctx context.Context,
 			COALESCE(SUM(c.input_tokens + c.output_tokens + c.cache_creation_tokens + c.cache_read_tokens), 0),
 			COALESCE(SUM(c.total_cost), 0),
 			COALESCE(SUM(c.actual_cost), 0)
-		FROM combined c
+		FROM filtered c
 		LEFT JOIN users u ON u.id = c.billing_user_id
 		WHERE c.billing_user_id IN (SELECT user_id FROM top_users)
 		GROUP BY 1, c.billing_user_id, u.email, u.username
-		ORDER BY 1 ASC, 6 DESC`, limitPosition, timezonePosition, safeDateFormat(granularity)), query.args...)
+		ORDER BY 1 ASC, 6 DESC`, query.where, limitPosition, timezonePosition, safeDateFormat(granularity)), query.args...)
 	if err != nil {
 		return nil, false, err
 	}
@@ -419,7 +457,11 @@ func (r *usageLogRepository) getUserUsageTrendFromAnalytics(ctx context.Context,
 
 // getUserSpendingRankingFromAnalytics 从组合聚合源计算用户消费排行。
 func (r *usageLogRepository) getUserSpendingRankingFromAnalytics(ctx context.Context, start, end time.Time, limit int) (*UserSpendingRankingResponse, bool, error) {
-	query, ok, err := r.buildUsageAnalyticsQuery(ctx, UsageLogFilters{}, start, end, true)
+	return r.getUserSpendingRankingFromAnalyticsWithFilters(ctx, start, end, limit, UsageLogFilters{})
+}
+
+func (r *usageLogRepository) getUserSpendingRankingFromAnalyticsWithFilters(ctx context.Context, start, end time.Time, limit int, filters UsageLogFilters) (*UserSpendingRankingResponse, bool, error) {
+	query, ok, err := r.buildUsageAnalyticsQuery(ctx, filters, start, end, true)
 	if err != nil || !ok {
 		return nil, false, err
 	}
@@ -428,10 +470,10 @@ func (r *usageLogRepository) getUserSpendingRankingFromAnalytics(ctx context.Con
 	rows, err := r.sql.QueryContext(ctx, query.cte+fmt.Sprintf(`,
 		user_spend AS (
 			SELECT billing_user_id AS user_id,
-			       COALESCE(SUM(actual_cost), 0) AS actual_cost,
-			       COALESCE(SUM(total_requests), 0) AS requests,
-			       COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) AS tokens
-			FROM combined
+		       COALESCE(SUM(actual_cost), 0) AS actual_cost,
+		       COALESCE(SUM(total_requests), 0) AS requests,
+		       COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) AS tokens
+			FROM combined %s
 			-- 聚合表同时保留行为用户和付款主体，排行榜按付款主体合并团队用量。
 			GROUP BY billing_user_id
 		),
@@ -449,7 +491,7 @@ func (r *usageLogRepository) getUserSpendingRankingFromAnalytics(ctx context.Con
 		       r.total_actual_cost, r.total_requests, r.total_tokens
 		FROM ranked r
 		LEFT JOIN users u ON u.id = r.user_id
-		ORDER BY r.actual_cost DESC, r.tokens DESC, r.user_id ASC`, limitPosition), query.args...)
+		ORDER BY r.actual_cost DESC, r.tokens DESC, r.user_id ASC`, query.where, limitPosition), query.args...)
 	if err != nil {
 		return nil, false, err
 	}

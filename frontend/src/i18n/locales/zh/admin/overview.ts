@@ -48,6 +48,7 @@ export default {
       noDataAvailable: '暂无数据',
       model: '模型',
       group: '分组',
+      allGroups: '全部分组',
       noGroup: '无分组',
       requests: '请求',
       tokens: 'Token',
@@ -80,7 +81,8 @@ export default {
       groupPricingDesc: '设置批量折扣和冻结比例',
       systemSettings: '系统设置',
       configureSystem: '配置系统设置',
-      failedToLoad: '加载仪表盘数据失败'
+      failedToLoad: '加载仪表盘数据失败',
+      failedToLoadGroups: '加载分组列表失败'
     },
 backup: {
       title: '数据库备份',

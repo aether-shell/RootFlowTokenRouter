@@ -163,7 +163,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 	}
 
 	if includeStats {
-		stats, err := h.dashboardService.GetDashboardStats(ctx)
+		stats, err := h.dashboardService.GetDashboardStatsByGroup(ctx, filters.GroupID)
 		if err != nil {
 			return nil, errors.New("failed to get dashboard statistics")
 		}
@@ -237,7 +237,7 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 	}
 
 	if includeUsersTrend {
-		usersTrend, _, err := h.getUserUsageTrendCached(ctx, startTime, endTime, granularity, usersTrendLimit)
+		usersTrend, _, err := h.getUserUsageTrendCached(ctx, startTime, endTime, granularity, usersTrendLimit, filters.GroupID)
 		if err != nil {
 			return nil, errors.New("failed to get user usage trend")
 		}
@@ -275,8 +275,8 @@ func parseDashboardSnapshotV2Filters(c *gin.Context) (*dashboardSnapshotV2Filter
 	}
 	if groupIDStr := strings.TrimSpace(c.Query("group_id")); groupIDStr != "" {
 		id, err := strconv.ParseInt(groupIDStr, 10, 64)
-		if err != nil {
-			return nil, err
+		if err != nil || id <= 0 {
+			return nil, errors.New("invalid group_id")
 		}
 		filters.GroupID = id
 	}

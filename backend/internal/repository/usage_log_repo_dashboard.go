@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
@@ -14,6 +15,10 @@ import (
 
 // getPerformanceStats 获取 RPM 和 TPM（近5分钟平均值，可选纳入 Owner 团队）。
 func (r *usageLogRepository) getPerformanceStats(ctx context.Context, userID int64, includeOwnedTeam bool) (rpm, tpm int64, err error) {
+	return r.getPerformanceStatsByGroup(ctx, userID, includeOwnedTeam, 0)
+}
+
+func (r *usageLogRepository) getPerformanceStatsByGroup(ctx context.Context, userID int64, includeOwnedTeam bool, groupID int64) (rpm, tpm int64, err error) {
 	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
 	args := []any{fiveMinutesAgo}
 	source, scopeCondition, args, err := r.buildUsageLogScopeSource(ctx, args, userID, includeOwnedTeam, "")
@@ -28,6 +33,10 @@ func (r *usageLogRepository) getPerformanceStats(ctx context.Context, userID int
 		WHERE created_at >= $1`
 	if scopeCondition != "" {
 		query += " AND " + scopeCondition
+	}
+	if groupID > 0 {
+		query += fmt.Sprintf(" AND group_id = $%d", len(args)+1)
+		args = append(args, groupID)
 	}
 
 	var requestCount int64
@@ -133,6 +142,76 @@ func (r *usageLogRepository) GetDashboardStats(ctx context.Context) (*DashboardS
 	return stats, nil
 }
 
+// GetDashboardStatsByGroup 保留全局用户和密钥数量，按分组收窄账号状态与全部用量指标。
+func (r *usageLogRepository) GetDashboardStatsByGroup(ctx context.Context, groupID int64) (*DashboardStats, error) {
+	if groupID <= 0 {
+		return r.GetDashboardStats(ctx)
+	}
+	stats := &DashboardStats{}
+	now := timezone.Now()
+	todayStart := timezone.Today()
+
+	var rpm, tpm int64
+	err := r.runDashboardQueries(
+		ctx,
+		func(queryCtx context.Context) error {
+			if err := r.fillDashboardEntityStats(queryCtx, stats, todayStart, now); err != nil {
+				return err
+			}
+			return r.fillDashboardGroupAccountStats(queryCtx, stats, groupID, now)
+		},
+		func(queryCtx context.Context) error {
+			return r.fillDashboardUsageStatsByGroup(queryCtx, stats, groupID, todayStart, now)
+		},
+		func(queryCtx context.Context) error {
+			var err error
+			rpm, tpm, err = r.getPerformanceStatsByGroup(queryCtx, 0, false, groupID)
+			return err
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	stats.Rpm = rpm
+	stats.Tpm = tpm
+	return stats, nil
+}
+
+func (r *usageLogRepository) fillDashboardUsageStatsByGroup(ctx context.Context, stats *DashboardStats, groupID int64, todayStart, now time.Time) error {
+	total, today, ok, err := r.getDashboardUsageStatsByGroupFromAnalytics(ctx, groupID, todayStart, now)
+	if err == nil && ok {
+		stats.TotalRequests = total.TotalRequests
+		stats.TotalInputTokens = total.TotalInputTokens
+		stats.TotalOutputTokens = total.TotalOutputTokens
+		stats.TotalCacheCreationTokens = total.TotalCacheCreationTokens
+		stats.TotalCacheReadTokens = total.TotalCacheReadTokens
+		stats.TotalTokens = total.TotalTokens
+		stats.TotalCost = total.TotalCost
+		stats.TotalActualCost = total.TotalActualCost
+		stats.AverageDurationMs = total.AverageDurationMs
+		if total.TotalAccountCost != nil {
+			stats.TotalAccountCost = *total.TotalAccountCost
+		}
+
+		stats.TodayRequests = today.TotalRequests
+		stats.TodayInputTokens = today.TotalInputTokens
+		stats.TodayOutputTokens = today.TotalOutputTokens
+		stats.TodayCacheCreationTokens = today.TotalCacheCreationTokens
+		stats.TodayCacheReadTokens = today.TotalCacheReadTokens
+		stats.TodayTokens = today.TotalTokens
+		stats.TodayCost = today.TotalCost
+		stats.TodayActualCost = today.TotalActualCost
+		if today.TotalAccountCost != nil {
+			stats.TodayAccountCost = *today.TotalAccountCost
+		}
+		return r.fillDashboardActiveUsersFromUsageLogs(ctx, stats, todayStart, now, groupID)
+	}
+	if err != nil {
+		r.logUsageAnalyticsFallback("dashboard_stats_by_group", err)
+	}
+	return r.fillDashboardUsageStatsFromUsageLogs(ctx, stats, time.Unix(0, 0), now, todayStart, now, groupID)
+}
+
 func (r *usageLogRepository) GetDashboardStatsWithRange(ctx context.Context, start, end time.Time) (*DashboardStats, error) {
 	startUTC := start.UTC()
 	endUTC := end.UTC()
@@ -147,7 +226,7 @@ func (r *usageLogRepository) GetDashboardStatsWithRange(ctx context.Context, sta
 	if err := r.fillDashboardEntityStats(ctx, stats, todayStart, now); err != nil {
 		return nil, err
 	}
-	if err := r.fillDashboardUsageStatsFromUsageLogs(ctx, stats, startUTC, endUTC, todayStart, now); err != nil {
+	if err := r.fillDashboardUsageStatsFromUsageLogs(ctx, stats, startUTC, endUTC, todayStart, now, 0); err != nil {
 		return nil, err
 	}
 
@@ -159,6 +238,31 @@ func (r *usageLogRepository) GetDashboardStatsWithRange(ctx context.Context, sta
 	stats.Tpm = tpm
 
 	return stats, nil
+}
+
+func (r *usageLogRepository) fillDashboardGroupAccountStats(ctx context.Context, stats *DashboardStats, groupID int64, now time.Time) error {
+	query := `
+		SELECT
+			COUNT(DISTINCT a.id),
+			COUNT(DISTINCT a.id) FILTER (WHERE a.status = $1 AND a.schedulable = true),
+			COUNT(DISTINCT a.id) FILTER (WHERE a.status = $2),
+			COUNT(DISTINCT a.id) FILTER (WHERE a.rate_limited_at IS NOT NULL AND a.rate_limit_reset_at > $3),
+			COUNT(DISTINCT a.id) FILTER (WHERE a.overload_until IS NOT NULL AND a.overload_until > $4)
+		FROM accounts a
+		JOIN account_groups ag ON ag.account_id = a.id
+		WHERE a.deleted_at IS NULL AND ag.group_id = $5
+	`
+	return scanSingleRow(
+		ctx,
+		r.sql,
+		query,
+		[]any{service.StatusActive, service.StatusError, now, now, groupID},
+		&stats.TotalAccounts,
+		&stats.NormalAccounts,
+		&stats.ErrorAccounts,
+		&stats.RateLimitAccounts,
+		&stats.OverloadAccounts,
+	)
 }
 
 func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats *DashboardStats, todayUTC, now time.Time) error {
@@ -275,9 +379,15 @@ func (r *usageLogRepository) fillDashboardUsageStatsAggregated(ctx context.Conte
 	return nil
 }
 
-func (r *usageLogRepository) fillDashboardUsageStatsFromUsageLogs(ctx context.Context, stats *DashboardStats, startUTC, endUTC, todayUTC, now time.Time) error {
+func (r *usageLogRepository) fillDashboardUsageStatsFromUsageLogs(ctx context.Context, stats *DashboardStats, startUTC, endUTC, todayUTC, now time.Time, groupID int64) error {
 	todayEnd := todayUTC.Add(24 * time.Hour)
-	combinedStatsQuery := `
+	queryArgs := []any{startUTC, endUTC, todayUTC, todayEnd}
+	groupCondition := ""
+	if groupID > 0 {
+		queryArgs = append(queryArgs, groupID)
+		groupCondition = fmt.Sprintf(" AND group_id = $%d", len(queryArgs))
+	}
+	combinedStatsQuery := fmt.Sprintf(`
 		WITH scoped AS (
 			SELECT
 				created_at,
@@ -292,6 +402,7 @@ func (r *usageLogRepository) fillDashboardUsageStatsFromUsageLogs(ctx context.Co
 			FROM usage_logs
 			WHERE created_at >= LEAST($1::timestamptz, $3::timestamptz)
 				AND created_at < GREATEST($2::timestamptz, $4::timestamptz)
+				%s
 		)
 		SELECT
 			COUNT(*) FILTER (WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz) AS total_requests,
@@ -312,13 +423,13 @@ func (r *usageLogRepository) fillDashboardUsageStatsFromUsageLogs(ctx context.Co
 			COALESCE(SUM(actual_cost) FILTER (WHERE created_at >= $3::timestamptz AND created_at < $4::timestamptz), 0) AS today_actual_cost,
 			COALESCE(SUM(account_cost) FILTER (WHERE created_at >= $3::timestamptz AND created_at < $4::timestamptz), 0) AS today_account_cost
 		FROM scoped
-	`
+	`, groupCondition)
 	var totalDurationMs int64
 	if err := scanSingleRow(
 		ctx,
 		r.sql,
 		combinedStatsQuery,
-		[]any{startUTC, endUTC, todayUTC, todayEnd},
+		queryArgs,
 		&stats.TotalRequests,
 		&stats.TotalInputTokens,
 		&stats.TotalOutputTokens,
@@ -346,24 +457,37 @@ func (r *usageLogRepository) fillDashboardUsageStatsFromUsageLogs(ctx context.Co
 
 	stats.TodayTokens = stats.TodayInputTokens + stats.TodayOutputTokens + stats.TodayCacheCreationTokens + stats.TodayCacheReadTokens
 
+	return r.fillDashboardActiveUsersFromUsageLogs(ctx, stats, todayUTC, now, groupID)
+}
+
+func (r *usageLogRepository) fillDashboardActiveUsersFromUsageLogs(ctx context.Context, stats *DashboardStats, todayUTC, now time.Time, groupID int64) error {
+	todayEnd := todayUTC.Add(24 * time.Hour)
 	hourStart := now.UTC().Truncate(time.Hour)
 	hourEnd := hourStart.Add(time.Hour)
-	activeUsersQuery := `
+	groupCondition := ""
+	if groupID > 0 {
+		groupCondition = " AND group_id = $5"
+	}
+	activeUsersQuery := fmt.Sprintf(`
 		WITH scoped AS (
 			SELECT user_id, created_at
 			FROM usage_logs
 			WHERE created_at >= LEAST($1::timestamptz, $3::timestamptz)
 				AND created_at < GREATEST($2::timestamptz, $4::timestamptz)
+				%s
 		)
 		SELECT
 			COUNT(DISTINCT CASE WHEN created_at >= $1::timestamptz AND created_at < $2::timestamptz THEN user_id END) AS active_users,
 			COUNT(DISTINCT CASE WHEN created_at >= $3::timestamptz AND created_at < $4::timestamptz THEN user_id END) AS hourly_active_users
 		FROM scoped
-	`
-	if err := scanSingleRow(ctx, r.sql, activeUsersQuery, []any{todayUTC, todayEnd, hourStart, hourEnd}, &stats.ActiveUsers, &stats.HourlyActiveUsers); err != nil {
+	`, groupCondition)
+	activeArgs := []any{todayUTC, todayEnd, hourStart, hourEnd}
+	if groupID > 0 {
+		activeArgs = append(activeArgs, groupID)
+	}
+	if err := scanSingleRow(ctx, r.sql, activeUsersQuery, activeArgs, &stats.ActiveUsers, &stats.HourlyActiveUsers); err != nil {
 		return err
 	}
-
 	return nil
 }
 

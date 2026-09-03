@@ -100,6 +100,115 @@ func TestBuildUsageAnalyticsQueryBeforeUTCMidnightKeepsTodayBoundary(t *testing.
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestGetDashboardUsageStatsByGroupFromAnalyticsScopesTotalAndToday(t *testing.T) {
+	db, mock := newSQLMock(t)
+	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
+		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	})
+	repo := &usageLogRepository{sql: db, preAggregation: settings}
+	groupID := int64(17)
+	sourceOldest := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	todayStart := time.Date(2026, 8, 8, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 8, 8, 12, 30, 0, 0, time.UTC)
+	watermark := time.Date(2026, 8, 8, 12, 20, 0, 0, time.UTC)
+
+	mock.ExpectQuery("(?s)SELECT source_oldest_at.*usage_analytics_aggregation_state").
+		WillReturnRows(sqlmock.NewRows([]string{"source_oldest_at"}).AddRow(sourceOldest))
+	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
+		WillReturnRows(sqlmock.NewRows([]string{"live_watermark", "coverage_start"}).AddRow(watermark, sourceOldest))
+	mock.ExpectQuery("(?s)FROM combined WHERE group_id = \\$10").
+		WithArgs(
+			sourceOldest, now, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), groupID,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"requests", "input", "output", "cache", "cache_creation", "cache_read",
+			"cost", "actual_cost", "account_cost", "duration", "duration_count",
+		}).AddRow(int64(10), int64(100), int64(40), int64(15), int64(10), int64(5), 2.5, 2.0, 1.5, int64(900), int64(9)))
+	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
+		WillReturnRows(sqlmock.NewRows([]string{"live_watermark", "coverage_start"}).AddRow(watermark, sourceOldest))
+	mock.ExpectQuery("(?s)FROM combined WHERE group_id = \\$10").
+		WithArgs(
+			todayStart, now, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), groupID,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"requests", "input", "output", "cache", "cache_creation", "cache_read",
+			"cost", "actual_cost", "account_cost", "duration", "duration_count",
+		}).AddRow(int64(3), int64(30), int64(12), int64(6), int64(4), int64(2), 0.8, 0.6, 0.4, int64(300), int64(3)))
+
+	total, today, ok, err := repo.getDashboardUsageStatsByGroupFromAnalytics(context.Background(), groupID, todayStart, now)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, int64(10), total.TotalRequests)
+	require.Equal(t, int64(155), total.TotalTokens)
+	require.Equal(t, 100.0, total.AverageDurationMs)
+	require.NotNil(t, total.TotalAccountCost)
+	require.Equal(t, 1.5, *total.TotalAccountCost)
+	require.Equal(t, int64(3), today.TotalRequests)
+	require.Equal(t, int64(48), today.TotalTokens)
+	require.Equal(t, 0.6, today.TotalActualCost)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserUsageTrendFromAnalyticsAppliesGroupFilter(t *testing.T) {
+	db, mock := newSQLMock(t)
+	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
+		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	})
+	repo := &usageLogRepository{sql: db, preAggregation: settings}
+	start := time.Date(2026, 8, 8, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 8, 8, 12, 30, 0, 0, time.UTC)
+	watermark := time.Date(2026, 8, 8, 12, 20, 0, 0, time.UTC)
+
+	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
+		WillReturnRows(sqlmock.NewRows([]string{"live_watermark", "coverage_start"}).AddRow(watermark, start))
+	mock.ExpectQuery("(?s)filtered AS .*FROM combined WHERE group_id = \\$6.*FROM filtered.*FROM filtered c").
+		WithArgs(start, end, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), int64(17), sqlmock.AnyArg(), 12).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "user_id", "email", "username", "requests", "tokens", "cost", "actual_cost",
+		}))
+
+	results, ok, err := repo.getUserUsageTrendFromAnalyticsWithFilters(
+		context.Background(), start, end, "hour", 12, UsageLogFilters{GroupID: 17},
+	)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Empty(t, results)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestGetUserSpendingRankingFromAnalyticsAppliesGroupFilter(t *testing.T) {
+	db, mock := newSQLMock(t)
+	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
+		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	})
+	repo := &usageLogRepository{sql: db, preAggregation: settings}
+	start := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 8, 8, 12, 30, 0, 0, time.UTC)
+	watermark := time.Date(2026, 8, 8, 12, 20, 0, 0, time.UTC)
+
+	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
+		WillReturnRows(sqlmock.NewRows([]string{"live_watermark", "coverage_start"}).AddRow(watermark, start))
+	mock.ExpectQuery("(?s)FROM combined WHERE group_id = \\$10.*GROUP BY billing_user_id").
+		WithArgs(
+			start, end, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), int64(17), 12,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "email", "username", "actual_cost", "requests", "tokens",
+			"total_actual_cost", "total_requests", "total_tokens",
+		}))
+
+	result, ok, err := repo.getUserSpendingRankingFromAnalyticsWithFilters(
+		context.Background(), start, end, 12, UsageLogFilters{GroupID: 17},
+	)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Empty(t, result.Ranking)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestGetAllGroupUsageSummaryFromAnalyticsIncludesYesterday(t *testing.T) {
 	db, mock := newSQLMock(t)
 	settings := service.NewPreAggregationSettingsService(nil, &config.Config{

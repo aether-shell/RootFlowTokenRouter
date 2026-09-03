@@ -18,6 +18,7 @@ type dashboardUsageRepoCacheProbe struct {
 	service.UsageLogRepository
 	trendCalls      atomic.Int32
 	usersTrendCalls atomic.Int32
+	rankingCalls    atomic.Int32
 }
 
 func (r *dashboardUsageRepoCacheProbe) GetUsageTrendWithFilters(
@@ -58,6 +59,29 @@ func (r *dashboardUsageRepoCacheProbe) GetUserUsageTrend(
 	}}, nil
 }
 
+func (r *dashboardUsageRepoCacheProbe) GetUserUsageTrendByGroup(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	granularity string,
+	limit int,
+	groupID int64,
+) ([]usagestats.UserUsageTrendPoint, error) {
+	r.usersTrendCalls.Add(1)
+	return []usagestats.UserUsageTrendPoint{{UserID: groupID, Tokens: groupID}}, nil
+}
+
+func (r *dashboardUsageRepoCacheProbe) GetUserSpendingRankingByGroup(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	limit int,
+	groupID int64,
+) (*usagestats.UserSpendingRankingResponse, error) {
+	r.rankingCalls.Add(1)
+	return &usagestats.UserSpendingRankingResponse{
+		Ranking: []usagestats.UserSpendingRankingItem{{UserID: groupID}},
+	}, nil
+}
+
 func resetDashboardReadCachesForTest() {
 	dashboardTrendCache = newSnapshotCache(30 * time.Second)
 	dashboardUsersTrendCache = newSnapshotCache(30 * time.Second)
@@ -65,6 +89,7 @@ func resetDashboardReadCachesForTest() {
 	dashboardModelStatsCache = newSnapshotCache(30 * time.Second)
 	dashboardGroupStatsCache = newSnapshotCache(30 * time.Second)
 	dashboardSnapshotV2Cache = newSnapshotCache(30 * time.Second)
+	dashboardUsersRankingCache = newSnapshotCache(5 * time.Minute)
 }
 
 func TestDashboardHandler_GetUsageTrend_UsesCache(t *testing.T) {
@@ -138,4 +163,48 @@ func TestDashboardHandler_GetUserUsageTrend_UsesCache(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec2.Code)
 	require.Equal(t, "hit", rec2.Header().Get("X-Snapshot-Cache"))
 	require.Equal(t, int32(1), repo.usersTrendCalls.Load())
+}
+
+// 不同分组必须分别查询并缓存用户趋势。
+func TestDashboardHandler_GetUserUsageTrend_SeparatesGroups(t *testing.T) {
+	t.Cleanup(resetDashboardReadCachesForTest)
+	resetDashboardReadCachesForTest()
+
+	gin.SetMode(gin.TestMode)
+	repo := &dashboardUsageRepoCacheProbe{}
+	handler := NewDashboardHandler(service.NewDashboardService(repo, nil, nil, nil))
+	router := gin.New()
+	router.GET("/admin/dashboard/users-trend", handler.GetUserUsageTrend)
+
+	for _, groupID := range []string{"7", "8"} {
+		req := httptest.NewRequest(http.MethodGet, "/admin/dashboard/users-trend?start_date=2026-03-01&end_date=2026-03-07&group_id="+groupID, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "miss", rec.Header().Get("X-Snapshot-Cache"))
+	}
+
+	require.Equal(t, int32(2), repo.usersTrendCalls.Load())
+}
+
+// 不同分组必须分别查询并缓存消费排行。
+func TestDashboardHandler_GetUserSpendingRanking_SeparatesGroups(t *testing.T) {
+	t.Cleanup(resetDashboardReadCachesForTest)
+	resetDashboardReadCachesForTest()
+
+	gin.SetMode(gin.TestMode)
+	repo := &dashboardUsageRepoCacheProbe{}
+	handler := NewDashboardHandler(service.NewDashboardService(repo, nil, nil, nil))
+	router := gin.New()
+	router.GET("/admin/dashboard/users-ranking", handler.GetUserSpendingRanking)
+
+	for _, groupID := range []string{"7", "8"} {
+		req := httptest.NewRequest(http.MethodGet, "/admin/dashboard/users-ranking?start_date=2026-03-01&end_date=2026-03-07&group_id="+groupID, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "miss", rec.Header().Get("X-Snapshot-Cache"))
+	}
+
+	require.Equal(t, int32(2), repo.rankingCalls.Load())
 }

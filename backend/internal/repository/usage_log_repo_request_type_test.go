@@ -828,6 +828,25 @@ func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryGetUserSpendingRankingByGroup(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	mock.ExpectQuery("(?s)WITH user_spend AS \\(.*WHERE u\\.created_at >= \\$1 AND u\\.created_at < \\$2.*AND u\\.group_id = \\$3").
+		WithArgs(start, end, int64(42), 12).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "email", "username", "actual_cost", "requests", "tokens",
+			"total_actual_cost", "total_requests", "total_tokens",
+		}))
+
+	got, err := repo.GetUserSpendingRankingByGroup(context.Background(), start, end, 12, 42)
+	require.NoError(t, err)
+	require.Empty(t, got.Ranking)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 // TestUsageLogRepositoryGetUserUsageTrendGroupsByBillingUser 验证原始 Top 用户趋势按付款主体合并团队成员用量。
 func TestUsageLogRepositoryGetUserUsageTrendGroupsByBillingUser(t *testing.T) {
 	db, mock := newSQLMock(t)
@@ -846,6 +865,24 @@ func TestUsageLogRepositoryGetUserUsageTrendGroupsByBillingUser(t *testing.T) {
 	require.Equal(t, []usagestats.UserUsageTrendPoint{
 		{Date: "2025-01-03", UserID: 9, Email: "owner@example.com", Username: "owner", Requests: 3, Tokens: 120, Cost: 2.5, ActualCost: 2.5},
 	}, got)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUsageLogRepositoryGetUserUsageTrendByGroup(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+	start := time.Date(2025, 1, 3, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	mock.ExpectQuery("(?s)WITH top_users AS \\(.*AND group_id = \\$3.*AND u\\.group_id = \\$7").
+		WithArgs(start, end, int64(42), 12, start, end, int64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"date", "user_id", "email", "username", "requests", "tokens", "cost", "actual_cost",
+		}))
+
+	got, err := repo.GetUserUsageTrendByGroup(context.Background(), start, end, "day", 12, 42)
+	require.NoError(t, err)
+	require.Empty(t, got)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

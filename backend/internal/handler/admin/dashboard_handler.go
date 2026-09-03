@@ -67,7 +67,11 @@ func parseTimeRange(c *gin.Context) (time.Time, time.Time) {
 // GetStats handles getting dashboard statistics
 // GET /api/v1/admin/dashboard/stats
 func (h *DashboardHandler) GetStats(c *gin.Context) {
-	stats, err := h.dashboardService.GetDashboardStats(c.Request.Context())
+	groupID, ok := parseDashboardGroupID(c)
+	if !ok {
+		return
+	}
+	stats, err := h.dashboardService.GetDashboardStatsByGroup(c.Request.Context(), groupID)
 	if err != nil {
 		response.Error(c, 500, "Failed to get dashboard statistics")
 		return
@@ -126,6 +130,20 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 		"stats_updated_at":    stats.StatsUpdatedAt,
 		"stats_stale":         stats.StatsStale,
 	})
+}
+
+// parseDashboardGroupID 统一解析仪表盘的可选单分组筛选。
+func parseDashboardGroupID(c *gin.Context) (int64, bool) {
+	raw := strings.TrimSpace(c.Query("group_id"))
+	if raw == "" {
+		return 0, true
+	}
+	groupID, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || groupID <= 0 {
+		response.BadRequest(c, "Invalid group_id")
+		return 0, false
+	}
+	return groupID, true
 }
 
 // GetRealtimeMetrics handles getting real-time system metrics
@@ -422,8 +440,12 @@ func (h *DashboardHandler) GetUserUsageTrend(c *gin.Context) {
 	if err != nil || limit <= 0 {
 		limit = 12
 	}
+	groupID, ok := parseDashboardGroupID(c)
+	if !ok {
+		return
+	}
 
-	trend, hit, err := h.getUserUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit)
+	trend, hit, err := h.getUserUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit, groupID)
 	if err != nil {
 		response.Error(c, 500, "Failed to get user usage trend")
 		return
@@ -463,14 +485,20 @@ func parseRankingLimit(raw string) int {
 func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 	startTime, endTime := parseTimeRange(c)
 	limit := parseRankingLimit(c.DefaultQuery("limit", "12"))
+	groupID, ok := parseDashboardGroupID(c)
+	if !ok {
+		return
+	}
 
 	keyRaw, _ := json.Marshal(struct {
 		Start string `json:"start"`
 		End   string `json:"end"`
+		Group int64  `json:"group"`
 		Limit int    `json:"limit"`
 	}{
 		Start: startTime.UTC().Format(time.RFC3339),
 		End:   endTime.UTC().Format(time.RFC3339),
+		Group: groupID,
 		Limit: limit,
 	})
 	cacheKey := string(keyRaw)
@@ -480,7 +508,7 @@ func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 		return
 	}
 
-	ranking, err := h.dashboardService.GetUserSpendingRanking(c.Request.Context(), startTime, endTime, limit)
+	ranking, err := h.dashboardService.GetUserSpendingRankingByGroup(c.Request.Context(), startTime, endTime, limit, groupID)
 	if err != nil {
 		response.Error(c, 500, "Failed to get user spending ranking")
 		return

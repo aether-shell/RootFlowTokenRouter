@@ -13,6 +13,22 @@
     </template>
 
     <div class="space-y-6">
+      <div class="flex flex-wrap items-center justify-end gap-2">
+        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+          {{ t('admin.dashboard.group') }}:
+        </span>
+        <div class="w-full sm:w-64">
+          <Select
+            id="dashboard-group-filter"
+            v-model="selectedGroupID"
+            :options="groupOptions"
+            :disabled="groupsLoading"
+            :aria-label="t('admin.dashboard.group')"
+            @change="onGroupChange"
+          />
+        </div>
+      </div>
+
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -303,7 +319,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
@@ -313,6 +329,7 @@ import type {
   DashboardStats,
   TrendDataPoint,
   ModelStat,
+  AdminGroup,
   UserUsageTrendPoint,
   UserSpendingRankingItem
 } from '@/types'
@@ -352,6 +369,7 @@ ChartJS.register(
 onBeforeUnmount(hideExternalTooltip)
 
 const appStore = useAppStore()
+const route = useRoute()
 const router = useRouter()
 const { formatBalanceAmount, formatUsdAmount } = useBalanceDisplay()
 const { refreshBatchImageAccess } = useBatchImageAccess()
@@ -361,6 +379,8 @@ const chartsLoading = ref(false)
 const userTrendLoading = ref(false)
 const rankingLoading = ref(false)
 const rankingError = ref(false)
+const groupsLoading = ref(false)
+const groups = ref<AdminGroup[]>([])
 
 // Chart data
 const trendData = ref<TrendDataPoint[]>([])
@@ -374,6 +394,24 @@ let chartLoadSeq = 0
 let usersTrendLoadSeq = 0
 let rankingLoadSeq = 0
 const rankingLimit = 12
+
+const parseGroupID = (value: unknown): number => {
+  const rawValue = Array.isArray(value) ? value[0] : value
+  const groupID = Number(rawValue)
+  return Number.isSafeInteger(groupID) && groupID > 0 ? groupID : 0
+}
+
+const selectedGroupID = ref(parseGroupID(route.query.group_id))
+const selectedGroupParam = computed(() => selectedGroupID.value || undefined)
+const groupOptions = computed(() => [
+  { value: 0, label: t('admin.dashboard.allGroups') },
+  ...groups.value.map((group) => ({
+    value: group.id,
+    label: group.status === 'inactive'
+      ? `${group.name} (${t('common.inactive')})`
+      : group.name
+  }))
+])
 
 // Helper function to format date in local timezone
 const formatLocalDate = (date: Date): string => {
@@ -580,9 +618,25 @@ const goToUserUsage = (item: UserSpendingRankingItem) => {
     query: {
       user_id: String(item.user_id),
       start_date: startDate.value,
-      end_date: endDate.value
+      end_date: endDate.value,
+      ...(selectedGroupID.value > 0 ? { group_id: String(selectedGroupID.value) } : {})
     }
   })
+}
+
+const syncGroupQuery = async () => {
+  const query = { ...route.query }
+  if (selectedGroupID.value > 0) {
+    query.group_id = String(selectedGroupID.value)
+  } else {
+    delete query.group_id
+  }
+  await router.replace({ query })
+}
+
+const onGroupChange = async () => {
+  await syncGroupQuery()
+  await loadDashboardStats()
 }
 
 // Date range change handler
@@ -618,6 +672,7 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
       start_date: startDate.value,
       end_date: endDate.value,
       granularity: granularity.value,
+      group_id: selectedGroupParam.value,
       include_stats: includeStats,
       include_trend: true,
       include_model_stats: true,
@@ -650,6 +705,7 @@ const loadUsersTrend = async () => {
       start_date: startDate.value,
       end_date: endDate.value,
       granularity: granularity.value,
+      group_id: selectedGroupParam.value,
       limit: 12
     })
     if (currentSeq !== usersTrendLoadSeq) return
@@ -673,6 +729,7 @@ const loadUserSpendingRanking = async () => {
     const response = await adminAPI.dashboard.getUserSpendingRanking({
       start_date: startDate.value,
       end_date: endDate.value,
+      group_id: selectedGroupParam.value,
       limit: rankingLimit
     })
     if (currentSeq !== rankingLoadSeq) return
@@ -711,9 +768,32 @@ const loadChartData = async () => {
   ])
 }
 
-onMounted(() => {
+const loadGroups = async () => {
+  groupsLoading.value = true
+  try {
+    groups.value = await adminAPI.groups.getAllIncludingInactive()
+    if (
+      selectedGroupID.value > 0 &&
+      !groups.value.some((group) => group.id === selectedGroupID.value)
+    ) {
+      selectedGroupID.value = 0
+      await syncGroupQuery()
+    }
+  } catch (error) {
+    console.error('Error loading dashboard groups:', error)
+    groups.value = []
+    selectedGroupID.value = 0
+    await syncGroupQuery()
+    appStore.showError(t('admin.dashboard.failedToLoadGroups'))
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
+onMounted(async () => {
   void refreshBatchImageAccess()
-  loadDashboardStats()
+  await loadGroups()
+  await loadDashboardStats()
 })
 </script>
 

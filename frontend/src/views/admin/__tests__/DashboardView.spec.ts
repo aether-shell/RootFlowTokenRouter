@@ -5,10 +5,20 @@ import { createPinia, setActivePinia } from 'pinia'
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
 
-const { getSnapshotV2, getUserUsageTrend, getUserSpendingRanking } = vi.hoisted(() => ({
+const {
+  getSnapshotV2,
+  getUserUsageTrend,
+  getUserSpendingRanking,
+  getAllIncludingInactive,
+  routeQuery,
+  routerReplace
+} = vi.hoisted(() => ({
   getSnapshotV2: vi.fn(),
   getUserUsageTrend: vi.fn(),
-  getUserSpendingRanking: vi.fn()
+  getUserSpendingRanking: vi.fn(),
+  getAllIncludingInactive: vi.fn(),
+  routeQuery: {} as Record<string, string>,
+  routerReplace: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -17,6 +27,9 @@ vi.mock('@/api/admin', () => ({
       getSnapshotV2,
       getUserUsageTrend,
       getUserSpendingRanking
+    },
+    groups: {
+      getAllIncludingInactive
     }
   }
 }))
@@ -28,8 +41,10 @@ vi.mock('@/stores/app', () => ({
 }))
 
 vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: routeQuery }),
   useRouter: () => ({
-    push: vi.fn()
+    push: vi.fn(),
+    replace: routerReplace
   })
 }))
 
@@ -96,6 +111,12 @@ describe('admin DashboardView', () => {
     getSnapshotV2.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
+    getAllIncludingInactive.mockReset()
+    routerReplace.mockReset()
+    for (const key of Object.keys(routeQuery)) delete routeQuery[key]
+
+    getAllIncludingInactive.mockResolvedValue([])
+    routerReplace.mockResolvedValue(undefined)
 
     getSnapshotV2.mockResolvedValue({
       stats: createDashboardStats(),
@@ -146,5 +167,34 @@ describe('admin DashboardView', () => {
       end_date: formatLocalDate(now),
       granularity: 'hour'
     }))
+  })
+
+  it('applies the group from the URL to every dashboard usage request', async () => {
+    routeQuery.group_id = '7'
+    getAllIncludingInactive.mockResolvedValue([
+      { id: 7, name: 'Codex', status: 'active' }
+    ])
+
+    mount(DashboardView, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          LoadingSpinner: true,
+          Icon: true,
+          DateRangePicker: true,
+          Select: true,
+          ModelDistributionChart: true,
+          TokenUsageTrend: true,
+          Line: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(getSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({ group_id: 7 }))
+    expect(getUserUsageTrend).toHaveBeenCalledWith(expect.objectContaining({ group_id: 7 }))
+    expect(getUserSpendingRanking).toHaveBeenCalledWith(expect.objectContaining({ group_id: 7 }))
   })
 })
