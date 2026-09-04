@@ -45,7 +45,7 @@ Pro 的发布事实源是 `deploy/pro/customizations.yaml`。该文件使用 JSO
 发布按以下阶段相互隔离执行：
 
 1. `make pro-verify` 核对 fork 身份、提交关系、必需文件和全部二开测试。
-2. `make pro-image-dispatch PRO_BASE_REF=<当前线上完整提交>` 从 `git rev-parse HEAD` 自动取得待构建提交，并触发 `.github/workflows/pro-image.yml`。该入口会移除当前 shell 的 `GITHUB_TOKEN`，避免失效环境变量覆盖 GitHub CLI keyring 凭据；禁止手工补写待构建 commit。工作流重新执行严格门禁，并输出含 GHCR 不可变摘要的发布清单。
+2. `make pro-image-dispatch PRO_BASE_REF=<当前线上完整提交>` 从 `git rev-parse HEAD` 自动取得待构建提交，并在固定仓库 `aether-shell/RootFlowTokenRouter` 触发 `.github/workflows/pro-image.yml`。该入口会移除当前 shell 的 `GITHUB_TOKEN`，避免失效环境变量覆盖 GitHub CLI keyring 凭据；禁止依赖 `gh` 的多 remote 自动选择，也禁止手工补写待构建 commit。工作流重新执行严格门禁，并输出含 GHCR 不可变摘要的发布清单。
 3. 本地调试可使用 `make pro-release-manifest PRO_BASE_REF=<当前线上完整提交>` 和 `make pro-image` 构建不推送的镜像；正式发布必须使用工作流产出的清单与摘要。
 4. `make pro-deploy-check PRO_IMAGE_DIGEST=<ghcr.io/...@sha256:...>` 只校验本地参数、迁移授权和发布清单，不连接服务器。
 5. `make pro-remote-check PRO_IMAGE_DIGEST=<ghcr.io/...@sha256:...>` 通过固定 SSH 主机拉取摘要镜像并核对 OCI source、完整 revision、Pro 产品标签及 app/database 的 Compose 归属。它不创建发布目录、不备份数据库、不安装 override，也不重建容器。此步骤要求服务器已配置可读取该 GHCR package 的凭据。

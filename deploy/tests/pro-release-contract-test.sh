@@ -46,7 +46,7 @@ fi
 
 grep -Fq 'pro-image-dispatch:' "${REPO_ROOT}/Makefile"
 grep -Fq 'commit="$$(git rev-parse HEAD)"' "${REPO_ROOT}/Makefile"
-grep -Fq 'env -u GITHUB_TOKEN gh workflow run pro-image.yml' "${REPO_ROOT}/Makefile"
+grep -Fq 'env -u GITHUB_TOKEN gh workflow run pro-image.yml --repo aether-shell/RootFlowTokenRouter' "${REPO_ROOT}/Makefile"
 grep -Fq 'pro-remote-check:' "${REPO_ROOT}/Makefile"
 grep -Fq 'tools/pro-remote-check.sh' "${REPO_ROOT}/Makefile"
 

@@ -76,7 +76,7 @@ pro-image-dispatch:
 	test "$$(git branch --show-current)" = "main" || (echo "current branch must be main" >&2; exit 2); \
 	test -z "$$(git status --porcelain)" || (echo "working tree must be clean" >&2; exit 2); \
 	test "$$commit" = "$$(git rev-parse origin/main)" || (echo "HEAD must match origin/main" >&2; exit 2); \
-	env -u GITHUB_TOKEN gh workflow run pro-image.yml --ref main \
+	env -u GITHUB_TOKEN gh workflow run pro-image.yml --repo aether-shell/RootFlowTokenRouter --ref main \
 		-f commit="$$commit" -f deployed_base_commit="$$base_ref"; \
 	echo "Dispatched Pro Image for $$commit (base $$base_ref)"
 
