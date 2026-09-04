@@ -61,6 +61,8 @@ MANIFEST_IMAGE="$(jq -r '.image.reference // empty' "${RELEASE_MANIFEST}")"
 DATABASE_CHANGE_COUNT="$(jq '(.changed_database_paths // .changed_migrations) | length' "${RELEASE_MANIFEST}")"
 AUTO_ROLLBACK="$(jq -r '.automatic_app_rollback_allowed' "${RELEASE_MANIFEST}")"
 MARKER_REGEX="$(jq -r '[.customizations[] | .binary_markers[]?] | join("|")' "${CUSTOMIZATIONS}")"
+# SSH 会在远端重新解析命令字符串，先编码以避免正则中的管道符被当成 shell 操作符。
+MARKER_REGEX_B64="$(printf '%s' "${MARKER_REGEX}" | base64 | tr -d '\n')"
 
 [[ "${HOST}" == "67.21.68.75" ]] || fail "目标不是固定 Pro 主机"
 [[ "${SSH_USER}" == "root" ]] || fail "SSH 用户不是 Pro 约定用户"
@@ -109,7 +111,7 @@ ssh "${SSH_OPTIONS[@]}" "${REMOTE}" \
 ssh "${SSH_OPTIONS[@]}" "${REMOTE}" bash -s -- \
   "${IMAGE}" "${EXPECTED_COMMIT}" "${COMPOSE_FILE}" "${REMOTE_OVERRIDE}" \
   "${APP_CONTAINER}" "${DB_CONTAINER}" "${BASE_URL}" "${HEALTH_PATH}" \
-  "${REMOTE_RELEASE_DIR}" "${DATABASE_CHANGE_COUNT}" "${AUTO_ROLLBACK}" "${MARKER_REGEX}" <<'REMOTE_SCRIPT'
+  "${REMOTE_RELEASE_DIR}" "${DATABASE_CHANGE_COUNT}" "${AUTO_ROLLBACK}" "${MARKER_REGEX_B64}" <<'REMOTE_SCRIPT'
 set -euo pipefail
 
 image="$1"
@@ -123,7 +125,7 @@ health_path="$8"
 release_dir="$9"
 database_change_count="${10}"
 auto_rollback="${11}"
-marker_regex="${12}"
+marker_regex="$(printf '%s' "${12}" | base64 -d)"
 source_url="https://github.com/aether-shell/RootFlowTokenRouter"
 switched=false
 previous_image=""
