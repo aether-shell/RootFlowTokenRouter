@@ -61,8 +61,10 @@ MANIFEST_IMAGE="$(jq -r '.image.reference // empty' "${RELEASE_MANIFEST}")"
 DATABASE_CHANGE_COUNT="$(jq '(.changed_database_paths // .changed_migrations) | length' "${RELEASE_MANIFEST}")"
 AUTO_ROLLBACK="$(jq -r '.automatic_app_rollback_allowed' "${RELEASE_MANIFEST}")"
 MARKER_REGEX="$(jq -r '[.customizations[] | .binary_markers[]?] | join("|")' "${CUSTOMIZATIONS}")"
+PROFITABILITY_PATH="$(jq -r '.customizations[] | select(.id == "profitability-sidecar") | .runtime_http_paths[0] // empty' "${CUSTOMIZATIONS}")"
 # SSH 会在远端重新解析命令字符串，先编码以避免正则中的管道符被当成 shell 操作符。
 MARKER_REGEX_B64="$(printf '%s' "${MARKER_REGEX}" | base64 | tr -d '\n')"
+PROFITABILITY_PATH_B64="$(printf '%s' "${PROFITABILITY_PATH}" | base64 | tr -d '\n')"
 
 [[ "${HOST}" == "67.21.68.75" ]] || fail "目标不是固定 Pro 主机"
 [[ "${SSH_USER}" == "root" ]] || fail "SSH 用户不是 Pro 约定用户"
@@ -70,6 +72,7 @@ MARKER_REGEX_B64="$(printf '%s' "${MARKER_REGEX}" | base64 | tr -d '\n')"
 [[ "${APP_CONTAINER}" == "tokenrouter-pro-app" ]] || fail "应用容器不是 Pro"
 [[ "${DB_CONTAINER}" == "tokenrouter-pro-postgres" ]] || fail "数据库容器不是 Pro"
 [[ "${BASE_URL}" == "https://pro.tknhub.cc" ]] || fail "域名不是 Pro"
+[[ "${PROFITABILITY_PATH}" == /* ]] || fail "盈利 sidecar 路径非法"
 [[ "${PRODUCT}" == "pro" ]] || fail "发布清单不是 Pro"
 [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || fail "发布清单 commit 非法"
 [[ "${MANIFEST_IMAGE}" == "${IMAGE}" ]] || fail "镜像摘要与发布清单不一致"
@@ -111,7 +114,8 @@ ssh "${SSH_OPTIONS[@]}" "${REMOTE}" \
 ssh "${SSH_OPTIONS[@]}" "${REMOTE}" bash -s -- \
   "${IMAGE}" "${EXPECTED_COMMIT}" "${COMPOSE_FILE}" "${REMOTE_OVERRIDE}" \
   "${APP_CONTAINER}" "${DB_CONTAINER}" "${BASE_URL}" "${HEALTH_PATH}" \
-  "${REMOTE_RELEASE_DIR}" "${DATABASE_CHANGE_COUNT}" "${AUTO_ROLLBACK}" "${MARKER_REGEX_B64}" <<'REMOTE_SCRIPT'
+  "${REMOTE_RELEASE_DIR}" "${DATABASE_CHANGE_COUNT}" "${AUTO_ROLLBACK}" \
+  "${MARKER_REGEX_B64}" "${PROFITABILITY_PATH_B64}" <<'REMOTE_SCRIPT'
 set -euo pipefail
 
 image="$1"
@@ -126,6 +130,7 @@ release_dir="$9"
 database_change_count="${10}"
 auto_rollback="${11}"
 marker_regex="$(printf '%s' "${12}" | base64 -d)"
+profitability_path="$(printf '%s' "${13}" | base64 -d)"
 source_url="https://github.com/aether-shell/RootFlowTokenRouter"
 switched=false
 previous_image=""
@@ -202,12 +207,12 @@ fi
 
 curl -fsS "${base_url}${health_path}" > "${release_dir}/health.after.json"
 curl -fsS -o /dev/null "${base_url}/admin/dashboard"
-curl -fsS -o /dev/null "${base_url}/custom/tokenrouter-profitability"
+curl -fsS -o /dev/null "${base_url}${profitability_path}"
 db_user="$(docker exec "${db_container}" printenv POSTGRES_USER)"
 db_name="$(docker exec "${db_container}" printenv POSTGRES_DB)"
 menu_items="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" -Atc \
   "SELECT value FROM settings WHERE key = 'custom_menu_items'")"
-[[ "${menu_items}" == *"/custom/tokenrouter-profitability"* ]]
+[[ "${menu_items}" == *"${profitability_path}"* ]]
 docker inspect "${app_container}" > "${release_dir}/app.inspect.after.json"
 printf '%s\n' "${version_output}" > "${release_dir}/version.after.txt"
 for evidence_file in "${release_dir}"/*; do

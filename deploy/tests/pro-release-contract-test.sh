@@ -24,7 +24,14 @@ grep -Fq '67.21.68.75' "${REPO_ROOT}/tools/pro-deploy.sh"
 grep -Fq 'tokenrouter-pro-app' "${REPO_ROOT}/tools/pro-deploy.sh"
 grep -Fq -- '--no-deps app' "${REPO_ROOT}/tools/pro-deploy.sh"
 grep -Fq 'MARKER_REGEX_B64=' "${REPO_ROOT}/tools/pro-deploy.sh"
-grep -Fq '"${MARKER_REGEX_B64}" <<' "${REPO_ROOT}/tools/pro-deploy.sh"
+grep -Fq '"${MARKER_REGEX_B64}" "${PROFITABILITY_PATH_B64}" <<' "${REPO_ROOT}/tools/pro-deploy.sh"
+jq -e '.customizations[] | select(.id == "profitability-sidecar") | .runtime_http_paths == ["/profitability/?view=profitability"]' \
+  "${MANIFEST}" >/dev/null
+grep -Fq 'PROFITABILITY_PATH_B64=' "${REPO_ROOT}/tools/pro-deploy.sh"
+if grep -Fq '/custom/tokenrouter-profitability' "${REPO_ROOT}/tools/pro-deploy.sh"; then
+  echo "Pro 部署脚本仍包含过期盈利页面路径" >&2
+  exit 1
+fi
 if grep -Fq 'tr.tknhub.cc' "${REPO_ROOT}/tools/pro-deploy.sh"; then
   echo "Pro 部署脚本不得包含 TR 域名" >&2
   exit 1

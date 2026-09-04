@@ -139,7 +139,7 @@
       "required_paths": [],
       "test_ids": [],
       "runtime_http_paths": [
-        "/custom/tokenrouter-profitability"
+        "/profitability/?view=profitability"
       ]
     },
     {
