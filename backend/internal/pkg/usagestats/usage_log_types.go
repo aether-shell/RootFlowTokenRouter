@@ -214,7 +214,9 @@ type UserBreakdownDimension struct {
 	AccountID   int64  // filter by account_id (>0 to enable)
 	RequestType *int16 // filter by request_type (non-nil to enable)
 	Stream      *bool  // filter by stream flag (non-nil to enable)
-	BillingType *int8  // filter by billing_type (non-nil to enable)
+	// NativeCompactionV2 过滤 OpenAI 原生远程 compaction v2 标记。
+	NativeCompactionV2 *bool
+	BillingType        *int8 // filter by billing_type (non-nil to enable)
 	// SortBy 指定排序列(空 = 默认按 actual_cost)。合法值由 repo 层 allowlist 校验。
 	SortBy string
 }
@@ -307,10 +309,12 @@ type UsageLogFilters struct {
 	ModelFilterSource string
 	RequestType       *int16
 	Stream            *bool
-	BillingType       *int8
-	BillingMode       string
-	StartTime         *time.Time
-	EndTime           *time.Time
+	// NativeCompactionV2 过滤原生远程 compaction v2 请求。
+	NativeCompactionV2 *bool
+	BillingType        *int8
+	BillingMode        string
+	StartTime          *time.Time
+	EndTime            *time.Time
 	// ExactTotal 要求分页使用精确 COUNT(*)；默认 false 以加速大表分页。
 	ExactTotal bool
 }

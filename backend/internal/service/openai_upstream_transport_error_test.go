@@ -6,8 +6,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -19,6 +22,74 @@ import (
 type openAITransportAccountRepoStub struct {
 	AccountRepository
 	tempUnschedCalls []tempUnschedCall
+}
+
+// TestClassifyUpstreamTransportError 验证传输层上游错误的持久性分类。
+// 持久错误重试同一代理/账号无意义，应摘除并告警；瞬时错误仅切换账号，不摘除当前账号。
+func TestClassifyUpstreamTransportError(t *testing.T) {
+	cases := []struct {
+		name       string
+		err        error
+		persistent bool
+	}{
+		// 持久错误：配置、凭据或路由问题，重试同一代理无济于事。
+		{"socks5 proxy credential rejected", errors.New(`Post "https://chatgpt.com/backend-api/codex/responses": socks connect tcp 85.255.176.68:12324->chatgpt.com:443: username/password authentication failed`), true},
+		{"proxy connection refused", errors.New(`proxyconnect tcp: dial tcp 1.2.3.4:1080: connect: connection refused`), true},
+		{"no route to host", errors.New(`dial tcp 1.2.3.4:443: connect: no route to host`), true},
+		{"dns resolution failure", errors.New(`dial tcp: lookup proxy.example.com: no such host`), true},
+		{"network unreachable", errors.New(`dial tcp 1.2.3.4:443: connect: network is unreachable`), true},
+
+		// 瞬时错误：短暂抖动，切换账号但不摘除当前账号。
+		{"client timeout", errors.New(`Post "https://chatgpt.com/...": context deadline exceeded (Client.Timeout exceeded while awaiting headers)`), false},
+		{"i/o timeout", errors.New(`dial tcp 1.2.3.4:443: i/o timeout`), false},
+		{"connection reset by peer", errors.New(`read tcp 10.0.0.1:5->2.2.2.2:443: read: connection reset by peer`), false},
+		{"unexpected eof", errors.New(`unexpected EOF`), false},
+		{"broken pipe", errors.New(`write tcp 10.0.0.1:5->2.2.2.2:443: write: broken pipe`), false},
+
+		{"nil error", nil, false},
+
+		// 类型化错误：覆盖 Go 常见的 net.OpError 与 syscall 错误链。
+		{
+			"ECONNREFUSED via net.OpError",
+			&net.OpError{
+				Op:  "dial",
+				Net: "tcp",
+				Err: &os.SyscallError{Syscall: "connect", Err: syscall.ECONNREFUSED},
+			},
+			true,
+		},
+		// 裸 syscall 错误（errors.Is 会遍历错误链）。
+		{"ECONNREFUSED bare", syscall.ECONNREFUSED, true},
+		{"EHOSTUNREACH bare", syscall.EHOSTUNREACH, true},
+		{"ENETUNREACH bare", syscall.ENETUNREACH, true},
+
+		// IsNotFound=true 的 *net.DNSError 表示持久 DNS 解析失败。
+		{
+			"DNS not found (IsNotFound=true)",
+			&net.DNSError{Err: "no such host", Name: "proxy.example.com", IsNotFound: true},
+			true,
+		},
+		// IsNotFound=false 的 *net.DNSError 表示瞬时 DNS 超时。
+		{
+			"DNS timeout (IsNotFound=false)",
+			&net.DNSError{Err: "i/o timeout", Name: "proxy.example.com", IsTimeout: true},
+			false,
+		},
+
+		// context.Canceled 表示客户端已离开，不应分类为持久错误。
+		{"context.Canceled", context.Canceled, false},
+		// context.DeadlineExceeded 表示上游缓慢，不应分类为持久错误。
+		{"context.DeadlineExceeded", context.DeadlineExceeded, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := classifyUpstreamTransportError(tc.err).Persistent
+			if got != tc.persistent {
+				t.Fatalf("classifyUpstreamTransportError(%v).Persistent = %v, want %v", tc.err, got, tc.persistent)
+			}
+		})
+	}
 }
 
 func (r *openAITransportAccountRepoStub) SetTempUnschedulable(_ context.Context, id int64, until time.Time, reason string) error {

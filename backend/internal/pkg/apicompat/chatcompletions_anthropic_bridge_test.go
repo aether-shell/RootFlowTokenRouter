@@ -144,6 +144,7 @@ func TestAnthropicToChatCompletionsRequest_ThinkingDropped(t *testing.T) {
 	require.Len(t, out.Messages, 1)
 	// 仅保留文本，thinking 会被丢弃。
 	require.Equal(t, `"answer"`, string(out.Messages[0].Content))
+	require.Empty(t, out.Messages[0].ReasoningContent)
 }
 
 func TestAnthropicToChatCompletionsRequest_ToolChoiceAuto(t *testing.T) {

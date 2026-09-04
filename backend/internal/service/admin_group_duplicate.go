@@ -143,6 +143,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		AllowedClientProtocols:          cloneGroupClientProtocols(source.AllowedClientProtocols),
 		AllowMessagesDispatch:           source.Platform == PlatformOpenAI && source.AllowsClientProtocol(GroupClientProtocolAnthropicMessages),
 		AllowLive:                       source.AllowLive,
+		ForceOpenAIFast:                 source.ForceOpenAIFast,
+		FreeOpenAIFast:                  source.FreeOpenAIFast,
 		RequireOAuthOnly:                source.RequireOAuthOnly,
 		RequirePrivacySet:               source.RequirePrivacySet,
 		DefaultMappedModel:              source.DefaultMappedModel,
@@ -151,10 +153,11 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 			Enabled: source.ModelsListConfig.Enabled,
 			Models:  append([]string(nil), source.ModelsListConfig.Models...),
 		},
-		AvailabilityProbeConfig: source.AvailabilityProbeConfig,
-		RPMLimit:                source.RPMLimit,
-		MaxReasoningEffort:      source.MaxReasoningEffort,
-		ReasoningEffortMappings: append([]ReasoningEffortMapping(nil), source.ReasoningEffortMappings...),
+		AvailabilityProbeConfig:     source.AvailabilityProbeConfig,
+		RPMLimit:                    source.RPMLimit,
+		MaxReasoningEffort:          source.MaxReasoningEffort,
+		MaxReasoningEffortOverLimit: source.MaxReasoningEffortOverLimit,
+		ReasoningEffortMappings:     append([]ReasoningEffortMapping(nil), source.ReasoningEffortMappings...),
 	}
 }
 

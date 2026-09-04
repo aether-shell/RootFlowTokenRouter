@@ -282,6 +282,7 @@
         <EmailOAuthButtons
           v-if="githubOAuthEnabled || googleOAuthEnabled"
           :disabled="registrationActionDisabled"
+          :promo-code="formData.promo_code"
           :github-enabled="githubOAuthEnabled"
           :google-enabled="googleOAuthEnabled"
           :aff-code="formData.aff_code"
@@ -292,6 +293,7 @@
           v-if="linuxdoOAuthEnabled"
           :disabled="registrationActionDisabled"
           :aff-code="formData.aff_code"
+          :promo-code="formData.promo_code"
           :show-divider="false"
           @start="handleOAuthStart"
         />

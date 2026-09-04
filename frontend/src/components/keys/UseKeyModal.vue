@@ -851,22 +851,19 @@ function generateAnthropicFiles(baseUrl: string, apiKey: string): FileConfig[] {
       path = 'Terminal'
       content = `export ANTHROPIC_BASE_URL="${baseUrl}"
 export ANTHROPIC_AUTH_TOKEN="${apiKey}"
-export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-export CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     case 'cmd':
       path = 'Command Prompt'
       content = `set ANTHROPIC_BASE_URL=${baseUrl}
 set ANTHROPIC_AUTH_TOKEN=${apiKey}
-set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-set CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     case 'powershell':
       path = 'PowerShell'
       content = `$env:ANTHROPIC_BASE_URL="${baseUrl}"
 $env:ANTHROPIC_AUTH_TOKEN="${apiKey}"
-$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-$env:CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     default:
       path = 'Terminal'
@@ -882,8 +879,7 @@ $env:CLAUDE_CODE_ATTRIBUTION_HEADER=0`
   "env": {
     "ANTHROPIC_BASE_URL": "${baseUrl}",
     "ANTHROPIC_AUTH_TOKEN": "${apiKey}",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "CLAUDE_CODE_ATTRIBUTION_HEADER": "0"
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
   }
 }`
 
@@ -907,8 +903,7 @@ function generateGrokClaudeFiles(baseUrl: string, apiKey: string): FileConfig[] 
     ANTHROPIC_DEFAULT_HAIKU_MODEL: 'grok-4.5',
     ANTHROPIC_DEFAULT_FABLE_MODEL: 'grok-4.5',
     CLAUDE_CODE_SUBAGENT_MODEL: 'grok-4.5',
-    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
-    CLAUDE_CODE_ATTRIBUTION_HEADER: '0'
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
   }
   let path: string
   let content: string
@@ -1022,27 +1017,25 @@ windows_wsl_setup_acknowledged = true
 name = "OpenAI"
 base_url = "${baseUrl}"
 wire_api = "responses"${websocketProviderConfig}
-${generateCodexProviderAuthConfig()}
+${generateCodexProviderAuthConfig(apiKey)}
 
 [features]
 ${websocketFeatureConfig}goals = true`
 
-  // auth.json content
-  const authContent = `{
-  "OPENAI_API_KEY": "${apiKey}"
-}`
-
-  return [
+  const files: FileConfig[] = [
     {
       path: `${configDir}/config.toml`,
       content: configContent,
       hint: t('keys.useKeyModal.openai.configTomlHint')
-    },
-    {
-      path: `${configDir}/auth.json`,
-      content: authContent
     }
   ]
+  if (codexAuthMode.value === 'legacy') {
+    files.push({
+      path: `${configDir}/auth.json`,
+      content: JSON.stringify({ OPENAI_API_KEY: apiKey }, null, 2)
+    })
+  }
+  return files
 }
 
 // 兼容 Responses 的非 OpenAI 平台使用独立 provider，避免触发 OpenAI 官方登录流程。
@@ -1147,13 +1140,19 @@ goals = true`
 }
 
 // generateCodexProviderAuthConfig 根据用户选择生成最小的 Codex provider 授权配置。
-function generateCodexProviderAuthConfig(): string {
+function generateCodexProviderAuthConfig(apiKey: string): string {
   if (codexAuthMode.value === 'api-key') {
     return `requires_openai_auth = false
+experimental_bearer_token = "${escapeTomlBasicString(apiKey)}"
 http_headers = { "x-openai-actor-authorization" = "local-image-extension" }`
   }
 
   return 'requires_openai_auth = true'
+}
+
+// escapeTomlBasicString 转义 TOML 基本字符串中的反斜杠和双引号。
+function escapeTomlBasicString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
 // 生成 Grok Build CLI 的完整端点、认证和模型配置。
@@ -1783,6 +1782,22 @@ function generateOpenCodeConfig(
     }
   }
   const claudeModels = {
+    'claude-fable-5-1': {
+      name: 'Claude Fable 5.1',
+      limit: {
+        context: 1048576,
+        output: 128000
+      },
+      modalities: {
+        input: ['text', 'image', 'pdf'],
+        output: ['text']
+      },
+      options: {
+        thinking: {
+          type: 'adaptive'
+        }
+      }
+    },
     'claude-fable-5': {
       name: 'Claude Fable 5',
       limit: {

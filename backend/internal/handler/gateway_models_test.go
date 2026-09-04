@@ -429,9 +429,38 @@ func TestGatewayModels_QoderGroupFallsBackToQoderModels(t *testing.T) {
 
 // TestGatewayModels_Grok45AdvertisesReasoningEffortForGrokBuild 验证新增能力元数据不破坏旧兼容字段。
 func TestGatewayModels_Grok45AdvertisesReasoningEffortForGrokBuild(t *testing.T) {
+	assertGrokGatewayReasoningEfforts(t, 4409, "grok-4.5", []gatewayReasoningEffortOptionForTest{
+		{Value: "low", Label: "Low"},
+		{Value: "medium", Label: "Medium"},
+		{Value: "high", Label: "High", Default: true},
+	})
+}
+
+func TestGatewayModels_Grok46AdvertisesXHighReasoningEffortForGrokBuild(t *testing.T) {
+	xhighEfforts := []gatewayReasoningEffortOptionForTest{
+		{Value: "low", Label: "Low"},
+		{Value: "medium", Label: "Medium"},
+		{Value: "high", Label: "High", Default: true},
+		{Value: "xhigh", Label: "xHigh"},
+	}
+	tests := []struct {
+		groupID int64
+		model   string
+	}{
+		{groupID: 4410, model: "grok-4.6"},
+		{groupID: 4411, model: "grok-4.6-latest"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			assertGrokGatewayReasoningEfforts(t, tt.groupID, tt.model, xhighEfforts)
+		})
+	}
+}
+
+func assertGrokGatewayReasoningEfforts(t *testing.T, groupID int64, modelID string, want []gatewayReasoningEffortOptionForTest) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	groupID := int64(4409)
 	h := newGatewayModelsHandlerForTest(
 		&gatewayModelsAccountRepoStub{
 			byGroup: map[int64][]service.Account{
@@ -440,7 +469,7 @@ func TestGatewayModels_Grok45AdvertisesReasoningEffortForGrokBuild(t *testing.T)
 						ID:       1,
 						Platform: service.PlatformGrok,
 						Credentials: map[string]any{
-							"model_mapping": map[string]any{"grok-4.5": "grok-4.5"},
+							"model_mapping": map[string]any{modelID: modelID},
 						},
 					},
 				},
@@ -462,19 +491,15 @@ func TestGatewayModels_Grok45AdvertisesReasoningEffortForGrokBuild(t *testing.T)
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Len(t, got.Data, 1)
 	model := got.Data[0]
-	require.Equal(t, "grok-4.5", model.ID)
+	require.Equal(t, modelID, model.ID)
 	require.Equal(t, "model", model.Object)
 	require.Equal(t, "xai", model.OwnedBy)
 	require.Equal(t, "model", model.Type)
-	require.Equal(t, "Grok 4.5", model.DisplayName)
+	require.NotEmpty(t, model.DisplayName)
 	require.Equal(t, "2024-01-01T00:00:00Z", model.CreatedAt)
 	require.True(t, model.SupportsReasoningEffort)
 	require.Equal(t, "high", model.ReasoningEffort)
-	require.Equal(t, []gatewayReasoningEffortOptionForTest{
-		{Value: "low", Label: "Low"},
-		{Value: "medium", Label: "Medium"},
-		{Value: "high", Label: "High", Default: true},
-	}, model.ReasoningEfforts)
+	require.Equal(t, want, model.ReasoningEfforts)
 }
 
 // TestGatewayModels_GrokDefaultsExcludeBuiltinAliases 验证无显式账号范围时只展示默认模型目录。

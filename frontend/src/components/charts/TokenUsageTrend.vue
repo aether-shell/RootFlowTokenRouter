@@ -141,7 +141,6 @@ const chartData = computed(() => {
         }),
         borderColor: chartColors.value.cacheHitRate,
         backgroundColor: `${chartColors.value.cacheHitRate}20`,
-        borderDash: [5, 5],
         fill: false,
         tension: 0.3,
         yAxisID: 'yPercent'

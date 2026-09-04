@@ -261,14 +261,16 @@ type OpenAIForwardResult struct {
 	// UpstreamEndpoint 是该请求实际使用的上游 API 路径，避免同一下游协议可选择
 	// 多个上游端点时只能依赖推断。
 	UpstreamEndpoint string
-	// ServiceTier 优先取上游实际响应回显的 tier；缺失时回退到最终出站 body 的
-	// tier。nil 表示两者都无识别 tier。
+	// ServiceTier is the final tier sent upstream after policy rewriting.
+	// The upstream response declaration remains separate above and is reconciled
+	// at usage-recording time, where the credential protocol is available.
 	ServiceTier *string
-	// ReasoningEffort is extracted from request body (reasoning.effort) or derived from model suffix.
-	// Stored for usage records display; nil means not provided / not applicable.
+	// ReasoningEffort 是最终上游请求中的推理档位；nil 表示未提供或不适用。
 	ReasoningEffort *string
-	Stream          bool
-	OpenAIWSMode    bool
+	// RequestedReasoningEffort 是策略与模型映射前客户端请求的推理档位。
+	RequestedReasoningEffort *string
+	Stream                   bool
+	OpenAIWSMode             bool
 	// UpstreamTerminalEvent 记录 Responses WebSocket 请求观测到的规范化终止事件；
 	// 空值保持旧调用方和非 WebSocket 请求的成功语义。
 	UpstreamTerminalEvent string
@@ -327,6 +329,16 @@ func SetActualOpenAIUpstreamEndpoint(c *gin.Context, endpoint string) {
 	if endpoint = strings.TrimSpace(endpoint); endpoint != "" {
 		c.Set(openAIUpstreamEndpointContextKey, endpoint)
 	}
+}
+
+// ClearActualOpenAIUpstreamEndpoint 清理当前转发尝试记录的端点。
+// Handler 会在账号 failover 尝试间复用同一个 Gin context，因此每次尝试
+// 都必须从无残留状态开始。
+func ClearActualOpenAIUpstreamEndpoint(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	c.Set(openAIUpstreamEndpointContextKey, "")
 }
 
 // GetActualOpenAIUpstreamEndpoint 返回该请求最近一次转发尝试记录的端点。

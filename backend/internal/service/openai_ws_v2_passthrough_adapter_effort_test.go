@@ -23,11 +23,15 @@ func TestWSPassthroughUsageMeta_InitFromFirstFrame_NonGPT56RecordsExplicitMax(t 
 	body := []byte(`{"type":"response.create","model":"deepseek-v4-flash","reasoning":{"effort":"max"}}`)
 
 	meta := newOpenAIWSPassthroughUsageMeta("deepseek-v4-flash", body)
+	meta.captureRequestedReasoningEffort(body, "deepseek-v4-flash")
 	meta.initFromFirstFrame(body, "deepseek/deepseek-v4-flash-0731")
 
 	got := meta.reasoningEffort.Load()
 	require.NotNil(t, got, "显式 max 应按实际请求记录")
 	require.Equal(t, "max", *got)
+	requested := meta.requestedReasoningEffort.Load()
+	require.NotNil(t, requested)
+	require.Equal(t, "max", *requested, "策略改写前的档位必须单独保留")
 }
 
 func TestWSPassthroughUsageMeta_UpdateFromResponseCreate_MappedModelCandidate(t *testing.T) {

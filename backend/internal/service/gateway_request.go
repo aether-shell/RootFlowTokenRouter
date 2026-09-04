@@ -885,9 +885,22 @@ const anthropicBetaContextManagementToken = "context-management-2025-06-27"
 //   - 若两侧不一致上游 Pydantic schema 拒收：
 //     "context_management: Extra inputs are not permitted"
 //
-// 本函数按最终发送的 anthropic-beta header 决定是否保留 body 中的
-// context_management 字段：缺 beta token → strip。这将限制完全建立在
-// "能力维度" 上，与 model 名 / token type / mimicry 子路径无关。
+// fallbacks 场景（与 context_management 同构）：
+//   - `fallbacks` / `fallback_credit_token` 是 beta Messages API 的
+//     server-side refusal fallback 字段；标准 Messages schema 没有它们，
+//     客户端（Claude Code / SDK / OpenCode 等）最近开始默认透传
+//     `"fallbacks":"default"`（或模型列表）
+//   - 上游接受的前提是 anthropic-beta 含 `server-side-fallback-2026-07-01`
+//     （fallback_credit_token 额外接受 credit beta，见下）
+//   - 缺 token 时上游 Pydantic extra='forbid' 拒收：
+//     "fallbacks: Extra inputs are not permitted"
+//   - 本仓不写入该字段，全部来自客户端透传；OAuth mimic 用
+//     FullClaudeCodeMimicryBetas 覆盖客户端 beta（该列表不含 fallback beta），
+//     若不 strip，body 字段与 header 不对称 → 所有模型 400
+//
+// 本函数按最终发送的 anthropic-beta header 决定是否保留 body 中的上述字段：
+// 缺对应 beta token → strip；客户端 header 已带对应 beta → 保留（不过度删除）。
+// 这将限制完全建立在 "能力维度" 上，与 model 名 / token type / mimicry 子路径无关。
 //
 // 调用约束：必须在生成上游请求前调用，确保 body 与最终 anthropic-beta
 // header 表达的能力集合一致。
@@ -919,7 +932,32 @@ func sanitizeAnthropicBodyForBetaTokens(body []byte, anthropicBetaHeader string)
 			logger.LegacyPrintf("service.gateway", "[FastModeSanitize] 删除 speed 失败: %v (body len=%d)", err, len(body))
 		}
 	}
+	// fallbacks 与 fallback_credit_token 依赖对应 beta；缺失时删除，避免上游 schema 拒绝。
+	if b, deleted := stripAnthropicBodyFieldUnlessBeta(updated, "fallbacks", anthropicBetaHeader, claude.BetaServerSideFallback); deleted {
+		updated, changed = b, true
+	}
+	if b, deleted := stripAnthropicBodyFieldUnlessBeta(updated, "fallback_credit_token", anthropicBetaHeader, claude.BetaServerSideFallback, claude.BetaFallbackCredit, claude.BetaFallbackCreditLegacy); deleted {
+		updated, changed = b, true
+	}
 	return updated, changed
+}
+
+// stripAnthropicBodyFieldUnlessBeta 当 body 字段存在且 header 缺少任一 required token 时删除字段。
+func stripAnthropicBodyFieldUnlessBeta(body []byte, field, anthropicBetaHeader string, requiredTokens ...string) ([]byte, bool) {
+	if !gjson.GetBytes(body, field).Exists() {
+		return body, false
+	}
+	for _, token := range requiredTokens {
+		if anthropicBetaTokensContains(anthropicBetaHeader, token) {
+			return body, false
+		}
+	}
+	b, err := sjson.DeleteBytes(body, field)
+	if err != nil {
+		logger.LegacyPrintf("service.gateway", "[BetaFieldSanitize] 删除 %s 失败: %v (body len=%d)", field, err, len(body))
+		return body, false
+	}
+	return b, true
 }
 
 // anthropicBetaTokensContains 检测逗号分隔的 anthropic-beta header 是否含指定 token。

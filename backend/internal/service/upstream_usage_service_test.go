@@ -185,7 +185,10 @@ func TestCNUpstreamUsageAdaptersPreserveConfiguredHostAndNormalizeResults(t *tes
 		response    string
 		wantAdapter string
 		wantPath    string
+		wantQuery   string
 		wantAuth    string
+		wantOrg     string
+		wantProject string
 		assert      func(*testing.T, *UpstreamUsageQueryResult)
 	}{
 		{
@@ -209,10 +212,27 @@ func TestCNUpstreamUsageAdaptersPreserveConfiguredHostAndNormalizeResults(t *tes
 			response:    `{"success":true,"data":{"limits":[{"type":"TOKENS_LIMIT","unit":3,"percentage":32,"nextResetTime":1787529600000}]}}`,
 			wantAdapter: UpstreamUsageAdapterZhipuCoding,
 			wantPath:    "/api/monitor/usage/quota/limit",
+			wantQuery:   "",
 			wantAuth:    "zhipu-key",
 			assert: func(t *testing.T, result *UpstreamUsageQueryResult) {
 				require.Len(t, result.Limits, 1)
 				require.InDelta(t, 32, *result.Limits[0].Used, 1e-9)
+			},
+		},
+		{
+			name: "智谱团队 Coding 组织项目",
+			account: &Account{ID: 121, Platform: PlatformZhipu, Type: AccountTypeAPIKey, Status: StatusActive, Concurrency: 1,
+				Credentials: map[string]any{"api_key": "zhipu-team-key", "account_mode": AccountModeCoding, "base_url": "https://relay.example/api/coding/paas/v4", "zhipu_organization": "org-demo", "zhipu_project": "proj-demo"}},
+			response:    `{"success":true,"data":{"limits":[{"type":"TOKENS_LIMIT","unit":3,"percentage":12,"nextResetTime":1787529600000}]}}`,
+			wantAdapter: UpstreamUsageAdapterZhipuCoding,
+			wantPath:    "/api/monitor/usage/quota/limit",
+			wantQuery:   "2",
+			wantAuth:    "zhipu-team-key",
+			wantOrg:     "org-demo",
+			wantProject: "proj-demo",
+			assert: func(t *testing.T, result *UpstreamUsageQueryResult) {
+				require.Len(t, result.Limits, 1)
+				require.InDelta(t, 12, *result.Limits[0].Used, 1e-9)
 			},
 		},
 		{
@@ -260,7 +280,10 @@ func TestCNUpstreamUsageAdaptersPreserveConfiguredHostAndNormalizeResults(t *tes
 			request := upstream.requests[0]
 			require.Equal(t, "relay.example", request.URL.Hostname())
 			require.Equal(t, test.wantPath, request.URL.Path)
+			require.Equal(t, test.wantQuery, request.URL.Query().Get("type"))
 			require.Equal(t, test.wantAuth, request.Header.Get("Authorization"))
+			require.Equal(t, test.wantOrg, request.Header.Get("bigmodel-organization"))
+			require.Equal(t, test.wantProject, request.Header.Get("bigmodel-project"))
 			require.True(t, HTTPUpstreamRedirectsDisabled(request.Context()))
 			test.assert(t, result)
 		})

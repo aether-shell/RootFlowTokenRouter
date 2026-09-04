@@ -228,6 +228,22 @@ func TestCalculateStatsCost_TokenBilling_WithCache(t *testing.T) {
 	require.InDelta(t, 0.95, *result, 1e-12)
 }
 
+func TestCalculateStatsCost_TokenBilling_WithCacheTTLPricing(t *testing.T) {
+	pricing := &ChannelModelPricing{
+		BillingMode:       BillingModeToken,
+		CacheWritePrice:   testPtrFloat64(0.003),
+		CacheWrite1hPrice: testPtrFloat64(0.006),
+	}
+	tokens := UsageTokens{
+		CacheCreationTokens:   100,
+		CacheCreation5mTokens: 40,
+		CacheCreation1hTokens: 60,
+	}
+	result := calculateStatsCost(pricing, tokens, 1)
+	require.NotNil(t, result)
+	require.InDelta(t, 0.48, *result, 1e-12)
+}
+
 func TestCalculateStatsCost_TokenBilling_WithImageOutput(t *testing.T) {
 	pricing := &ChannelModelPricing{
 		BillingMode:      BillingModeToken,
@@ -242,6 +258,7 @@ func TestCalculateStatsCost_TokenBilling_WithImageOutput(t *testing.T) {
 	}
 	result := calculateStatsCost(pricing, tokens, 1)
 	require.NotNil(t, result)
+	// 统计侧的历史口径保留 output 与 image output 两个独立桶。
 	// 100*0.001 + 50*0.002 + 10*0.01 = 0.1 + 0.1 + 0.1 = 0.3
 	require.InDelta(t, 0.3, *result, 1e-12)
 }
@@ -638,8 +655,9 @@ func TestTryModelFilePricing_WithImageOutput(t *testing.T) {
 	}
 	result := tryModelFilePricing(bs, "claude-sonnet-4", tokens, "")
 	require.NotNil(t, result)
-	// 100*0.001 + 50*0.002 + 10*0.01 = 0.1 + 0.1 + 0.1 = 0.3
-	require.InDelta(t, 0.3, *result, 1e-12)
+	// ImageOutputTokens 是 OutputTokens 的子集，先扣除再按图片单价计。
+	// 100*0.001 + (50-10)*0.002 + 10*0.01 = 0.1 + 0.08 + 0.1 = 0.28
+	require.InDelta(t, 0.28, *result, 1e-12)
 }
 
 func TestTryModelFilePricing_WithCacheTokens(t *testing.T) {

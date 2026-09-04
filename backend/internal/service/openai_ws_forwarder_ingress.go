@@ -124,6 +124,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if wsDecision.Transport != OpenAIUpstreamTransportResponsesWebsocketV2 {
 				return fmt.Errorf("websocket ingress requires ws_v2 transport, got=%s", wsDecision.Transport)
 			}
+			if s.shouldBridgeOpenAIWSPassthroughFirstMessage(account, firstClientMessage) {
+				forceHTTPBridge = true
+				break
+			}
+			// 透传 relay 通过 TurnStarted 记录每个 turn 的开始时刻，但不触发
+			// BeforeTurn；因此仍只有建连时的利润准入门，没有 turn 级复核。
+			// handler 计费在 turn 定价未冻结时回退到对应的 turn 开始时刻。
 			return s.proxyResponsesWebSocketV2Passthrough(
 				ctx,
 				c,
@@ -184,6 +191,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		imageSizeTier            string
 		imageInputSize           string
 		payloadBytes             int
+		requestedReasoningEffort *string
 	}
 	ingressSessionOriginalModel := ""
 
@@ -251,10 +259,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				nil,
 			)
 		}
-		if hooks != nil && (hooks.MaxReasoningEffort != "" || len(hooks.ReasoningEffortMappings) > 0) {
-			if capped, changed := ApplyOpenAIReasoningEffortPolicy(normalized, hooks.MaxReasoningEffort, hooks.ReasoningEffortMappings); changed {
-				normalized = capped
-			}
+		requestedReasoningEffort := CanonicalRequestedReasoningEffort(normalized, strings.TrimSpace(values[1].String()))
+		if next, policyErr := applyOpenAIWSReasoningEffortPolicy(normalized, hooks); policyErr != nil {
+			return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, policyErr.Error(), policyErr)
+		} else {
+			normalized = next
 		}
 		responsesLite := isOpenAIResponsesLiteWebSocketPayload(normalized)
 		if compatibilityBody, compatibilityChanged, compatibilityErr := normalizeOpenAIResponsesWebSocketCompatibilityBody(normalized, account, responsesLite); compatibilityErr != nil {
@@ -463,6 +472,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			imageSizeTier:            imageSizeTier,
 			imageInputSize:           imageInputSize,
 			payloadBytes:             len(normalized),
+			requestedReasoningEffort: requestedReasoningEffort,
 		}, nil
 	}
 
@@ -644,6 +654,9 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				writeClientMessage,
 				tlsRouterMatch,
 			)
+			if result != nil {
+				result.RequestedReasoningEffort = currentBridgePayload.requestedReasoningEffort
+			}
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(OpenAIWSTurnCapture{
 					Turn:               turn,
@@ -922,7 +935,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return lease, nil
 	}
 
-	sendAndRelay := func(turn int, lease *openAIWSConnLease, payload []byte, payloadBytes int, originalModel string, routingModel string, imageBillingModel string, imageSizeTier string, imageInputSize string) (*OpenAIForwardResult, error) {
+	sendAndRelay := func(turn int, lease *openAIWSConnLease, payload []byte, payloadBytes int, originalModel string, routingModel string, imageBillingModel string, imageSizeTier string, imageInputSize string, requestedReasoningEffort *string) (*OpenAIForwardResult, error) {
 		responseModelObserver := upstreamResponseModelObserverFromContext(c)
 		if responseModelObserver == nil {
 			responseModelObserver = beginUpstreamResponseModelObservation(c)
@@ -1160,7 +1173,24 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					}
 				}
 				replayCollector.AddEvent(eventType, upstreamMessage)
-				if err := writeClientMessage(upstreamMessage); err != nil {
+				// 客户端写出副本改写容量降载码：Codex 对 error/response.failed 中的
+				// server_is_overloaded / slow_down 判致命并终止会话，改写后走客户端
+				// 内置退避重试。HTTP/SSE（openai_gateway_response_handling.go）与
+				// http_bridge（openai_ws_http_bridge.go）两条路径早已这么做，
+				// ctx_pool 的 ingress 直写路径是唯一漏掉的一条 —— 同一个上游降载
+				// 事件在这里会让会话就地终止，切到 http_bridge 却能正常退避重试。
+				//
+				// 必须写进独立变量而不是原地改 upstreamMessage：下面的
+				// markOpenAIWSClientVisibleFailure 与 handleOpenAIWSTerminalTransientFailure
+				// 仍要按未改写的原始 payload 判定账号状态，这正是
+				// sanitizeOpenAICapacityShedErrorCodeForClient 注释里写明的前提。
+				clientMessage := upstreamMessage
+				if eventType == "error" || eventType == "response.failed" {
+					if rewritten, changed := sanitizeOpenAICapacityShedErrorCodeForClient(clientMessage); changed {
+						clientMessage = rewritten
+					}
+				}
+				if err := writeClientMessage(clientMessage); err != nil {
 					if isOpenAIWSClientDisconnectError(err) {
 						clientDisconnected = true
 						closeStatus, closeReason := summarizeOpenAIWSReadCloseError(err)
@@ -1219,6 +1249,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					UpstreamResponseServiceTier: responseModelObserver.ServiceTier(),
 					ServiceTier:                 resolvedOpenAIUpstreamServiceTierFromObserver(responseModelObserver, extractOpenAIServiceTierFromBody(payload)),
 					ReasoningEffort:             ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(payload, mappedModel, originalModel), payload, mappedModel),
+					RequestedReasoningEffort:    requestedReasoningEffort,
 					Stream:                      reqStream,
 					OpenAIWSMode:                true,
 					UpstreamTerminalEvent:       terminalPolicy.TerminalEvent,
@@ -1250,6 +1281,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	currentImageSizeTier := firstPayload.imageSizeTier
 	currentImageInputSize := firstPayload.imageInputSize
 	currentPayloadBytes := firstPayload.payloadBytes
+	currentRequestedReasoningEffort := firstPayload.requestedReasoningEffort
 	isStrictAffinityTurn := func(payload []byte) bool {
 		if !storeDisabled {
 			return false
@@ -1747,7 +1779,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			)
 		}
 
-		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentRoutingModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize)
+		result, relayErr := sendAndRelay(turn, sessionLease, currentPayload, currentPayloadBytes, currentOriginalModel, currentRoutingModel, currentImageBillingModel, currentImageSizeTier, currentImageInputSize, currentRequestedReasoningEffort)
 		if relayErr != nil {
 			lastTurnClean = false
 			if recoverIngressPrevResponseNotFound(relayErr, turn, connID) {
@@ -1914,6 +1946,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		currentImageSizeTier = nextPayload.imageSizeTier
 		currentImageInputSize = nextPayload.imageInputSize
 		currentPayloadBytes = nextPayload.payloadBytes
+		currentRequestedReasoningEffort = nextPayload.requestedReasoningEffort
 		storeDisabled = s.isOpenAIWSStoreDisabledInRequestRaw(currentPayload, account)
 		if !storeDisabled {
 			unpinSessionConn(sessionConnID)

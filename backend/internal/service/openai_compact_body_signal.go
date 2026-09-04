@@ -66,6 +66,11 @@ func isOpenAINativeCompactionV2(c *gin.Context) bool {
 	return c != nil && c.GetBool(openAINativeCompactionV2Key)
 }
 
+// IsOpenAINativeCompactionV2 返回当前请求是否被识别为原生远程 compaction v2。
+func IsOpenAINativeCompactionV2(c *gin.Context) bool {
+	return isOpenAINativeCompactionV2(c)
+}
+
 // ensureOpenAIRemoteCompactionV2BetaFeature 确保协商头包含 V2 能力，同时保留
 // 客户端已声明的其它能力，避免把多行头压缩时丢失 token。
 func ensureOpenAIRemoteCompactionV2BetaFeature(h http.Header) {

@@ -108,6 +108,30 @@ Pro 的发布事实源是 `deploy/pro/customizations.yaml`。该文件使用 JSO
 
 该迁移只新增列，可随新版本正常前向执行；但旧实例不理解分组价卡，混跑期间不能开放或修改 `model_pricing`，否则同一分组可能因命中不同版本实例而出现展示与实扣差异。应先完成全部后端升级并确认认证缓存重建，再开放新管理端。升级后至少验证显式免费价、分组覆盖渠道价、关闭内置长上下文、渠道区间仍保留，以及模型市场单价与实际 `ActualCost` 一致。回退旧二进制不会删除新列，但会忽略新配置；需要继续服务时应先停止写入分组价卡或恢复到不依赖该配置的版本状态。
 
+### 渠道缓存写入 1h 分档迁移
+
+迁移 `261_channel_cache_write_1h_pricing.sql` 为渠道模型价、渠道 token 区间、账号统计模型价和账号统计区间增加可空 `cache_write_1h_price`。NULL 表示兼容旧的 `cache_write_price` 两档同价语义，显式 0 表示 1h 缓存写入免费；迁移只新增列且可重复执行。应用层会在用量带有 5m/1h 明细时分别计算，否则按聚合缓存创建 token 回退，避免历史记录改变金额。
+
+升级后应抽样验证旧渠道配置仍返回相同总价、新配置的 5m/1h API 往返、账号统计成本和模型广场展示，并确认所有实例已运行包含该迁移的版本后再开放 1h 字段写入。
+
+### 分组 OpenAI Fast 强制策略迁移
+
+迁移 `262_group_force_openai_fast.sql` 为 `groups` 增加默认关闭的 `force_openai_fast` 布尔列。管理端只允许 OpenAI/Composite 分组写入；认证快照升级到 v34 后会携带该字段，网关再把它投影到 HTTP、Responses 和 WebSocket 请求的 `service_tier=priority`。组级强制不是绕过策略的旁路：全局 Fast/Flex 过滤或阻断，以及 API Key 的 `force_off`，仍然在最终请求体上生效。
+
+该迁移仅新增列，可重复执行，但旧后端不会读取该策略。发布时应先完成数据库迁移和全部后端实例升级，确认旧 v33 快照被拒绝并重建，再开放管理端开关；回退旧二进制不会删除列，但会忽略新配置，不能在混跑期间依赖组级 Fast 语义。
+
+### 分组推理强度超限动作迁移
+
+迁移 `263_group_reasoning_effort_over_limit.sql` 为 `groups` 增加非空 `max_reasoning_effort_over_limit`，默认 `downgrade`，并记录 `deny` 的拒绝语义。上游同名迁移使用的编号不直接复用；本 fork 按现有最大迁移号递增为 263。管理服务只允许 `downgrade` 或 `deny`，且 `deny` 仅对 OpenAI 分组开放；平台切换到其它类型时会清除上限并恢复默认降档动作。
+
+认证缓存版本由 v34 升至 v35，快照增加该动作。HTTP Responses/Chat、Messages 兼容桥和 Responses WebSocket 都在出站前执行“模型范围映射后再比较上限”的规则；拒绝请求属于本地业务限制，不应进入账号故障转移或 SLA 失败统计。Messages 只对显式 `output_config.effort` 绑定策略，避免改变缺省请求的桥接默认值。部署时先执行迁移并升级全部后端实例，确认旧快照失效、管理 API 往返字段正确，再开放 `deny` 配置。旧二进制会忽略新列，不能在混跑期间依赖拒绝语义；回退时无需删除列，但应停止写入新动作并重新构建缓存。
+
+### 分组 OpenAI Fast Standard 计费迁移
+
+迁移 `264_group_free_openai_fast.sql` 为 `groups` 增加默认关闭的 `free_openai_fast` 布尔列。管理 API、分组复制和认证快照只对 OpenAI/Composite 分组保留该策略；平台切换到其它类型时由服务层清零。上游请求仍使用 Fast/priority，只有用户侧结算在同一模型、渠道和计费时刻重新采用 Standard 价格。
+
+认证缓存版本由 v35 升至 v36，快照新增免费 Fast 字段。Usage Log 的 Fast `total_cost` 继续作为账号统计和账号额度的成本基数，Standard `actual_cost` 与统一结算基础金额用于余额、订阅和 API Key 配额。迁移是幂等新增列，但旧后端不会读取该策略；发布时先执行迁移并升级全部后端实例，确认旧 v35 快照失效、管理 API 往返字段正确，再开放开关。回退旧二进制不会删除列，且不能在混跑期间依赖免费 Fast 价格语义。
+
 ### OpenAI 账号级长上下文计费开关下线
 
 迁移 `241_remove_openai_long_context_billing_toggle.sql` 幂等删除迁移 203 创建的两个账号同步触发器和两个函数，并从所有账号 `extra` 中移除 `openai_long_context_billing_enabled`，保留其它 JSONB 数据。新服务仍把该键视为废弃输入：账号创建、更新、批量更新、导入和 CRS 同步即使收到非法类型也会静默丢弃，不再保存或返回旧校验错误。整份替换语义的单账号更新只携带废弃键时等同未提供 `extra`，不会清空其它配置；显式 `extra:{}` 仍表示清空允许清空的字段，废弃键与有效字段并存时只处理有效字段。账号数据导入会在计算幂等指纹前丢弃该键，因此旧键缺失、任意旧值和非法类型均表示同一逻辑请求。

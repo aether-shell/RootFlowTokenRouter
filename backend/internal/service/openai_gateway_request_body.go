@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
@@ -54,10 +55,82 @@ func buildOpenAIResponsesURLForPlatform(platform, base string) string {
 	return buildOpenAIResponsesURL(base)
 }
 
-// normalizeDeepSeekResponsesRequestBody 清除 DeepSeek 无状态 Responses 不接受的状态字段。
+// isOfficialOpenAIModelsBaseURL 只识别官方 OpenAI 主机，避免兼容中继误用官方字段语义。
+func isOfficialOpenAIModelsBaseURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	return err == nil && strings.EqualFold(u.Hostname(), "api.openai.com")
+}
+
+// shouldPreserveOpenAIResponsesNoneReasoningEffort 判断请求是否仍需保留官方目录的 none 占位值。
+func shouldPreserveOpenAIResponsesNoneReasoningEffort(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	if account.IsOpenAIOAuthLike() {
+		return true
+	}
+	if !account.IsOpenAIApiKey() {
+		return false
+	}
+	baseURL := strings.TrimSpace(account.GetCredential("base_url"))
+	return baseURL == "" || isOfficialOpenAIModelsBaseURL(baseURL)
+}
+
+// filterOpenAIResponsesNoneReasoningEffortForAccount 删除兼容上游不应接收的目录占位值。
+// 官方 OpenAI 请求保留 none，避免改变其原生请求语义。
+func filterOpenAIResponsesNoneReasoningEffortForAccount(account *Account, body []byte) ([]byte, error) {
+	if len(body) == 0 || shouldPreserveOpenAIResponsesNoneReasoningEffort(account) {
+		return body, nil
+	}
+
+	out := body
+	for _, path := range []string{"reasoning.effort", "reasoning_effort"} {
+		effort := gjson.GetBytes(out, path)
+		if effort.Type != gjson.String || !strings.EqualFold(strings.TrimSpace(effort.String()), "none") {
+			continue
+		}
+		next, err := sjson.DeleteBytes(out, path)
+		if err != nil {
+			return body, fmt.Errorf("strip %s none placeholder: %w", path, err)
+		}
+		out = next
+	}
+	if reasoning := gjson.GetBytes(out, "reasoning"); reasoning.IsObject() && len(reasoning.Map()) == 0 {
+		next, err := sjson.DeleteBytes(out, "reasoning")
+		if err != nil {
+			return body, fmt.Errorf("strip empty reasoning object: %w", err)
+		}
+		out = next
+	}
+	return out, nil
+}
+
+// deleteOpenAIResponsesNoneReasoningEffortFromObject 删除 WS bridge 中的 none 占位字段。
+func deleteOpenAIResponsesNoneReasoningEffortFromObject(account *Account, body map[string]any) {
+	if body == nil || shouldPreserveOpenAIResponsesNoneReasoningEffort(account) {
+		return
+	}
+	if effort, ok := body["reasoning_effort"].(string); ok && strings.EqualFold(strings.TrimSpace(effort), "none") {
+		delete(body, "reasoning_effort")
+	}
+	reasoning, ok := body["reasoning"].(map[string]any)
+	if !ok {
+		return
+	}
+	if effort, ok := reasoning["effort"].(string); ok && strings.EqualFold(strings.TrimSpace(effort), "none") {
+		delete(reasoning, "effort")
+	}
+	if len(reasoning) == 0 {
+		delete(body, "reasoning")
+	}
+}
+
+// normalizeDeepSeekResponsesRequestBody 适配无状态 CN Responses 端点：
+// 强制 store=false 并清除 previous_response_id（DeepSeek / Kimi 官方
+// Responses 均不支持服务端状态存储，携带这些字段会被拒绝）。
+// 非原生 Responses 协议账号原样返回。
 func normalizeDeepSeekResponsesRequestBody(account *Account, body []byte) []byte {
-	if account == nil || account.Platform != PlatformDeepseek ||
-		(account.GetAPIProtocol() != APIProtocolResponses && !account.IsAdaptiveAPIProtocol()) {
+	if account == nil || !account.UsesNativeCNResponses() {
 		return body
 	}
 	normalized, err := sjson.SetBytes(body, "store", false)
@@ -383,6 +456,65 @@ func openAIRequestBodyHasTools(body []byte) bool {
 		}
 	}
 	return false
+}
+
+// normalizeOpenAIResponsesReasoningContentReplay 在历史记录发送到真实 OpenAI Responses
+// 端点前移除不可移植的 reasoning.content 数组。兼容供应商可能返回可见推理块，
+// 而 OpenAI 在回放该项时只接受空数组。
+//
+// 保留 reasoning 项及其可移植字段（summary、encrypted_content、id 和不透明扩展字段）。
+// 调用方仅对 OpenAI 目标启用此归一化，兼容供应商仍可消费自身的 content。
+func normalizeOpenAIResponsesReasoningContentReplay(body []byte) ([]byte, bool, error) {
+	input := gjson.GetBytes(body, "input")
+	if !input.IsArray() {
+		return body, false, nil
+	}
+
+	needsNormalization := false
+	input.ForEach(func(_, item gjson.Result) bool {
+		if strings.TrimSpace(item.Get("type").String()) != "reasoning" {
+			return true
+		}
+		content := item.Get("content")
+		if content.IsArray() && len(content.Array()) > 0 {
+			needsNormalization = true
+			return false
+		}
+		return true
+	})
+	if !needsNormalization {
+		return body, false, nil
+	}
+
+	var reqBody map[string]any
+	if err := decodeOpenAIJSONUseNumber(body, &reqBody); err != nil {
+		return body, false, fmt.Errorf("normalize OpenAI reasoning content replay: %w", err)
+	}
+	items, ok := reqBody["input"].([]any)
+	if !ok {
+		return body, false, nil
+	}
+	changed := false
+	for _, rawItem := range items {
+		item, ok := rawItem.(map[string]any)
+		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "reasoning" {
+			continue
+		}
+		content, ok := item["content"].([]any)
+		if !ok || len(content) == 0 {
+			continue
+		}
+		delete(item, "content")
+		changed = true
+	}
+	if !changed {
+		return body, false, nil
+	}
+	normalized, err := marshalOpenAIUpstreamJSON(reqBody)
+	if err != nil {
+		return body, false, fmt.Errorf("serialize normalized OpenAI reasoning content replay: %w", err)
+	}
+	return normalized, true, nil
 }
 
 func normalizeOpenAIAPIKeyStoreFalseReasoningReplay(body []byte, knownStoreFalse bool) ([]byte, bool, error) {
@@ -954,6 +1086,12 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 			return body, false, err
 		}
 	}
+	if next, normalizedReasoningContent, err := normalizeOpenAIResponsesReasoningContentReplay(normalized); err != nil {
+		return body, false, err
+	} else if normalizedReasoningContent {
+		normalized = next
+		changed = true
+	}
 	if account.IsOpenAIApiKey() {
 		if next, normalizedParallel, err := normalizeOpenAIParallelToolCallsWithoutTools(normalized, responsesLite); err != nil {
 			return body, false, err
@@ -1221,6 +1359,53 @@ func extractOpenAIReasoningEffortFromBody(body []byte, modelCandidates ...string
 	return &value
 }
 
+// CanonicalRequestedReasoningEffort 提取策略改写前客户端请求的推理档位。
+// 显式字段优先；缺失显式字段时再从模型名末尾的档位后缀推导。
+func CanonicalRequestedReasoningEffort(body []byte, modelCandidates ...string) *string {
+	raw := strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String())
+	if raw == "" {
+		raw = strings.TrimSpace(gjson.GetBytes(body, "reasoning_effort").String())
+	}
+	if raw == "" {
+		raw = strings.TrimSpace(gjson.GetBytes(body, "output_config.effort").String())
+	}
+	if raw != "" {
+		canonical := NormalizeMaxReasoningEffort(raw)
+		if canonical == "" {
+			return nil
+		}
+		return &canonical
+	}
+	for _, model := range modelCandidates {
+		if effort := canonicalReasoningEffortFromModelSuffix(model); effort != "" {
+			return &effort
+		}
+	}
+	if model := strings.TrimSpace(gjson.GetBytes(body, "model").String()); model != "" {
+		if effort := canonicalReasoningEffortFromModelSuffix(model); effort != "" {
+			return &effort
+		}
+	}
+	return nil
+}
+
+func canonicalReasoningEffortFromModelSuffix(model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return ""
+	}
+	if slash := strings.LastIndexByte(model, '/'); slash >= 0 {
+		model = model[slash+1:]
+	}
+	parts := strings.FieldsFunc(strings.ToLower(model), func(r rune) bool {
+		return r == '-' || r == '_' || r == ' '
+	})
+	if len(parts) == 0 {
+		return ""
+	}
+	return NormalizeMaxReasoningEffort(parts[len(parts)-1])
+}
+
 // extractEffectiveOpenAIReasoningEffortFromBody 从最终上游请求体读取实际转发档位。
 // 原请求提供非空 effort、但最终请求体已不再携带时，不允许再从模型后缀补值；
 // 空字符串、空白字符串和 null 沿用既有语义，视为未提供。
@@ -1455,6 +1640,16 @@ type openAIFastModeDecision struct {
 	Blocked     *OpenAIFastBlockedError
 }
 
+// openAIGroupForcesFast 仅信任认证链路注入的、已完整加载的分组上下文。
+// 复合分组在请求期会投影到 OpenAI 账号，因此也允许复合分组启用该策略。
+func openAIGroupForcesFast(ctx context.Context, account *Account) bool {
+	if ctx == nil || account == nil || account.Platform != PlatformOpenAI {
+		return false
+	}
+	group, _ := ctx.Value(ctxkey.Group).(*Group)
+	return IsGroupContextValid(group) && groupSupportsOpenAIFast(group.Platform) && group.ForceOpenAIFast
+}
+
 // resolveOpenAIFastModeDecision 统一解析系统策略与单 Key 策略。
 // 系统先裁决原始 tier；Key 改写后再裁决一次，避免 force_on 绕过系统 filter/block。
 func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
@@ -1465,6 +1660,12 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 	hasField bool,
 ) openAIFastModeDecision {
 	normTier := normalizedOpenAIServiceTierValue(rawTier)
+	if openAIGroupForcesFast(ctx, account) {
+		// 组级强制先形成 priority，再交给全局策略裁决；这样没有显式
+		// service_tier 的请求也能覆盖，同时 ForceOff 仍可删除该字段。
+		normTier = OpenAIFastTierPriority
+		hasField = true
+	}
 	applySystemAction := func(tier string) (openAIFastModeDecision, bool) {
 		action, errMsg := s.evaluateOpenAIFastPolicy(ctx, account, model, tier)
 		switch action {
@@ -1924,6 +2125,39 @@ func extractOpenAIReasoningEffort(reqBody map[string]any, modelCandidates ...str
 		return nil
 	}
 	return &value
+}
+
+// CanonicalRequestedReasoningEffortFromReqBody 是 map 形态请求体的同等入口。
+func CanonicalRequestedReasoningEffortFromReqBody(reqBody map[string]any, modelCandidates ...string) *string {
+	if reqBody == nil {
+		return CanonicalRequestedReasoningEffort(nil, modelCandidates...)
+	}
+	raw := ""
+	if reasoning, ok := reqBody["reasoning"].(map[string]any); ok {
+		if effort, ok := reasoning["effort"].(string); ok {
+			raw = strings.TrimSpace(effort)
+		}
+	}
+	if raw == "" {
+		if effort, ok := reqBody["reasoning_effort"].(string); ok {
+			raw = strings.TrimSpace(effort)
+		}
+	}
+	if raw == "" {
+		if outputConfig, ok := reqBody["output_config"].(map[string]any); ok {
+			if effort, ok := outputConfig["effort"].(string); ok {
+				raw = strings.TrimSpace(effort)
+			}
+		}
+	}
+	if raw != "" {
+		canonical := NormalizeMaxReasoningEffort(raw)
+		if canonical == "" {
+			return nil
+		}
+		return &canonical
+	}
+	return CanonicalRequestedReasoningEffort(nil, modelCandidates...)
 }
 
 func normalizeOpenAIReasoningEffort(raw string) string {

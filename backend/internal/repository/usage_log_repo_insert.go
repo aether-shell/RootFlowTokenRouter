@@ -87,6 +87,8 @@ var usageLogInsertArgTypes = [...]string{
 	"numeric",     // account_stats_cost
 	"text",        // session_id
 	"timestamptz", // created_at
+	"text",        // requested_reasoning_effort
+	"boolean",     // native_compaction_v2
 }
 
 const (
@@ -297,9 +299,11 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			model_mapping_chain,
 			billing_tier,
 			billing_mode,
-			account_stats_cost,
-			session_id,
-			created_at
+				account_stats_cost,
+				session_id,
+				created_at,
+				requested_reasoning_effort,
+				native_compaction_v2
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9,
 			$10, $11,
@@ -310,7 +314,7 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			$33, $34, $35, $36, $37, $38, $39,
 			$40, $41, $42, $43, $44, $45, $46,
 			$47, $48, $49, $50, $51, $52, $53,
-			$54, $55, $56, $57, $58, $59, $60, $61, $62
+			$54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 		RETURNING id, created_at
@@ -804,7 +808,9 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 			billing_mode,
 			account_stats_cost,
 			session_id,
-			created_at
+			created_at,
+			requested_reasoning_effort,
+			native_compaction_v2
 		) AS (VALUES `)
 
 	args := make([]any, 0, len(keys)*(len(usageLogInsertArgTypes)+1))
@@ -897,7 +903,9 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				billing_mode,
 				account_stats_cost,
 				session_id,
-				created_at
+				created_at,
+				requested_reasoning_effort,
+				native_compaction_v2
 			)
 			SELECT
 				user_id,
@@ -961,7 +969,9 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				billing_mode,
 				account_stats_cost,
 				session_id,
-				created_at
+				created_at,
+				requested_reasoning_effort,
+				native_compaction_v2
 			FROM input
 			ON CONFLICT (request_id, api_key_id) DO NOTHING
 			RETURNING request_id, api_key_id, id, created_at
@@ -1065,7 +1075,9 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			billing_mode,
 			account_stats_cost,
 			session_id,
-			created_at
+			created_at,
+				requested_reasoning_effort,
+				native_compaction_v2
 		) AS (VALUES `)
 
 	args := make([]any, 0, len(preparedList)*len(usageLogInsertArgTypes))
@@ -1155,7 +1167,9 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			billing_mode,
 			account_stats_cost,
 			session_id,
-			created_at
+			created_at,
+				requested_reasoning_effort,
+				native_compaction_v2
 		)
 		SELECT
 			user_id,
@@ -1217,10 +1231,13 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			model_mapping_chain,
 			billing_tier,
 			billing_mode,
-			account_stats_cost,
-			session_id,
-			created_at
-		FROM input
+				account_stats_cost,
+				session_id,
+				created_at,
+				requested_reasoning_effort
+				,
+				native_compaction_v2
+			FROM input
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`)
 
@@ -1291,7 +1308,9 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			billing_mode,
 			account_stats_cost,
 			session_id,
-			created_at
+			created_at,
+			requested_reasoning_effort,
+			native_compaction_v2
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9,
 			$10, $11,
@@ -1302,7 +1321,7 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			$33, $34, $35, $36, $37, $38, $39,
 			$40, $41, $42, $43, $44, $45, $46,
 			$47, $48, $49, $50, $51, $52, $53,
-			$54, $55, $56, $57, $58, $59, $60, $61, $62
+			$54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`, prepared.args...)
@@ -1337,6 +1356,7 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 	videoDurationSeconds := nullInt(log.VideoDurationSeconds)
 	serviceTier := nullString(log.ServiceTier)
 	reasoningEffort := nullString(log.ReasoningEffort)
+	requestedReasoningEffort := nullString(log.RequestedReasoningEffort)
 	inboundEndpoint := nullString(log.InboundEndpoint)
 	upstreamEndpoint := nullString(log.UpstreamEndpoint)
 	channelID := nullInt64(log.ChannelID)
@@ -1438,6 +1458,8 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			log.AccountStatsCost, // account_stats_cost
 			sessionID,            // session_id
 			createdAt,
+			requestedReasoningEffort,
+			log.NativeCompactionV2,
 		},
 	}
 }

@@ -229,6 +229,29 @@ func appendRequestTypeOrStreamQueryFilter(query string, args []any, requestType 
 	return query, args
 }
 
+// appendNativeCompactionV2WhereCondition 为原生 compaction 标记追加可选布尔过滤。
+func appendNativeCompactionV2WhereCondition(conditions []string, args []any, value *bool, alias string) ([]string, []any) {
+	if value == nil {
+		return conditions, args
+	}
+	column := "native_compaction_v2"
+	if alias != "" {
+		column = alias + "." + column
+	}
+	conditions = append(conditions, fmt.Sprintf("%s = $%d", column, len(args)+1))
+	args = append(args, *value)
+	return conditions, args
+}
+
+// appendNativeCompactionV2QueryFilter 为带已有条件的查询追加原生 compaction 过滤。
+func appendNativeCompactionV2QueryFilter(query string, args []any, value *bool, alias string) (string, []any) {
+	conditions, args := appendNativeCompactionV2WhereCondition(nil, args, value, alias)
+	if len(conditions) == 0 {
+		return query, args
+	}
+	return query + " AND " + conditions[0], args
+}
+
 // buildRequestTypeFilterCondition 在 request_type 过滤时兼容 legacy 字段，避免历史数据漏查。
 func buildRequestTypeFilterCondition(startArgIndex int, requestType int16) (string, []any) {
 	return buildRequestTypeFilterConditionWithAlias(startArgIndex, requestType, "")

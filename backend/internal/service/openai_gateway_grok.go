@@ -78,8 +78,13 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 		}
 	}
 	// 从 xAI 实际接收的请求派生身份，使 Codex Responses Lite 的 additional_tools
-	// 成为稳定工具前缀的一部分。
-	cacheIdentity := resolveGrokCacheIdentity(c, patchedBody, "", upstreamModel)
+	// 成为稳定工具前缀的一部分。若 Claude Code session 只存在于 metadata.user_id，
+	// 则在 metadata 被剥离前使用原始请求保留该身份。
+	cacheIdentityBody := patchedBody
+	if extractClaudeCodeSessionIDFromPayload(body) != "" {
+		cacheIdentityBody = body
+	}
+	cacheIdentity := resolveGrokCacheIdentity(c, cacheIdentityBody, "", upstreamModel)
 	mixedCacheIntentBody := append([]byte(nil), patchedBody...)
 	patchedBody, err = applyGrokResponsesCacheIdentity(patchedBody, body, cacheIdentity, account.IsGrokOAuth())
 	if err != nil {
@@ -550,7 +555,7 @@ func patchGrokResponsesBodyBase(body []byte, upstreamModel string) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
-	for _, unsupportedField := range []string{"prompt_cache_retention", "safety_identifier"} {
+	for _, unsupportedField := range []string{"prompt_cache_retention", "safety_identifier", "metadata"} {
 		if gjson.GetBytes(out, unsupportedField).Exists() {
 			out, err = sjson.DeleteBytes(out, unsupportedField)
 			if err != nil {
@@ -726,7 +731,7 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
 	case "minimal":
 		return "low", true
 	case "xhigh", "extrahigh":
-		if grokSupportsXHighReasoningEffort(model) {
+		if GrokSupportsXHighReasoningEffort(model) {
 			return "xhigh", true
 		}
 		return "high", true
@@ -737,8 +742,9 @@ func normalizeGrokReasoningEffortValue(raw, model string) (string, bool) {
 	}
 }
 
-// grokSupportsXHighReasoningEffort 判断 Grok 4.6 是否支持原生 xhigh 档位。
-func grokSupportsXHighReasoningEffort(model string) bool {
+// GrokSupportsXHighReasoningEffort 判断模型是否声明并透传 xhigh 推理档位。
+// 当前仅 Grok 4.6 及其无日期别名支持。
+func GrokSupportsXHighReasoningEffort(model string) bool {
 	model = strings.ToLower(xai.StripGrokProviderPrefix(strings.TrimSpace(model)))
 	return model == "grok-4.6" || model == "grok-4.6-latest"
 }
@@ -1048,6 +1054,8 @@ var grokResponsesSupportedToolTypes = map[string]struct{}{
 	"x_search":           {},
 }
 
+const grokSafeFunctionParameters = `{"type":"object","properties":{},"additionalProperties":true}`
+
 func sanitizeGrokResponsesTools(body []byte) ([]byte, error) {
 	tools := gjson.GetBytes(body, "tools")
 	if !tools.Exists() {
@@ -1075,6 +1083,19 @@ func sanitizeGrokResponsesTools(body []byte) ([]byte, error) {
 					return nil, err
 				}
 				raw = encoded
+				toolsChanged = true
+			} else if toolType == "function" && grokFunctionParametersHaveInvalidUnionRoot(tool.Get("parameters")) {
+				var err error
+				raw, err = sjson.SetRawBytes(raw, "parameters", []byte(grokSafeFunctionParameters))
+				if err != nil {
+					return nil, err
+				}
+				if strict := tool.Get("strict"); strict.Exists() && strict.Bool() {
+					raw, err = sjson.SetBytes(raw, "strict", false)
+					if err != nil {
+						return nil, err
+					}
+				}
 				toolsChanged = true
 			}
 			filteredTools = append(filteredTools, raw)
@@ -1125,6 +1146,28 @@ func sanitizeGrokResponsesTools(body []byte) ([]byte, error) {
 		}
 	}
 	return body, nil
+}
+
+func grokFunctionParametersHaveInvalidUnionRoot(parameters gjson.Result) bool {
+	if !parameters.Exists() || !parameters.IsObject() {
+		return false
+	}
+	for _, keyword := range []string{"anyOf", "oneOf"} {
+		branches := parameters.Get(keyword)
+		if !branches.IsArray() {
+			continue
+		}
+		values := branches.Array()
+		if len(values) == 0 {
+			continue
+		}
+		for _, branch := range values {
+			if !strings.EqualFold(strings.TrimSpace(branch.Get("type").String()), "object") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func grokRawToolsContainType(tools []json.RawMessage, want string) bool {

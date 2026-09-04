@@ -140,6 +140,20 @@ describe('ModelPricingPanel', () => {
     expect(labels).toEqual(['marketplace.input', 'marketplace.output'])
   })
 
+  it('展示独立的 1h 缓存写入价格', async () => {
+    const wrapper = mountPanel(marketplaceModel('m1', {
+      ...tokenPricing,
+      cache_write_price_per_token: 0.000003,
+      cache_write_1h_price_per_token: 0.000006,
+    }))
+
+    await wrapper.get('[data-testid="model-pricing-toggle"]').trigger('click')
+
+    const labels = wrapper.get('[data-testid="pricing-rows"]').findAll('span:first-child').map((el) => el.text())
+    expect(labels).toContain('marketplace.cacheWrite1h')
+    expect(wrapper.text()).toContain('6.00')
+  })
+
   it('存在 fast mode 计价时展示切换，切换后只显示 fast 价格行', async () => {
     const wrapper = mountPanel(marketplaceModel('m1', fastPricing))
 

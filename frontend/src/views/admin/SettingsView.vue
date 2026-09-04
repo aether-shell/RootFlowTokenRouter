@@ -5420,6 +5420,22 @@
                 class="space-y-5"
                 data-testid="gateway-forwarding-openai"
               >
+                <!-- OpenAI Responses 首 token 统计口径 -->
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.gatewayForwarding.openaiTTFTMode") }}
+                  </label>
+                  <Select
+                    v-model="form.openai_ttft_mode"
+                    :options="openAITTFTModeOptions"
+                    class="w-full"
+                    data-testid="openai-ttft-mode"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.openaiTTFTModeHint") }}
+                  </p>
+                </div>
+
                 <!-- OpenAI Codex UA 设置 -->
                 <div>
                 <label
@@ -9138,6 +9154,17 @@ const gatewayForwardingDescriptionKey = computed(
     `admin.settings.gatewayForwarding.${gatewayForwardingPlatform.value}Description`,
 );
 
+const openAITTFTModeOptions = computed(() => [
+  {
+    value: "semantic",
+    label: t("admin.settings.gatewayForwarding.openaiTTFTModeSemantic"),
+  },
+  {
+    value: "visible",
+    label: t("admin.settings.gatewayForwarding.openaiTTFTModeVisible"),
+  },
+]);
+
 // 支持方向键和 Home / End 在标签之间快速切换。
 const settingsTabKeyboardActions = {
   ArrowLeft: -1,
@@ -9908,6 +9935,7 @@ const form = reactive<SettingsForm>({
     default_threshold_7d: 0,
   },
   // Gateway forwarding behavior
+  openai_ttft_mode: "semantic",
   enable_fingerprint_unification: true,
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
@@ -12023,6 +12051,8 @@ async function saveSettings() {
       min_claude_code_version: form.min_claude_code_version,
       max_claude_code_version: form.max_claude_code_version,
       allow_ungrouped_key_scheduling: form.allow_ungrouped_key_scheduling,
+      openai_ttft_mode:
+        form.openai_ttft_mode === "visible" ? "visible" : "semantic",
       enable_fingerprint_unification: form.enable_fingerprint_unification,
       enable_metadata_passthrough: form.enable_metadata_passthrough,
       enable_claude_oauth_system_prompt_injection:

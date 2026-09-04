@@ -35,6 +35,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	defaultMappedModel string,
 	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
 ) (*OpenAIForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
+	ClearActualOpenAIUpstreamEndpoint(c)
+	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
+		SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
+	}
 	setCodexToolNameReverse(c, nil)
 	if _, err := s.prepareCodexAccountIdentitySource(ctx, c, account); err != nil {
 		return nil, err
@@ -273,6 +278,25 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 					return nil, fmt.Errorf("remarshal after prompt cache key injection: %w", err)
 				}
 				responsesBody = updated
+			}
+		}
+	}
+	// Messages 桥只在客户端显式提供 output_config.effort 时绑定策略；此处
+	// 在所有模型/提示词改写完成后统一执行，确保出站请求和计费结果一致。
+	if account.Platform == PlatformOpenAI {
+		policyBody, changed, policyErr := ApplyOpenAIReasoningEffortPolicyFromContext(ctx, responsesBody)
+		if policyErr != nil {
+			var overLimit *ReasoningEffortOverLimitError
+			if errors.As(policyErr, &overLimit) {
+				MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+				writeAnthropicError(c, http.StatusForbidden, "forbidden_error", overLimit.Error())
+			}
+			return nil, policyErr
+		}
+		if changed {
+			responsesBody = policyBody
+			if responsesReq.Reasoning != nil {
+				responsesReq.Reasoning.Effort = gjson.GetBytes(responsesBody, "reasoning.effort").String()
 			}
 		}
 	}
@@ -628,9 +652,9 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 		}
 		if decision.ShouldFailover(account, policyStatus, openAIStreamFailedEventShouldFailover(payload, message)) {
 			markOpenAIWSFailureSideEffectsApplied(c, policyStatus, decision.StopScheduling)
-			return nil, s.newOpenAIStreamPolicyFailoverError(
+			return nil, s.newOpenAIStreamPolicyFailoverErrorWithModel(
 				c, account, false, requestID, resp.Header, policyStatus, payload, message,
-				openAIStreamFailedEventRetryableOnSameAccount(account, payload, message),
+				openAIStreamFailedEventRetryableOnSameAccount(account, payload, message), upstreamModel,
 			)
 		}
 		message = s.recordOpenAIStreamUpstreamError(c, account, false, requestID, "http_error", payload, message)
@@ -1061,9 +1085,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			}
 			if !clientOutputStarted && decision.ShouldFailover(account, policyStatus, shouldFailoverSignal) {
 				markOpenAIWSFailureSideEffectsApplied(c, policyStatus, decision.StopScheduling)
-				streamFailoverErr = s.newOpenAIStreamPolicyFailoverError(
+				streamFailoverErr = s.newOpenAIStreamPolicyFailoverErrorWithModel(
 					c, account, false, requestID, resp.Header, policyStatus, payloadBytes, message,
-					openAIStreamFailedEventRetryableOnSameAccount(account, payloadBytes, message),
+					openAIStreamFailedEventRetryableOnSameAccount(account, payloadBytes, message), upstreamModel,
 				)
 				return true
 			}

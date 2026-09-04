@@ -37,6 +37,11 @@ type OpenAIImagesUpstreamError struct {
 	Message           string
 	Param             string
 	UpstreamRequestID string
+
+	// SynthesizedFromModelText 表示网关从模型纯文本输出推断出错误，而不是从上游结构化错误帧读取。
+	// 该判定只描述当前轮次（模型返回文字而非图片），不代表账号能力失效；详见
+	// shouldCoolOpenAIImagesToolForError。
+	SynthesizedFromModelText bool
 }
 
 func (e *OpenAIImagesUpstreamError) Error() string {
@@ -325,6 +330,25 @@ func openAIImageUploadToDataURL(upload OpenAIImagesUpload) (string, error) {
 		contentType = http.DetectContentType(upload.Data)
 	}
 	return "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(upload.Data), nil
+}
+
+// openAIImagesSelfBuiltRequestContextKey 标记由 buildOpenAIImagesResponsesRequest 完整构造上游请求体的请求，
+// 其中 tool_choice 与匹配的 image_generation 工具始终存在，且不受客户端控制。
+type openAIImagesSelfBuiltRequestContextKey struct{}
+
+func withOpenAIImagesSelfBuiltRequest(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, openAIImagesSelfBuiltRequestContextKey{}, true)
+}
+
+func isOpenAIImagesSelfBuiltRequest(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	selfBuilt, _ := ctx.Value(openAIImagesSelfBuiltRequestContextKey{}).(bool)
+	return selfBuilt
 }
 
 func buildOpenAIImagesResponsesRequest(parsed *OpenAIImagesRequest, toolModel string) ([]byte, error) {
@@ -709,6 +733,9 @@ func openAIImagesTextFallbackErrorForText(text string) *OpenAIImagesUpstreamErro
 		ErrorType:  "upstream_error",
 		Code:       "image_generation_unavailable",
 		Message:    "Upstream did not execute image generation",
+		// 该错误从模型文字推断而来，而非上游错误帧：足以让本轮切换账号，
+		// 但不能证明当前账号图片工具未来 30 分钟不可用。
+		SynthesizedFromModelText: true,
 	}
 }
 
@@ -1801,6 +1828,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	if err != nil {
 		return nil, err
 	}
+	upstreamCtx = withOpenAIImagesSelfBuiltRequest(upstreamCtx)
 	upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, true, parsed.StickySessionSeed(), false, tlsRouterMatch...)
 	if err != nil {
 		return nil, err
@@ -1955,9 +1983,24 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 }
 
 const (
-	openAIImagesOAuthUnavailableCooldown = 30 * time.Minute
-	openAIImagesOAuthUnavailableReason   = "openai_images_oauth_tool_unavailable"
+	openAIImagesOAuthUnavailableDefaultCooldown = 30 * time.Minute
+	openAIImagesOAuthUnavailableReason          = "openai_images_oauth_tool_unavailable"
 )
+
+// shouldCoolOpenAIImagesToolForError 判断 image_generation_unavailable 判定是否足够持久，
+// 可以将账号图片工具置于 openAIImagesOAuthUnavailableCooldown 冷却期。
+//
+// 只有上游错误帧明确指出该状态时才符合条件。网关从模型纯文本回复合成的判定不符合：
+// 它仅说明当前提示词得到文字而非图片，取决于提示词，健康账号也可能出现。为此写入
+// 30 分钟账号级冷却尤其不合理，因为同一错误会被判定为可重试
+// （IsOpenAIImagesRetryableUpstreamError：状态码 >= 500）并驱动 newOpenAIAccountFailoverError，
+// 使一次回复沿账号池重试并冷却所有被触及的账号。
+//
+// 这与 alpha/search 路径已有的规则一致：工具端点故障“仍允许本次请求换号，但不修改任何账号状态”
+// （参见 shouldApplyOpenAIAlphaSearchAccountErrorSideEffects）。
+func shouldCoolOpenAIImagesToolForError(upstreamErr *OpenAIImagesUpstreamError) bool {
+	return upstreamErr != nil && !upstreamErr.SynthesizedFromModelText
+}
 
 func (s *OpenAIGatewayService) coolOpenAIImagesOAuthTool(ctx context.Context, account *Account) {
 	if s == nil || s.accountRepo == nil || account == nil || account.Platform != PlatformOpenAI {
@@ -1965,7 +2008,16 @@ func (s *OpenAIGatewayService) coolOpenAIImagesOAuthTool(ctx context.Context, ac
 	}
 	stateCtx, cancel := openAIAccountStateContext(ctx)
 	defer cancel()
-	resetAt := time.Now().Add(openAIImagesOAuthUnavailableCooldown)
+	cooldown := openAIImagesOAuthUnavailableDefaultCooldown
+	if s.settingService != nil {
+		settings, err := s.settingService.GetOpenAIImagesOAuthUnavailableCooldownSettings(stateCtx)
+		if err != nil {
+			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Images OAuth tool cooldown setting read failed error=%v", err)
+		} else {
+			cooldown = time.Duration(settings.CooldownMinutes) * time.Minute
+		}
+	}
+	resetAt := time.Now().Add(cooldown)
 	if err := s.accountRepo.SetModelRateLimit(stateCtx, account.ID, openAIImageGenerationRateLimitKey, resetAt, openAIImagesOAuthUnavailableReason); err != nil {
 		logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Images OAuth tool cooldown write failed account_id=%d error=%v", account.ID, err)
 		return
@@ -2060,7 +2112,9 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthResponseError(
 	})
 
 	if upstreamErr.Code == "image_generation_unavailable" {
-		s.coolOpenAIImagesOAuthTool(ctx, account)
+		if shouldCoolOpenAIImagesToolForError(upstreamErr) {
+			s.coolOpenAIImagesOAuthTool(ctx, account)
+		}
 		if responseWritten {
 			return err
 		}

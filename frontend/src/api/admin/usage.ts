@@ -93,6 +93,7 @@ export interface AdminUsageQueryParams extends UsageQueryParams {
   error_phase?: string | null
   error_category?: string | null
   status_code?: number | null
+  native_compaction_v2?: boolean | null
 }
 
 // ==================== API Functions ====================
@@ -132,6 +133,7 @@ export async function getStats(params: {
   end_date?: string
   timezone?: string
   nocache?: number
+  native_compaction_v2?: boolean | null
 }): Promise<AdminUsageStatsResponse> {
   const { data } = await apiClient.get<AdminUsageStatsResponse>('/admin/usage/stats', {
     params

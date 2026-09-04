@@ -13,6 +13,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -81,6 +82,24 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	}
 	if normalizedBody, normalized := NormalizeGLMOpenAIReasoningEffort(chatBody, upstreamModel); normalized {
 		chatBody = normalizedBody
+	}
+	// Messages 桥只对客户端显式指定的推理强度执行分组超限策略。
+	if account.Platform == PlatformOpenAI {
+		policyBody, changed, policyErr := ApplyOpenAIReasoningEffortPolicyFromContext(ctx, chatBody)
+		if policyErr != nil {
+			var overLimit *ReasoningEffortOverLimitError
+			if errors.As(policyErr, &overLimit) {
+				MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+				writeAnthropicError(c, http.StatusForbidden, "forbidden_error", overLimit.Error())
+			}
+			return nil, policyErr
+		}
+		if changed {
+			chatBody = policyBody
+			if effectiveEffort := strings.TrimSpace(gjson.GetBytes(chatBody, "reasoning_effort").String()); effectiveEffort != "" {
+				reasoningEffort = &effectiveEffort
+			}
+		}
 	}
 	chatBody, err = s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, chatBody)
 	if err != nil {

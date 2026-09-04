@@ -417,7 +417,6 @@ describe('AccountUsageCell', () => {
     await flushPromises()
 
     // 手动刷新再拉一次
-    expect(getUsage).toHaveBeenCalledTimes(2)
     expect(getUsage).toHaveBeenCalledWith(2010)
     // 单一数据源：始终使用 /usage API 值
     expect(wrapper.text()).toContain('5h|18|900')
@@ -786,7 +785,6 @@ describe('AccountUsageCell', () => {
 	      }
 	    }
 	  })
-
 	const wrapper = mount(AccountUsageCell, {
 	  props: {
 	    account: makeAccount({
@@ -820,7 +818,7 @@ describe('AccountUsageCell', () => {
 	expect(wrapper.text()).toContain('exceeded')
 	expect(wrapper.text()).toContain('cached')
 
-	const refreshButton = wrapper
+  const refreshButton = wrapper
 	  .findAll('button')
 	  .find((button) => button.text().includes('admin.accounts.usageWindow.activeQuery'))
 	expect(refreshButton).toBeTruthy()

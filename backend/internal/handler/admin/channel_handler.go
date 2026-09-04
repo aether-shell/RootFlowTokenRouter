@@ -68,6 +68,7 @@ type channelModelPricingRequest struct {
 	InputPrice         *float64                   `json:"input_price" binding:"omitempty,min=0"`
 	OutputPrice        *float64                   `json:"output_price" binding:"omitempty,min=0"`
 	CacheWritePrice    *float64                   `json:"cache_write_price" binding:"omitempty,min=0"`
+	CacheWrite1hPrice  *float64                   `json:"cache_write_1h_price" binding:"omitempty,min=0"`
 	CacheReadPrice     *float64                   `json:"cache_read_price" binding:"omitempty,min=0"`
 	ImageInputPrice    *float64                   `json:"image_input_price" binding:"omitempty,min=0"`
 	ImageOutputPrice   *float64                   `json:"image_output_price" binding:"omitempty,min=0"`
@@ -96,6 +97,7 @@ type pricingIntervalRequest struct {
 	InputPrice           *float64 `json:"input_price"`
 	OutputPrice          *float64 `json:"output_price"`
 	CacheWritePrice      *float64 `json:"cache_write_price"`
+	CacheWrite1hPrice    *float64 `json:"cache_write_1h_price"`
 	CacheReadPrice       *float64 `json:"cache_read_price"`
 	InputMultiplier      *float64 `json:"input_multiplier" binding:"omitempty,gt=0"`
 	OutputMultiplier     *float64 `json:"output_multiplier" binding:"omitempty,gt=0"`
@@ -142,6 +144,7 @@ type channelModelPricingResponse struct {
 	InputPrice         *float64                    `json:"input_price"`
 	OutputPrice        *float64                    `json:"output_price"`
 	CacheWritePrice    *float64                    `json:"cache_write_price"`
+	CacheWrite1hPrice  *float64                    `json:"cache_write_1h_price"`
 	CacheReadPrice     *float64                    `json:"cache_read_price"`
 	ImageInputPrice    *float64                    `json:"image_input_price"`
 	ImageOutputPrice   *float64                    `json:"image_output_price"`
@@ -170,6 +173,7 @@ type pricingIntervalResponse struct {
 	InputPrice           *float64 `json:"input_price"`
 	OutputPrice          *float64 `json:"output_price"`
 	CacheWritePrice      *float64 `json:"cache_write_price"`
+	CacheWrite1hPrice    *float64 `json:"cache_write_1h_price"`
 	CacheReadPrice       *float64 `json:"cache_read_price"`
 	InputMultiplier      *float64 `json:"input_multiplier"`
 	OutputMultiplier     *float64 `json:"output_multiplier"`
@@ -282,6 +286,7 @@ func pricingToResponse(p *service.ChannelModelPricing) channelModelPricingRespon
 		InputPrice:         p.InputPrice,
 		OutputPrice:        p.OutputPrice,
 		CacheWritePrice:    p.CacheWritePrice,
+		CacheWrite1hPrice:  p.CacheWrite1hPrice,
 		CacheReadPrice:     p.CacheReadPrice,
 		ImageInputPrice:    p.ImageInputPrice,
 		ImageOutputPrice:   p.ImageOutputPrice,
@@ -319,6 +324,7 @@ func intervalToResponse(iv service.PricingInterval) pricingIntervalResponse {
 		InputPrice:           iv.InputPrice,
 		OutputPrice:          iv.OutputPrice,
 		CacheWritePrice:      iv.CacheWritePrice,
+		CacheWrite1hPrice:    iv.CacheWrite1hPrice,
 		CacheReadPrice:       iv.CacheReadPrice,
 		InputMultiplier:      iv.InputMultiplier,
 		OutputMultiplier:     iv.OutputMultiplier,
@@ -346,6 +352,7 @@ func pricingRequestToService(reqs []channelModelPricingRequest) []service.Channe
 				InputPrice:           iv.InputPrice,
 				OutputPrice:          iv.OutputPrice,
 				CacheWritePrice:      iv.CacheWritePrice,
+				CacheWrite1hPrice:    iv.CacheWrite1hPrice,
 				CacheReadPrice:       iv.CacheReadPrice,
 				InputMultiplier:      iv.InputMultiplier,
 				OutputMultiplier:     iv.OutputMultiplier,
@@ -366,6 +373,7 @@ func pricingRequestToService(reqs []channelModelPricingRequest) []service.Channe
 			InputPrice:         r.InputPrice,
 			OutputPrice:        r.OutputPrice,
 			CacheWritePrice:    r.CacheWritePrice,
+			CacheWrite1hPrice:  r.CacheWrite1hPrice,
 			CacheReadPrice:     r.CacheReadPrice,
 			ImageInputPrice:    r.ImageInputPrice,
 			ImageOutputPrice:   r.ImageOutputPrice,
@@ -611,14 +619,23 @@ func (h *ChannelHandler) GetModelDefaultPricing(c *gin.Context) {
 		return
 	}
 
+	cacheWritePrice := pricing.CacheCreationPricePerToken
+	var cacheWrite1hPrice *float64
+	if pricing.SupportsCacheBreakdown {
+		if pricing.CacheCreation5mPrice > 0 {
+			cacheWritePrice = pricing.CacheCreation5mPrice
+		}
+		cacheWrite1hPrice = &pricing.CacheCreation1hPrice
+	}
 	response.Success(c, gin.H{
-		"found":              true,
-		"input_price":        pricing.InputPricePerToken,
-		"output_price":       pricing.OutputPricePerToken,
-		"cache_write_price":  pricing.CacheCreationPricePerToken,
-		"cache_read_price":   pricing.CacheReadPricePerToken,
-		"image_input_price":  pricing.ImageInputPricePerToken,
-		"image_output_price": pricing.ImageOutputPricePerToken,
+		"found":                true,
+		"input_price":          pricing.InputPricePerToken,
+		"output_price":         pricing.OutputPricePerToken,
+		"cache_write_price":    cacheWritePrice,
+		"cache_write_1h_price": cacheWrite1hPrice,
+		"cache_read_price":     pricing.CacheReadPricePerToken,
+		"image_input_price":    pricing.ImageInputPricePerToken,
+		"image_output_price":   pricing.ImageOutputPricePerToken,
 	})
 }
 

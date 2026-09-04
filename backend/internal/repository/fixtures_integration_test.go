@@ -85,7 +85,9 @@ func mustCreateGroup(t *testing.T, client *dbent.Client, g *service.Group) *serv
 		SetPlatform(g.Platform).
 		SetStatus(g.Status).
 		SetRateMultiplier(g.RateMultiplier).
-		SetIsExclusive(g.IsExclusive)
+		SetIsExclusive(g.IsExclusive).
+		SetForceOpenaiFast(g.ForceOpenAIFast).
+		SetFreeOpenaiFast(g.FreeOpenAIFast)
 	if g.Description != "" {
 		create.SetDescription(g.Description)
 	}

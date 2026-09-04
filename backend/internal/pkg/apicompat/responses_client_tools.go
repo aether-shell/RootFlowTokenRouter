@@ -332,6 +332,9 @@ func normalizeClientToolOutput(item map[string]any) {
 	if _, ok := output.(string); ok {
 		return
 	}
+	if isResponsesToolOutputContent(output) {
+		return
+	}
 	if output == nil {
 		item["output"] = ""
 		return
@@ -344,6 +347,26 @@ func normalizeClientToolOutput(item map[string]any) {
 	item["output"] = string(encoded)
 }
 
+// isResponsesToolOutputContent 判断 custom 工具输出是否为 Responses 原生内容块数组。
+// 仅保留完整且类型受支持的数组，其他值继续序列化为 function_call_output 字符串。
+func isResponsesToolOutputContent(output any) bool {
+	parts, ok := output.([]any)
+	if !ok || len(parts) == 0 {
+		return false
+	}
+	for _, part := range parts {
+		typed, ok := part.(map[string]any)
+		if !ok {
+			return false
+		}
+		switch stringValue(typed["type"]) {
+		case "input_text", "input_image", "input_file":
+		default:
+			return false
+		}
+	}
+	return true
+}
 func normalizeToolSearchOutput(item map[string]any) {
 	if _, exists := item["output"]; !exists {
 		if tools, hasTools := item["tools"]; hasTools {

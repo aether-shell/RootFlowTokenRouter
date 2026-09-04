@@ -19,8 +19,11 @@ import (
 )
 
 const (
-	openAIWSConnMaxAge             = 60 * time.Minute
-	openAIWSConnHealthCheckIdle    = 90 * time.Second
+	openAIWSConnMaxAge          = 60 * time.Minute
+	openAIWSConnHealthCheckIdle = 90 * time.Second
+	// coder/websocket 没有 reader 时无法消费 pong 帧；在上游 keepalive 窗口到期前
+	// 主动回收不支持无 reader 探活的空闲连接。
+	openAIWSConnIdleRecycleAfter   = 90 * time.Second
 	openAIWSConnHealthCheckTO      = 2 * time.Second
 	openAIWSConnPrewarmExtraDelay  = 2 * time.Second
 	openAIWSAcquireCleanupInterval = 3 * time.Second
@@ -1416,6 +1419,17 @@ func (p *openAIWSConnPool) cleanupAccountLocked(ap *openAIWSAccountPool, now tim
 		default:
 		}
 		if p.isConnPinnedLocked(ap, id) {
+			continue
+		}
+		if !conn.isLeased() && conn.waiters.Load() == 0 &&
+			!conn.supportsIdlePingWithoutReader() &&
+			conn.idleDuration(now) >= openAIWSConnIdleRecycleAfter {
+			delete(ap.conns, id)
+			if len(ap.pinnedConns) > 0 {
+				delete(ap.pinnedConns, id)
+			}
+			evicted = append(evicted, conn)
+			p.metrics.scaleDownTotal.Add(1)
 			continue
 		}
 		if maxAge > 0 && !conn.isLeased() && conn.age(now) > maxAge {

@@ -606,12 +606,14 @@ export interface MarketplacePricingInterval {
   image_input_price_per_token?: number
   output_price_per_token?: number
   cache_write_price_per_token?: number
+  cache_write_1h_price_per_token?: number
   cache_read_price_per_token?: number
   image_output_price_per_token?: number
   fast_input_price_per_token?: number
   fast_image_input_price_per_token?: number
   fast_output_price_per_token?: number
   fast_cache_write_price_per_token?: number
+  fast_cache_write_1h_price_per_token?: number
   fast_cache_read_price_per_token?: number
   fast_image_output_price_per_token?: number
 }
@@ -623,12 +625,14 @@ export interface MarketplaceModelPricing {
   image_input_price_per_token?: number
   output_price_per_token?: number
   cache_write_price_per_token?: number
+  cache_write_1h_price_per_token?: number
   cache_read_price_per_token?: number
   image_output_price_per_token?: number
   fast_input_price_per_token?: number
   fast_image_input_price_per_token?: number
   fast_output_price_per_token?: number
   fast_cache_write_price_per_token?: number
+  fast_cache_write_1h_price_per_token?: number
   fast_cache_read_price_per_token?: number
   fast_image_output_price_per_token?: number
   context_intervals?: MarketplacePricingInterval[]
@@ -719,10 +723,13 @@ export interface GroupAvailabilityProbeConfig {
   max_retries?: number
   user_agent?: string
 }
+export type ReasoningEffortMatchType = 'exact' | 'prefix' | 'suffix'
 
 export interface ReasoningEffortMapping {
   from: string
   to: string
+  match_type?: ReasoningEffortMatchType
+  model?: string
 }
 
 export interface Group {
@@ -735,6 +742,7 @@ export interface Group {
   capacity?: MarketplaceGroupCapacity
   rpm_limit?: number // 分组级 RPM 上限（0 表示不限制），设置后覆盖用户级 rpm_limit 兜底值
   max_reasoning_effort?: string // OpenAI/Codex 推理强度上限，空字符串表示不限制
+  max_reasoning_effort_over_limit?: string // 超过上限时 downgrade 或 deny
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   is_exclusive: boolean
   is_default?: boolean
@@ -792,6 +800,10 @@ export interface Group {
 }
 
 export interface AdminGroup extends Group {
+  // 仅管理端可配置，公开分组接口不返回该策略。
+  force_openai_fast?: boolean
+  // 仅管理端可配置，公开分组接口不返回该计费策略。
+  free_openai_fast?: boolean
   // 仅管理端可配置，公开分组接口不返回调度器模式。
   scheduler_type: GroupSchedulerType
   advanced_scheduler_overrides?: GroupAdvancedSchedulerOverrides
@@ -955,6 +967,8 @@ export interface CreateGroupRequest {
   data_sharing_enabled?: boolean
   session_isolation_enabled?: boolean
   long_context_pricing_enabled?: boolean
+  force_openai_fast?: boolean
+  free_openai_fast?: boolean
   model_pricing?: import('@/api/admin/channels').ChannelModelPricing[]
   allow_image_generation?: boolean
   allow_batch_image_generation?: boolean
@@ -997,6 +1011,7 @@ export interface CreateGroupRequest {
   model_routing_enabled?: boolean
   rpm_limit?: number
   max_reasoning_effort?: string
+  max_reasoning_effort_over_limit?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
@@ -1019,6 +1034,8 @@ export interface UpdateGroupRequest {
   session_isolation_enabled?: boolean
   status?: 'active' | 'inactive'
   long_context_pricing_enabled?: boolean
+  force_openai_fast?: boolean
+  free_openai_fast?: boolean
   model_pricing?: import('@/api/admin/channels').ChannelModelPricing[]
   allow_image_generation?: boolean
   allow_batch_image_generation?: boolean
@@ -1061,6 +1078,7 @@ export interface UpdateGroupRequest {
   model_routing_enabled?: boolean
   rpm_limit?: number
   max_reasoning_effort?: string
+  max_reasoning_effort_over_limit?: string
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
@@ -1928,6 +1946,7 @@ export interface UsageLog {
   model: string
   service_tier?: string | null
   reasoning_effort?: string | null
+  requested_reasoning_effort?: string | null
   inbound_endpoint?: string | null
   upstream_endpoint?: string | null
 
@@ -1954,6 +1973,7 @@ export interface UsageLog {
   request_type?: UsageRequestType
   stream: boolean
   openai_ws_mode?: boolean
+  native_compaction_v2?: boolean
   duration_ms: number | null
   first_token_ms: number | null
 
@@ -2436,6 +2456,7 @@ export interface UsageQueryParams {
   stream?: boolean
   billing_type?: number | null
   billing_mode?: string | null
+  native_compaction_v2?: boolean | null
   start_date?: string
   end_date?: string
   timezone?: string

@@ -244,3 +244,39 @@ func TestBuildUsageBillingCommand_TokenModeKeepsAllocationRates(t *testing.T) {
 		t.Errorf("BalanceRateMultiplier = %v, want 0.3", cmd.BalanceRateMultiplier)
 	}
 }
+
+// TestBuildUsageBillingCommand_UsesOverrideBaseAmountForFreeFast 验证免费 Fast
+// 可以替换用户资金分配的基础价，同时保留账号统计成本对应的额度口径。
+func TestBuildUsageBillingCommand_UsesOverrideBaseAmountForFreeFast(t *testing.T) {
+	standardBase := 0.4
+	fastTotal := 1.2
+	standardActual := 0.2
+	accountStatsCost := fastTotal
+	groupID := int64(88)
+	accountRate := 1.5
+
+	cmd := buildUsageBillingCommand("req-free-fast-base", &UsageLog{AccountStatsCost: &accountStatsCost}, &usageBillingParams{
+		Cost: &CostBreakdown{
+			TotalCost:  fastTotal,
+			ActualCost: standardActual,
+		},
+		BillingBaseAmountUSD:  &standardBase,
+		User:                  &User{ID: 1},
+		APIKey:                &APIKey{ID: 2, GroupID: &groupID},
+		Account:               &Account{ID: 3, Type: AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}},
+		AccountRateMultiplier: accountRate,
+	})
+
+	if cmd == nil {
+		t.Fatal("buildUsageBillingCommand returned nil")
+	}
+	if cmd.BaseAmountUSD != standardBase {
+		t.Fatalf("BaseAmountUSD = %v, want %v", cmd.BaseAmountUSD, standardBase)
+	}
+	if cmd.BillableAmountUSD != standardActual {
+		t.Fatalf("BillableAmountUSD = %v, want %v", cmd.BillableAmountUSD, standardActual)
+	}
+	if diff := cmd.AccountQuotaCost - fastTotal*accountRate; diff > 1e-12 || diff < -1e-12 {
+		t.Fatalf("AccountQuotaCost = %v, want %v", cmd.AccountQuotaCost, fastTotal*accountRate)
+	}
+}

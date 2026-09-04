@@ -365,13 +365,16 @@ func (t *ResponsesTool) UnmarshalJSON(data []byte) error {
 
 // ResponsesResponse is the non-streaming response from POST /v1/responses.
 type ResponsesResponse struct {
-	ID          string            `json:"id"`
-	Object      string            `json:"object"` // "response"
+	ID     string `json:"id"`
+	Object string `json:"object"` // "response"
+	// CreatedAt 是 Unix 创建时间戳。严格 Responses 客户端将其视为必填字段，
+	// 缺失会以 missing field 'created_at' 终止反序列化，因此始终输出且不使用 omitempty。
+	CreatedAt   int64             `json:"created_at"`
 	Model       string            `json:"model"`
 	Status      string            `json:"status"` // "completed" | "incomplete" | "failed"
 	Output      []ResponsesOutput `json:"output"`
 	Usage       *ResponsesUsage   `json:"usage,omitempty"`
-	ServiceTier string            `json:"service_tier,omitempty"` // upstream tier, echoed back verbatim
+	ServiceTier string            `json:"service_tier,omitempty"` // 原样回传上游 tier
 
 	// incomplete_details is present when status="incomplete"
 	IncompleteDetails *ResponsesIncompleteDetails `json:"incomplete_details,omitempty"`
@@ -720,7 +723,7 @@ type ChatFile struct {
 
 // ChatTool describes a tool available to the model.
 type ChatTool struct {
-	Type     string        `json:"type"` // "function" | "x_search"
+	Type     string        `json:"type"` // function、web_search、code_execution 或 x_search
 	Function *ChatFunction `json:"function,omitempty"`
 
 	// type=x_search

@@ -125,8 +125,7 @@ func (s *AccountTestService) ProbeOpenAIAPIKeyResponsesSupport(ctx context.Conte
 		// 写入当前 fork 的文本路由配置，让所有客户端入口使用同一协议决策。
 		// 自适应 DeepSeek 还需要原生 Responses 端点，其余协议显式恢复为跟随客户端，
 		// 避免账号从 Responses 切换后残留强制路由。
-		if account.GetAPIProtocol() == APIProtocolResponses ||
-			(account.Platform == PlatformDeepseek && account.IsAdaptiveAPIProtocol()) {
+		if account.UsesNativeCNResponses() {
 			_ = s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
 				openai_compat.ExtraKeyTextRouteMode:        string(openai_compat.TextRouteModeForceResponses),
 				openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusSupported),

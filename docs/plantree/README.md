@@ -15,6 +15,6 @@
 
 | Plan | Status | Current Phase | Last Landed | Next Target |
 | --- | --- | --- | --- | --- |
-| [Pro 发布安全](plans/pro-release-safety/README.md) | Done | 发布门禁随当前提交落地 | Pro 发布门禁实现（2026-09-04） | 首次构建镜像前核对 GHCR package 权限 |
+| [Pro 发布安全](plans/pro-release-safety/README.md) | Done | 发布门禁已验证兼容 v0.1.276 | 上游 v0.1.276 同步（当前提交） | 确认后推送；首次构建镜像前核对 GHCR package 权限 |
 
 低承诺想法记录在 [ideas/inbox.md](ideas/inbox.md)。

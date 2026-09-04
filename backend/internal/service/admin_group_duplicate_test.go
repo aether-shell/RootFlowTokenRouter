@@ -177,6 +177,8 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		},
 		AllowMessagesDispatch: true,
 		AllowLive:             true,
+		ForceOpenAIFast:       true,
+		FreeOpenAIFast:        true,
 		RequireOAuthOnly:      true,
 		RequirePrivacySet:     true,
 		DefaultMappedModel:    "gpt-5.4",
@@ -186,18 +188,19 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 			HaikuMappedModel:   "gpt-5-mini",
 			ExactModelMappings: map[string]string{"claude-special": "gpt-special"},
 		},
-		ModelsListConfig:        GroupModelsListConfig{Enabled: true, Models: []string{"gpt-5.4", "gpt-5-mini"}},
-		AvailabilityProbeConfig: GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "ping", TimeoutSeconds: 15},
-		RPMLimit:                99,
-		MaxReasoningEffort:      "medium",
-		ReasoningEffortMappings: []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
-		CreatedAt:               createdAt,
-		UpdatedAt:               createdAt,
-		AccountCount:            12,
-		ActiveAccountCount:      8,
-		RateLimitedAccountCount: 2,
-		DuplicateOperationID:    "old-operation-must-not-copy",
-		AccountGroups:           []AccountGroup{{AccountID: 13, GroupID: 41}},
+		ModelsListConfig:            GroupModelsListConfig{Enabled: true, Models: []string{"gpt-5.4", "gpt-5-mini"}},
+		AvailabilityProbeConfig:     GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "ping", TimeoutSeconds: 15},
+		RPMLimit:                    99,
+		MaxReasoningEffort:          "medium",
+		MaxReasoningEffortOverLimit: ReasoningEffortOverLimitDeny,
+		ReasoningEffortMappings:     []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
+		CreatedAt:                   createdAt,
+		UpdatedAt:                   createdAt,
+		AccountCount:                12,
+		ActiveAccountCount:          8,
+		RateLimitedAccountCount:     2,
+		DuplicateOperationID:        "old-operation-must-not-copy",
+		AccountGroups:               []AccountGroup{{AccountID: 13, GroupID: 41}},
 	}
 	repo := newDuplicateGroupRepoStub(source)
 	repo.sourceBindings[source.ID] = []AccountGroup{
@@ -227,6 +230,8 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.Equal(t, source.ImagePrice4K, duplicate.ImagePrice4K)
 	require.Equal(t, source.VideoModelPrices, duplicate.VideoModelPrices)
 	require.Equal(t, source.WebSearchPricePerCall, duplicate.WebSearchPricePerCall)
+	require.Equal(t, source.ForceOpenAIFast, duplicate.ForceOpenAIFast)
+	require.Equal(t, source.FreeOpenAIFast, duplicate.FreeOpenAIFast)
 	require.Equal(t, source.FallbackGroupID, duplicate.FallbackGroupID)
 	require.Equal(t, source.UnavailableFallbackGroupID, duplicate.UnavailableFallbackGroupID)
 	require.Equal(t, source.ModelRouting, duplicate.ModelRouting)
@@ -236,6 +241,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.Equal(t, source.AvailabilityProbeConfig, duplicate.AvailabilityProbeConfig)
 	require.Equal(t, source.RPMLimit, duplicate.RPMLimit)
 	require.Equal(t, source.MaxReasoningEffort, duplicate.MaxReasoningEffort)
+	require.Equal(t, source.MaxReasoningEffortOverLimit, duplicate.MaxReasoningEffortOverLimit)
 	require.Equal(t, source.ReasoningEffortMappings, duplicate.ReasoningEffortMappings)
 	require.EqualValues(t, 2, duplicate.AccountCount)
 	require.EqualValues(t, 2, duplicate.ActiveAccountCount)

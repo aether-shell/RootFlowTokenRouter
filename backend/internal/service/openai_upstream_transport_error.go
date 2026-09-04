@@ -31,6 +31,7 @@ var openAIPersistentTransportErrorMarkers = []string{
 	"authentication failed",
 	"proxy authentication required",
 	"connection refused",
+
 	"no route to host",
 	"network is unreachable",
 	"no such host",
@@ -57,6 +58,11 @@ func classifyOpenAITransportError(err error) openAITransportErrorClass {
 		}
 	}
 	return openAITransportErrorClass{}
+}
+
+// classifyUpstreamTransportError 兼容网关通用传输错误处理，复用 OpenAI 的持久故障判定。
+func classifyUpstreamTransportError(err error) openAITransportErrorClass {
+	return classifyOpenAITransportError(err)
 }
 
 // handleOpenAIUpstreamTransportError 处理没有 HTTP 响应的上游传输层错误。

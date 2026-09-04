@@ -11,7 +11,13 @@ const (
 	// OpenAIUpstreamHTTP2StreamErrorCode 表示请求开始后上游 HTTP/2 响应流被重置。
 	OpenAIUpstreamHTTP2StreamErrorCode = "upstream_http2_stream_error"
 	OpenAIUpstreamStreamReadErrorCode  = "upstream_stream_read_error"
+	// OpenAIUpstreamStreamTruncatedCode 表示上游 SSE 流在任何终止信号前干净关闭。
+	// 干净 EOF 不携带传输错误；没有此分类时，截断生成会被误认为成功。
+	OpenAIUpstreamStreamTruncatedCode = "upstream_stream_truncated"
 )
+
+// ErrOpenAIUpstreamStreamTruncated 表示上游 SSE 流在任何终止信号前以 EOF 结束，且没有读取错误。
+var ErrOpenAIUpstreamStreamTruncated = errors.New("upstream stream ended before any terminal chunk")
 
 type openAIUpstreamStreamReadError struct {
 	cause         error
@@ -59,6 +65,9 @@ func OpenAIUpstreamStreamReadErrorDetails(err error) (code, message string, ok b
 
 func classifyOpenAIUpstreamStreamReadError(err error) (code, message string) {
 	if err != nil {
+		if errors.Is(err, ErrOpenAIUpstreamStreamTruncated) {
+			return OpenAIUpstreamStreamTruncatedCode, "Upstream response stream ended before completion"
+		}
 		lower := strings.ToLower(err.Error())
 		// net/http 的 HTTP/2 流错误类型未导出，只匹配其稳定传输特征，
 		// 绝不把包含 stream ID 等细节的原始错误返回客户端。

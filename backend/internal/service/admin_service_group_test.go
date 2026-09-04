@@ -1084,6 +1084,74 @@ func TestAdminService_CreateGroup_DisablesBatchImageForNonGeminiPlatform(t *test
 	require.False(t, group.AllowBatchImageGeneration)
 }
 
+// TestAdminService_CreateGroup_NormalizesOpenAIFastByPlatform 验证两个组级 Fast
+// 开关只在 OpenAI/Composite 分组中保留。
+func TestAdminService_CreateGroup_NormalizesOpenAIFastByPlatform(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		platform string
+		want     bool
+	}{
+		{name: "openai", platform: PlatformOpenAI, want: true},
+		{name: "composite", platform: PlatformComposite, want: true},
+		{name: "anthropic", platform: PlatformAnthropic, want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &groupRepoStubForAdmin{}
+			svc := &adminServiceImpl{groupRepo: repo}
+
+			group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+				Name: "fast-" + tt.name, Platform: tt.platform, RateMultiplier: 1,
+				ForceOpenAIFast: true, FreeOpenAIFast: true,
+			})
+
+			require.NoError(t, err)
+			require.NotNil(t, group)
+			require.Equal(t, tt.want, repo.created.ForceOpenAIFast)
+			require.Equal(t, tt.want, repo.created.FreeOpenAIFast)
+		})
+	}
+}
+
+// TestAdminService_UpdateGroup_ClearsOpenAIFastWhenPlatformChanges 防止平台切换后
+// 把旧分组的 Fast 配置带到不支持的协议。
+func TestAdminService_UpdateGroup_ClearsOpenAIFastWhenPlatformChanges(t *testing.T) {
+	existingGroup := &Group{
+		ID: 1, Name: "existing-fast", Platform: PlatformOpenAI, Status: StatusActive,
+		ForceOpenAIFast: true, FreeOpenAIFast: true,
+	}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.UpdateGroup(context.Background(), existingGroup.ID, &UpdateGroupInput{Platform: PlatformAnthropic})
+
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.False(t, repo.updated.ForceOpenAIFast)
+	require.False(t, repo.updated.FreeOpenAIFast)
+}
+
+// TestAdminService_UpdateGroup_OpenAIFastInvalidatesAuthCache 验证缓存快照中的两个
+// Fast 字段更新后会沿用现有分组级缓存失效边界。
+func TestAdminService_UpdateGroup_OpenAIFastInvalidatesAuthCache(t *testing.T) {
+	existingGroup := &Group{ID: 1, Name: "existing-fast", Platform: PlatformOpenAI, Status: StatusActive}
+	repo := &groupRepoStubForAdmin{getByID: existingGroup}
+	invalidator := &authCacheInvalidatorStub{}
+	svc := &adminServiceImpl{groupRepo: repo, authCacheInvalidator: invalidator}
+	enabled := true
+
+	group, err := svc.UpdateGroup(context.Background(), existingGroup.ID, &UpdateGroupInput{
+		ForceOpenAIFast: &enabled,
+		FreeOpenAIFast:  &enabled,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.True(t, repo.updated.ForceOpenAIFast)
+	require.True(t, repo.updated.FreeOpenAIFast)
+	require.Equal(t, []int64{existingGroup.ID}, invalidator.groupIDs)
+}
+
 // TestAdminService_UpdateGroup_WithImagePricing 测试更新分组时 ImagePrice 字段正确更新
 func TestAdminService_UpdateGroup_WithImagePricing(t *testing.T) {
 	existingGroup := &Group{
@@ -1483,6 +1551,20 @@ func TestAdminService_UpdateGroup_ReasoningEffortMappingsTriState(t *testing.T) 
 			}(),
 			want: []ReasoningEffortMapping{{From: "xhigh", To: "high"}},
 		},
+		{
+			name: "model scoped mappings are canonicalized independently",
+			input: func() *UpdateGroupInput {
+				replacement := []ReasoningEffortMapping{
+					{From: " MAX ", To: " low ", MatchType: "PREFIX", Model: " gpt "},
+					{From: "max", To: "medium", Model: "gpt-5.4"},
+				}
+				return &UpdateGroupInput{ReasoningEffortMappings: &replacement}
+			}(),
+			want: []ReasoningEffortMapping{
+				{From: "max", To: "low", MatchType: "prefix", Model: "gpt"},
+				{From: "max", To: "medium", MatchType: "exact", Model: "gpt-5.4"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1531,12 +1613,13 @@ func TestAdminService_UpdateGroup_RejectsInvalidReasoningEffortMappings(t *testi
 
 func TestAdminService_UpdateGroup_ClearsReasoningPolicyForUnsupportedPlatform(t *testing.T) {
 	existing := &Group{
-		ID:                      1,
-		Name:                    "openai-group",
-		Platform:                PlatformOpenAI,
-		Status:                  StatusActive,
-		MaxReasoningEffort:      "medium",
-		ReasoningEffortMappings: []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
+		ID:                          1,
+		Name:                        "openai-group",
+		Platform:                    PlatformOpenAI,
+		Status:                      StatusActive,
+		MaxReasoningEffort:          "medium",
+		MaxReasoningEffortOverLimit: ReasoningEffortOverLimitDeny,
+		ReasoningEffortMappings:     []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
 	}
 	repo := &groupRepoStubForAdmin{getByID: existing}
 	svc := &adminServiceImpl{groupRepo: repo}
@@ -1545,6 +1628,7 @@ func TestAdminService_UpdateGroup_ClearsReasoningPolicyForUnsupportedPlatform(t 
 
 	require.NoError(t, err)
 	require.Empty(t, repo.updated.MaxReasoningEffort)
+	require.Equal(t, ReasoningEffortOverLimitDowngrade, repo.updated.MaxReasoningEffortOverLimit)
 	require.Empty(t, repo.updated.ReasoningEffortMappings)
 }
 

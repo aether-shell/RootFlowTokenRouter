@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// parseOptionalBoolDashboardFilter 解析可选布尔筛选，空值表示不启用该条件。
+func parseOptionalBoolDashboardFilter(c *gin.Context, key string) (*bool, error) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s value, use true or false", key)
+	}
+	return &value, nil
+}
 
 // DashboardHandler handles admin dashboard statistics
 type DashboardHandler struct {
@@ -171,6 +185,7 @@ func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
 	var requestType *int16
 	var stream *bool
 	var billingType *int8
+	var nativeCompactionV2 *bool
 
 	if userIDStr := c.Query("user_id"); userIDStr != "" {
 		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
@@ -225,8 +240,14 @@ func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
 			return
 		}
 	}
+	var boolErr error
+	nativeCompactionV2, boolErr = parseOptionalBoolDashboardFilter(c, "native_compaction_v2")
+	if boolErr != nil {
+		response.BadRequest(c, boolErr.Error())
+		return
+	}
 
-	trend, hit, err := h.getUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, userID, apiKeyID, accountID, groupID, teamID, model, requestType, stream, billingType)
+	trend, hit, err := h.getUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, userID, apiKeyID, accountID, groupID, teamID, model, requestType, stream, billingType, nativeCompactionV2)
 	if err != nil {
 		response.Error(c, 500, "Failed to get usage trend")
 		return
@@ -253,6 +274,7 @@ func (h *DashboardHandler) GetModelStats(c *gin.Context) {
 	var requestType *int16
 	var stream *bool
 	var billingType *int8
+	var nativeCompactionV2 *bool
 
 	if userIDStr := c.Query("user_id"); userIDStr != "" {
 		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
@@ -311,8 +333,14 @@ func (h *DashboardHandler) GetModelStats(c *gin.Context) {
 			return
 		}
 	}
+	var boolErr error
+	nativeCompactionV2, boolErr = parseOptionalBoolDashboardFilter(c, "native_compaction_v2")
+	if boolErr != nil {
+		response.BadRequest(c, boolErr.Error())
+		return
+	}
 
-	stats, hit, err := h.getModelStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, teamID, modelSource, requestType, stream, billingType)
+	stats, hit, err := h.getModelStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, teamID, modelSource, requestType, stream, billingType, nativeCompactionV2)
 	if err != nil {
 		response.Error(c, 500, "Failed to get model statistics")
 		return
@@ -336,6 +364,7 @@ func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
 	var requestType *int16
 	var stream *bool
 	var billingType *int8
+	var nativeCompactionV2 *bool
 
 	if userIDStr := c.Query("user_id"); userIDStr != "" {
 		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
@@ -387,8 +416,14 @@ func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
 			return
 		}
 	}
+	var boolErr error
+	nativeCompactionV2, boolErr = parseOptionalBoolDashboardFilter(c, "native_compaction_v2")
+	if boolErr != nil {
+		response.BadRequest(c, boolErr.Error())
+		return
+	}
 
-	stats, hit, err := h.getGroupStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, teamID, requestType, stream, billingType)
+	stats, hit, err := h.getGroupStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, teamID, requestType, stream, billingType, nativeCompactionV2)
 	if err != nil {
 		response.Error(c, 500, "Failed to get group statistics")
 		return
@@ -666,6 +701,12 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 		if s, err := strconv.ParseBool(v); err == nil {
 			dim.Stream = &s
 		}
+	}
+	if nativeCompactionV2, err := parseOptionalBoolDashboardFilter(c, "native_compaction_v2"); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	} else {
+		dim.NativeCompactionV2 = nativeCompactionV2
 	}
 	if v := c.Query("billing_type"); v != "" {
 		if bt, err := strconv.ParseInt(v, 10, 8); err == nil {

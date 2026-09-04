@@ -9,8 +9,8 @@
     ],
     "branch": "main",
     "image_repository": "ghcr.io/aether-shell/rootflowtokenrouter",
-    "upstream_release": "v0.1.274",
-    "upstream_commit": "8406f5bcd960b9b7b17951d856c57409fbd4c1ca",
+    "upstream_release": "v0.1.276",
+    "upstream_commit": "8bc7c66cc884beeb6d01cba303c285be417fe66f",
     "protected_ancestors": [
       "0272bdec77e0749b61c2c1150effb0d64373c8f5"
     ]

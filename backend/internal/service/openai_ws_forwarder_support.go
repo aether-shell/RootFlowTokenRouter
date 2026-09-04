@@ -346,6 +346,9 @@ func (s *OpenAIGatewayService) handleOpenAIWSTerminalTransientFailure(ctx contex
 	}
 	result.StatusCode = openAIWSErrorPolicyStatus(payload)
 	if result.StatusCode != 0 {
+		if result.StatusCode == http.StatusTooManyRequests {
+			headers = openAIWSSemantic429Headers(account, canonicalModel, headers)
+		}
 		result.Decision = s.applyOpenAIWSEventErrorPolicy(ctx, account, canonicalModel, result.StatusCode, headers, payload)
 	}
 	return result
@@ -357,6 +360,9 @@ func (s *OpenAIGatewayService) handleOpenAIWSErrorEventTransientFailure(ctx cont
 		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
 	}
 	status := openAIWSErrorPolicyStatus(payload)
+	if status == http.StatusTooManyRequests {
+		headers = openAIWSSemantic429Headers(account, canonicalModel, headers)
+	}
 	return s.applyOpenAIWSEventErrorPolicy(ctx, account, canonicalModel, status, headers, payload)
 }
 
@@ -409,13 +415,13 @@ func (s *OpenAIGatewayService) handleOpenAIWSFailureAccountSideEffects(ctx conte
 	status := openAIStreamFailureStatus(payload, message)
 	switch status {
 	case http.StatusUnauthorized, http.StatusTooManyRequests, 529:
-		s.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, message, headers)
+		s.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, message, headers, canonicalModel)
 		return true
 	case http.StatusForbidden:
 		if !openAIStream403AccountFailure(payload, message) {
 			return false
 		}
-		s.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, message, headers)
+		s.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, message, headers, canonicalModel)
 		return true
 	}
 	status = openAIWSPayloadTransientStatus(payload)
@@ -451,6 +457,15 @@ func (s *OpenAIGatewayService) applyOpenAIWSEventErrorPolicy(
 		return s.applyGrokAccountUpstreamError(ctx, account, statusCode, headers, payload, canonicalModel)
 	}
 	return s.applyOpenAIAccountUpstreamError(ctx, account, statusCode, headers, payload, canonicalModel)
+}
+
+// openAIWSSemantic429Headers 仅保留 Spark OAuth 的窗口头；普通 WS 语义 429
+// 携带的握手/成功响应头不能被误认为账号级配额耗尽。
+func openAIWSSemantic429Headers(account *Account, model string, headers http.Header) http.Header {
+	if isCodexSparkModel(model) && isOpenAIOAuthAccount(account) {
+		return headers
+	}
+	return nil
 }
 
 // shouldFailoverOpenAIWSError 使用对应平台的 HTTP 错误分类作为 WS 握手和事件错误的默认切号规则。

@@ -535,6 +535,28 @@ func TestGetModelDefaultPricing_QoderAliasRequiresManualPricing(t *testing.T) {
 	}
 }
 
+func TestGetModelDefaultPricing_Fable51ReturnsCacheTTLs(t *testing.T) {
+	billingSvc := service.NewBillingService(nil, nil)
+	router := setupModelDefaultPricingRouter(billingSvc)
+	req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?model=claude-fable-5-1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var body struct {
+		Data struct {
+			Found             bool     `json:"found"`
+			CacheWritePrice   float64  `json:"cache_write_price"`
+			CacheWrite1hPrice *float64 `json:"cache_write_1h_price"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.True(t, body.Data.Found)
+	require.InDelta(t, 12.5e-6, body.Data.CacheWritePrice, 1e-12)
+	require.NotNil(t, body.Data.CacheWrite1hPrice)
+	require.InDelta(t, 20e-6, *body.Data.CacheWrite1hPrice, 1e-12)
+}
+
 func TestGetModelDefaultPricing_QoderRouteKeysRequireManualPricing(t *testing.T) {
 	billingSvc := service.NewBillingService(nil, nil)
 	router := setupModelDefaultPricingRouter(billingSvc)

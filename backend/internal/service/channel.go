@@ -93,18 +93,20 @@ type ChannelModelPricing struct {
 	// FastMultiplier 是新的通用 Fast/priority 倍率；为空时兼容旧字段。
 	FastMultiplier *float64 `json:"fast_multiplier,omitempty"`
 	// FlexMultiplier 是渠道级 Flex 倍率；为空时使用系统默认 0.5。
-	FlexMultiplier   *float64            `json:"flex_multiplier,omitempty"`
-	InputPrice       *float64            `json:"input_price"`
-	OutputPrice      *float64            `json:"output_price"`
-	CacheWritePrice  *float64            `json:"cache_write_price"`
-	CacheReadPrice   *float64            `json:"cache_read_price"`
-	ImageInputPrice  *float64            `json:"image_input_price"`
-	ImageOutputPrice *float64            `json:"image_output_price"`
-	PerRequestPrice  *float64            `json:"per_request_price"`
-	Intervals        []PricingInterval   `json:"intervals"`
-	TimePricing      *ChannelTimePricing `json:"time_pricing,omitempty"`
-	CreatedAt        time.Time           `json:"created_at,omitempty"`
-	UpdatedAt        time.Time           `json:"updated_at,omitempty"`
+	FlexMultiplier  *float64 `json:"flex_multiplier,omitempty"`
+	InputPrice      *float64 `json:"input_price"`
+	OutputPrice     *float64 `json:"output_price"`
+	CacheWritePrice *float64 `json:"cache_write_price"`
+	// CacheWrite1hPrice 是可选的 1 小时缓存写入单价；为空时沿用 CacheWritePrice。
+	CacheWrite1hPrice *float64            `json:"cache_write_1h_price"`
+	CacheReadPrice    *float64            `json:"cache_read_price"`
+	ImageInputPrice   *float64            `json:"image_input_price"`
+	ImageOutputPrice  *float64            `json:"image_output_price"`
+	PerRequestPrice   *float64            `json:"per_request_price"`
+	Intervals         []PricingInterval   `json:"intervals"`
+	TimePricing       *ChannelTimePricing `json:"time_pricing,omitempty"`
+	CreatedAt         time.Time           `json:"created_at,omitempty"`
+	UpdatedAt         time.Time           `json:"updated_at,omitempty"`
 }
 
 // ChannelTimePricing 渠道模型定价的分时倍率配置。
@@ -123,14 +125,16 @@ type ChannelTimePricingPeriod struct {
 
 // PricingInterval 定价区间（token 区间 / 按次分层 / 图片分辨率分层）
 type PricingInterval struct {
-	ID                   int64     `json:"id,omitempty"`
-	PricingID            int64     `json:"pricing_id,omitempty"`
-	MinTokens            int       `json:"min_tokens"`
-	MaxTokens            *int      `json:"max_tokens"`
-	TierLabel            string    `json:"tier_label"`
-	InputPrice           *float64  `json:"input_price"`
-	OutputPrice          *float64  `json:"output_price"`
-	CacheWritePrice      *float64  `json:"cache_write_price"`
+	ID              int64    `json:"id,omitempty"`
+	PricingID       int64    `json:"pricing_id,omitempty"`
+	MinTokens       int      `json:"min_tokens"`
+	MaxTokens       *int     `json:"max_tokens"`
+	TierLabel       string   `json:"tier_label"`
+	InputPrice      *float64 `json:"input_price"`
+	OutputPrice     *float64 `json:"output_price"`
+	CacheWritePrice *float64 `json:"cache_write_price"`
+	// CacheWrite1hPrice 是该区间的可选 1 小时缓存写入单价。
+	CacheWrite1hPrice    *float64  `json:"cache_write_1h_price"`
 	CacheReadPrice       *float64  `json:"cache_read_price"`
 	InputMultiplier      *float64  `json:"input_multiplier,omitempty"`
 	OutputMultiplier     *float64  `json:"output_multiplier,omitempty"`
@@ -218,6 +222,7 @@ func (p *ChannelModelPricing) HasEffectivePricing() bool {
 		if p.InputPrice != nil ||
 			p.OutputPrice != nil ||
 			p.CacheWritePrice != nil ||
+			p.CacheWrite1hPrice != nil ||
 			p.CacheReadPrice != nil ||
 			p.ImageInputPrice != nil ||
 			p.ImageOutputPrice != nil ||
@@ -230,6 +235,7 @@ func (p *ChannelModelPricing) HasEffectivePricing() bool {
 			if iv.InputPrice != nil ||
 				iv.OutputPrice != nil ||
 				iv.CacheWritePrice != nil ||
+				iv.CacheWrite1hPrice != nil ||
 				iv.CacheReadPrice != nil ||
 				iv.InputMultiplier != nil ||
 				iv.OutputMultiplier != nil ||
@@ -426,6 +432,7 @@ func validateIntervalPrices(iv *PricingInterval, idx int) error {
 		{"input_price", iv.InputPrice},
 		{"output_price", iv.OutputPrice},
 		{"cache_write_price", iv.CacheWritePrice},
+		{"cache_write_1h_price", iv.CacheWrite1hPrice},
 		{"cache_read_price", iv.CacheReadPrice},
 		{"per_request_price", iv.PerRequestPrice},
 	}

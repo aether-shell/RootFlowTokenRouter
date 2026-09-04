@@ -193,6 +193,9 @@ function tokenPricingRowsFromValues(pricing: MarketplaceModelPricing | Marketpla
   if (hasPositiveValue(pricing.cache_write_price_per_token)) {
     rows.push({ key: 'cache_write', label: t('marketplace.cacheWrite'), value: formatPerMillion(pricing.cache_write_price_per_token) })
   }
+  if (hasPositiveValue(pricing.cache_write_1h_price_per_token)) {
+    rows.push({ key: 'cache_write_1h', label: t('marketplace.cacheWrite1h'), value: formatPerMillion(pricing.cache_write_1h_price_per_token) })
+  }
   if (hasPositiveValue(pricing.cache_read_price_per_token)) {
     rows.push({ key: 'cache_read', label: t('marketplace.cacheRead'), value: formatPerMillion(pricing.cache_read_price_per_token) })
   }
@@ -218,6 +221,9 @@ function fastTokenPricingRows(pricing: MarketplaceModelPricing | MarketplacePric
   }
   if (hasPositiveValue(pricing.fast_cache_write_price_per_token)) {
     rows.push({ key: 'fast_cache_write', label: t('marketplace.fastCacheWrite'), value: formatPerMillion(pricing.fast_cache_write_price_per_token) })
+  }
+  if (hasPositiveValue(pricing.fast_cache_write_1h_price_per_token)) {
+    rows.push({ key: 'fast_cache_write_1h', label: t('marketplace.fastCacheWrite1h'), value: formatPerMillion(pricing.fast_cache_write_1h_price_per_token) })
   }
   if (hasPositiveValue(pricing.fast_cache_read_price_per_token)) {
     rows.push({ key: 'fast_cache_read', label: t('marketplace.fastCacheRead'), value: formatPerMillion(pricing.fast_cache_read_price_per_token) })

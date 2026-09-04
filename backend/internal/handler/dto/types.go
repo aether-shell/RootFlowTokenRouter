@@ -183,7 +183,9 @@ type Group struct {
 	RPMLimit int `json:"rpm_limit"`
 	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
 	MaxReasoningEffort string `json:"max_reasoning_effort"`
-	// ReasoningEffortMappings OpenAI/Codex 推理强度精确映射。
+	// MaxReasoningEffortOverLimit 超过上限时的访问控制：downgrade（默认）或 deny。
+	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
+	// ReasoningEffortMappings OpenAI/Codex 推理强度映射，可按模型精确名、前缀或后缀限定。
 	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 
 	CreatedAt time.Time `json:"created_at"`
@@ -232,6 +234,10 @@ type SubscriptionPlanGroup struct {
 // 注意：普通用户接口不得返回 model_routing/account_count/account_groups 等内部信息。
 type AdminGroup struct {
 	Group
+	// ForceOpenAIFast 仅管理端可见，用于控制 OpenAI/Composite 分组的 Fast 策略。
+	ForceOpenAIFast bool `json:"force_openai_fast"`
+	// FreeOpenAIFast 仅管理端可见，用于控制 OpenAI/Composite 分组的 Fast 计费。
+	FreeOpenAIFast bool `json:"free_openai_fast"`
 	// SchedulerType 仅管理端可见，用于配置分组调度器。
 	SchedulerType string `json:"scheduler_type"`
 	// AdvancedSchedulerOverrides 仅管理端可见；空字段继承网关通用设置。
@@ -549,9 +555,10 @@ type UsageLog struct {
 	Model     string `json:"model"`
 	// ServiceTier records the OpenAI service tier used for billing, e.g. "priority" / "flex".
 	ServiceTier *string `json:"service_tier,omitempty"`
-	// ReasoningEffort is the request's reasoning effort level.
-	// OpenAI: "low"/"medium"/"high"/"xhigh"; Claude: "low"/"medium"/"high"/"max".
+	// ReasoningEffort 是最终转发给上游的推理档位。
 	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
+	// RequestedReasoningEffort 是策略与模型映射前客户端请求的推理档位。
+	RequestedReasoningEffort *string `json:"requested_reasoning_effort,omitempty"`
 	// InboundEndpoint is the client-facing API endpoint path, e.g. /v1/chat/completions.
 	InboundEndpoint *string `json:"inbound_endpoint,omitempty"`
 	// UpstreamEndpoint is the normalized upstream endpoint path, e.g. /v1/responses.
@@ -585,8 +592,10 @@ type UsageLog struct {
 	RequestType  string `json:"request_type"`
 	Stream       bool   `json:"stream"`
 	OpenAIWSMode bool   `json:"openai_ws_mode"`
-	DurationMs   *int   `json:"duration_ms"`
-	FirstTokenMs *int   `json:"first_token_ms"`
+	// NativeCompactionV2 表示 OpenAI 原生远程 compaction v2 请求。
+	NativeCompactionV2 bool `json:"native_compaction_v2"`
+	DurationMs         *int `json:"duration_ms"`
+	FirstTokenMs       *int `json:"first_token_ms"`
 
 	// 图片生成字段
 	ImageCount         int            `json:"image_count"`
@@ -633,7 +642,6 @@ type AdminUsageLog struct {
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Omitted when no mapping was applied (requested model was used as-is).
 	UpstreamModel *string `json:"upstream_model,omitempty"`
-
 	// ChannelID 渠道 ID
 	ChannelID *int64 `json:"channel_id,omitempty"`
 	// ModelMappingChain 模型映射链，如 "a→b→c"

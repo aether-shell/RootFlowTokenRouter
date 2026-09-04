@@ -329,6 +329,8 @@ export default {
       selectGroup: '选择分组',
       selectGroupPlaceholder: '选择订阅分组',
       validityDays: '有效天数',
+      expiryDateRequired: '请输入有效的过期日期和时间',
+      localTimeZoneHint: '自定义时间按浏览器本地时区（{timezone}）解释。',
       groupRequired: '请选择订阅分组',
       days: '天',
       status: {

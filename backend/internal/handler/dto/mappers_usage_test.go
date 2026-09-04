@@ -122,6 +122,40 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 	require.InDelta(t, 1.5, *adminDTO.AccountRateMultiplier, 1e-12)
 }
 
+// TestUsageLogFromService_IncludesRequestedEffort 验证请求档位与实际档位都能稳定出现在 DTO。
+func TestUsageLogFromService_IncludesRequestedEffort(t *testing.T) {
+	t.Parallel()
+	requested := "max"
+	forwarded := "xhigh"
+	log := &service.UsageLog{
+		RequestID:                "req_reasoning_mapping",
+		Model:                    "gpt-5.4",
+		RequestedReasoningEffort: &requested,
+		ReasoningEffort:          &forwarded,
+	}
+
+	userDTO := UsageLogFromService(log)
+	adminDTO := UsageLogFromServiceAdmin(log)
+	require.Equal(t, forwarded, *userDTO.ReasoningEffort)
+	require.Equal(t, requested, *userDTO.RequestedReasoningEffort)
+	require.Equal(t, forwarded, *adminDTO.ReasoningEffort)
+	require.Equal(t, requested, *adminDTO.RequestedReasoningEffort)
+
+	userJSON, err := json.Marshal(userDTO)
+	require.NoError(t, err)
+	require.Contains(t, string(userJSON), "requested_reasoning_effort")
+}
+
+// TestUsageLogFromService_PreservesEquivalentRequestedEffort 验证相同档位不被映射层丢弃。
+func TestUsageLogFromService_PreservesEquivalentRequestedEffort(t *testing.T) {
+	t.Parallel()
+	effort := "x-high"
+	log := &service.UsageLog{RequestedReasoningEffort: &effort, ReasoningEffort: &effort}
+	adminDTO := UsageLogFromServiceAdmin(log)
+	require.NotNil(t, adminDTO.RequestedReasoningEffort)
+	require.Equal(t, effort, *adminDTO.RequestedReasoningEffort)
+}
+
 func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *testing.T) {
 	t.Parallel()
 

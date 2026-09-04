@@ -602,6 +602,8 @@ type ForwardResult struct {
 	FirstTokenMs     *int // 首字时间（流式请求）
 	ClientDisconnect bool // 客户端是否在流式传输过程中断开
 	ReasoningEffort  *string
+	// RequestedReasoningEffort 保存客户端在兼容层映射前提交的推理档位。
+	RequestedReasoningEffort *string
 	// UpstreamResponseServiceTier 是上游响应声明的实际服务档位；空值表示未声明或无法确认。
 	UpstreamResponseServiceTier string
 	// ServiceTier 是请求侧声明的服务档位；计费时只允许按上游实际档位降档。
@@ -1924,4 +1926,7 @@ type usageBillingParams struct {
 	BalanceRateMultiplier           float64
 	APIKeyService                   APIKeyQuotaUpdater
 	Platform                        string // 来自 APIKey 关联 Group 的平台标识
+	// BillingBaseAmountUSD 是用户资金分配使用的未倍率基础金额；nil 时沿用 Cost.TotalCost。
+	// 免费 Fast 需要把用户基础价切换为 Standard，同时保留 Fast 的账号统计基础成本。
+	BillingBaseAmountUSD *float64
 }

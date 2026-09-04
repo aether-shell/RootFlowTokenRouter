@@ -127,6 +127,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 
 	var requestType *int16
 	var stream *bool
+	var nativeCompactionV2 *bool
 	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
 		parsed, err := service.ParseUsageRequestType(requestTypeStr)
 		if err != nil {
@@ -142,6 +143,14 @@ func (h *UsageHandler) List(c *gin.Context) {
 			return
 		}
 		stream = &val
+	}
+	if raw := strings.TrimSpace(c.Query("native_compaction_v2")); raw != "" {
+		val, err := strconv.ParseBool(raw)
+		if err != nil {
+			response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
+			return
+		}
+		nativeCompactionV2 = &val
 	}
 
 	var billingType *int8
@@ -187,21 +196,22 @@ func (h *UsageHandler) List(c *gin.Context) {
 		SortOrder: c.DefaultQuery("sort_order", "desc"),
 	}
 	filters := usagestats.UsageLogFilters{
-		UserID:            userID,
-		APIKeyID:          apiKeyID,
-		AccountID:         accountID,
-		GroupID:           groupID,
-		TeamID:            teamID,
-		RequestID:         requestID,
-		Model:             model,
-		ModelFilterSource: usagestats.ModelSourceRequested,
-		RequestType:       requestType,
-		Stream:            stream,
-		BillingType:       billingType,
-		BillingMode:       billingMode,
-		StartTime:         startTime,
-		EndTime:           endTime,
-		ExactTotal:        exactTotal,
+		UserID:             userID,
+		APIKeyID:           apiKeyID,
+		AccountID:          accountID,
+		GroupID:            groupID,
+		TeamID:             teamID,
+		RequestID:          requestID,
+		Model:              model,
+		ModelFilterSource:  usagestats.ModelSourceRequested,
+		RequestType:        requestType,
+		Stream:             stream,
+		NativeCompactionV2: nativeCompactionV2,
+		BillingType:        billingType,
+		BillingMode:        billingMode,
+		StartTime:          startTime,
+		EndTime:            endTime,
+		ExactTotal:         exactTotal,
 	}
 
 	records, result, err := h.usageService.ListWithFilters(c.Request.Context(), params, filters)
@@ -307,6 +317,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	var requestType *int16
 	var stream *bool
+	var nativeCompactionV2 *bool
 	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
 		parsed, err := service.ParseUsageRequestType(requestTypeStr)
 		if err != nil {
@@ -322,6 +333,14 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 			return
 		}
 		stream = &val
+	}
+	if raw := strings.TrimSpace(c.Query("native_compaction_v2")); raw != "" {
+		val, err := strconv.ParseBool(raw)
+		if err != nil {
+			response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
+			return
+		}
+		nativeCompactionV2 = &val
 	}
 
 	var billingType *int8
@@ -377,19 +396,20 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	// Build filters and call GetStatsWithFilters
 	filters := usagestats.UsageLogFilters{
-		UserID:            userID,
-		APIKeyID:          apiKeyID,
-		AccountID:         accountID,
-		GroupID:           groupID,
-		TeamID:            teamID,
-		Model:             model,
-		ModelFilterSource: usagestats.ModelSourceRequested,
-		RequestType:       requestType,
-		Stream:            stream,
-		BillingType:       billingType,
-		BillingMode:       billingMode,
-		StartTime:         &startTime,
-		EndTime:           &endTime,
+		UserID:             userID,
+		APIKeyID:           apiKeyID,
+		AccountID:          accountID,
+		GroupID:            groupID,
+		TeamID:             teamID,
+		Model:              model,
+		ModelFilterSource:  usagestats.ModelSourceRequested,
+		RequestType:        requestType,
+		Stream:             stream,
+		NativeCompactionV2: nativeCompactionV2,
+		BillingType:        billingType,
+		BillingMode:        billingMode,
+		StartTime:          &startTime,
+		EndTime:            &endTime,
 	}
 
 	var stats *usagestats.UsageStats

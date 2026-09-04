@@ -58,6 +58,24 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	defaultMappedModel string,
 	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
 ) (*OpenAIForwardResult, error) {
+	return s.forwardAsChatCompletions(ctx, c, account, body, promptCacheKey, defaultMappedModel, false, tlsRouterMatch...)
+}
+
+func (s *OpenAIGatewayService) forwardAsChatCompletions(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	body []byte,
+	promptCacheKey string,
+	defaultMappedModel string,
+	compatPromptCacheTenantIsolated bool,
+	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
+) (*OpenAIForwardResult, error) {
+	beginUpstreamResponseModelObservation(c)
+	ClearActualOpenAIUpstreamEndpoint(c)
+	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
+		SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
+	}
 	setCodexToolNameReverse(c, nil)
 	if _, err := s.prepareCodexAccountIdentitySource(ctx, c, account); err != nil {
 		return nil, err
@@ -104,12 +122,12 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	isResponsesShape := !gjson.GetBytes(body, "messages").Exists() && gjson.GetBytes(body, "input").Exists()
 
 	// 自适应账号的标准 Chat 入站使用供应商原生 CC 端点；Responses 形状下，
-	// DeepSeek 保留原生 Responses，Kimi/智谱先转换为 Chat。
+	// DeepSeek / Kimi 保留原生 Responses，智谱先转换为 Chat。
 	if account.IsAdaptiveAPIProtocol() {
 		if !isResponsesShape {
 			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel, tlsRouterMatch...)
 		}
-		if account.Platform != PlatformDeepseek {
+		if !account.SupportsNativeCNResponses() {
 			var responsesReq apicompat.ResponsesRequest
 			if err := json.Unmarshal(body, &responsesReq); err != nil {
 				return nil, fmt.Errorf("parse responses-shaped chat completions request: %w", err)
@@ -127,6 +145,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			}
 			return s.forwardAsRawChatCompletions(ctx, c, account, chatBody, defaultMappedModel, tlsRouterMatch...)
 		}
+		// DeepSeek / Kimi 原生 Responses 请求继续走下方 Responses→Chat 回程转换。
 	}
 
 	// 固定 Anthropic 协议走原生 Anthropic 端点。
@@ -164,9 +183,13 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
-	if promptCacheKey == "" && account.UsesOpenAICodexProtocol() && shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
+	if promptCacheKey == "" && !isResponsesShape && (account.UsesOpenAICodexProtocol() || account.IsOpenAIApiKey()) && shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
 		promptCacheKey = deriveCompatPromptCacheKey(&chatReq, upstreamModel)
 		compatPromptCacheInjected = promptCacheKey != ""
+		if compatPromptCacheInjected && account.IsOpenAIApiKey() {
+			promptCacheKey = isolateOpenAISessionID(getAPIKeyIDFromContext(c), promptCacheKey)
+			compatPromptCacheTenantIsolated = true
+		}
 	}
 
 	// 3. Build the upstream (Responses API) body.
@@ -330,7 +353,11 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 
 	if promptCacheKey != "" {
 		apiKeyID := getAPIKeyIDFromContext(c)
-		upstreamReq.Header.Set("session_id", generateSessionUUID(isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), promptCacheKey)))
+		sessionKey := promptCacheKey
+		if !compatPromptCacheTenantIsolated {
+			sessionKey = isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), promptCacheKey)
+		}
+		upstreamReq.Header.Set("session_id", generateSessionUUID(sessionKey))
 	}
 
 	// 7. Send request
@@ -352,7 +379,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			if err := s.recoverAgentIdentityTask(ctx, account, expectedTaskID); err != nil {
 				return nil, fmt.Errorf("agent identity task recovery failed: %w", err)
 			}
-			return s.ForwardAsChatCompletions(markAgentIdentityTaskRecoveryTried(ctx), c, account, body, promptCacheKey, defaultMappedModel, tlsRouterMatch...)
+			return s.forwardAsChatCompletions(markAgentIdentityTaskRecoveryTried(ctx), c, account, body, promptCacheKey, defaultMappedModel, compatPromptCacheTenantIsolated, tlsRouterMatch...)
 		}
 		respBody = s.redactAgentIdentitySensitiveBody(ctx, account, respBody)
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
@@ -510,9 +537,9 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 		}
 		if decision.ShouldFailover(account, policyStatus, openAIStreamFailedEventShouldFailover(payload, message)) {
 			markOpenAIWSFailureSideEffectsApplied(c, policyStatus, decision.StopScheduling)
-			return nil, s.newOpenAIStreamPolicyFailoverError(
+			return nil, s.newOpenAIStreamPolicyFailoverErrorWithModel(
 				c, account, false, requestID, resp.Header, policyStatus, payload, message,
-				openAIStreamFailedEventRetryableOnSameAccount(account, payload, message),
+				openAIStreamFailedEventRetryableOnSameAccount(account, payload, message), upstreamModel,
 			)
 		}
 		message = s.recordOpenAIStreamUpstreamError(c, account, false, requestID, "http_error", payload, message)
@@ -757,9 +784,9 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			policyGeneric := decision.ShouldReturnGenericError()
 			if !clientOutputStarted && decision.ShouldFailover(account, policyStatus, openAIStreamFailedEventShouldFailover(payloadBytes, message)) {
 				markOpenAIWSFailureSideEffectsApplied(c, policyStatus, decision.StopScheduling)
-				streamFailoverErr = s.newOpenAIStreamPolicyFailoverError(
+				streamFailoverErr = s.newOpenAIStreamPolicyFailoverErrorWithModel(
 					c, account, false, requestID, resp.Header, policyStatus, payloadBytes, message,
-					openAIStreamFailedEventRetryableOnSameAccount(account, payloadBytes, message),
+					openAIStreamFailedEventRetryableOnSameAccount(account, payloadBytes, message), upstreamModel,
 				)
 				return true
 			}

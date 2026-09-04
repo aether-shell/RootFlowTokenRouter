@@ -18,7 +18,7 @@ import (
 const accountTestSuppressCompletionContextKey = "account_test_suppress_completion"
 
 // testCNProviderAdaptiveConnection 验证自适应国产供应商账号实际使用的全部原生端点。
-// Kimi 和智谱验证 Chat Completions 与 Anthropic，DeepSeek 还验证 Responses。
+// 智谱验证 Chat Completions 与 Anthropic，DeepSeek 和 Kimi 还验证 Responses。
 func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
 	testModelID := strings.TrimSpace(modelID)
 	if testModelID == "" {
@@ -42,7 +42,7 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 		return err
 	}
 
-	if account.Platform == PlatformDeepseek {
+	if account.SupportsNativeCNResponses() {
 		if err := s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, prompt, authToken); err != nil {
 			return err
 		}

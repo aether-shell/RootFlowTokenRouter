@@ -148,6 +148,10 @@
               <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
               <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="applyFilters" />
             </div>
+            <div class="w-full sm:w-auto sm:min-w-[220px]">
+              <label class="input-label">{{ t('usage.compactionFilter') }}</label>
+              <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="applyFilters" />
+            </div>
               </div>
             </div>
           </div>
@@ -270,7 +274,7 @@ import TeamMemberUsageCharts from '@/components/charts/TeamMemberUsageCharts.vue
 import Icon from '@/components/icons/Icon.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
-import { formatReasoningEffort } from '@/utils/format'
+import { formatReasoningEffortMapping } from '@/utils/format'
 import { getBillingModeLabel, getDisplayBillingMode as resolveDisplayBillingMode } from '@/utils/billingMode'
 import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usageRequestType'
 import type {
@@ -406,6 +410,7 @@ const filters = ref<UsageQueryParams>({
   request_type: undefined,
   billing_type: null,
   billing_mode: null,
+  native_compaction_v2: null,
 })
 
 const pagination = reactive({
@@ -440,6 +445,11 @@ const billingModeOptions = computed<SelectOption[]>(() => [
   { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
   { value: 'image', label: t('admin.usage.billingModeImage') },
   { value: 'video', label: t('admin.usage.billingModeVideo') },
+])
+const compactionOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('usage.allCompactions') },
+  { value: true, label: t('usage.nativeCompactionV2') },
+  { value: false, label: t('usage.legacyCompaction') },
 ])
 
 type UsageKeyOption = Pick<TeamAPIKey, 'id' | 'name'>
@@ -693,7 +703,7 @@ const exportToCSV = async () => {
       log.created_at,
       log.api_key?.name || '',
       log.model,
-      formatReasoningEffort(log.reasoning_effort),
+      formatReasoningEffortMapping(log.requested_reasoning_effort, log.reasoning_effort),
       log.inbound_endpoint || '',
       log.ip_address || '',
       getRequestTypeExportText(log),

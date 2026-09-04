@@ -222,6 +222,8 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
 		SetRateMultiplier(1).
 		SetSchedulerType(string(service.GroupSchedulerTypeAdvanced)).
 		SetAdvancedSchedulerOverrides(service.GroupAdvancedSchedulerOverrides{LBTopK: &lbTopK}).
+		SetForceOpenaiFast(true).
+		SetFreeOpenaiFast(true).
 		SetWebSearchPricePerCall(0.008).
 		SetAllowedClientProtocols([]service.GroupClientProtocol{
 			service.GroupClientProtocolAnthropicMessages,
@@ -266,6 +268,8 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
 	s.Require().Equal(service.GroupSchedulerTypeAdvanced, got.Group.SchedulerType)
 	s.Require().NotNil(got.Group.AdvancedSchedulerOverrides.LBTopK)
 	s.Require().Equal(4, *got.Group.AdvancedSchedulerOverrides.LBTopK)
+	s.Require().True(got.Group.ForceOpenAIFast)
+	s.Require().True(got.Group.FreeOpenAIFast)
 }
 
 // --- Update ---

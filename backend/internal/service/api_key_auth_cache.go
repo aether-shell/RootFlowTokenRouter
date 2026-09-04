@@ -151,8 +151,12 @@ type APIKeyAuthGroupSnapshot struct {
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
 
 	// AllowedClientProtocols 不使用 omitempty，确保空集合按 [] 写入快照。
-	AllowedClientProtocols      []GroupClientProtocol             `json:"allowed_client_protocols"`
-	AllowLive                   bool                              `json:"allow_live"`
+	AllowedClientProtocols []GroupClientProtocol `json:"allowed_client_protocols"`
+	AllowLive              bool                  `json:"allow_live"`
+	// ForceOpenAIFast 保留组级 OpenAI Fast 策略，供请求期无需回源即可执行。
+	ForceOpenAIFast bool `json:"force_openai_fast"`
+	// FreeOpenAIFast 保留组级免费 Fast 计费策略，供异步计费无需回源即可执行。
+	FreeOpenAIFast              bool                              `json:"free_openai_fast"`
 	DefaultMappedModel          string                            `json:"default_mapped_model,omitempty"`
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
 	ModelsListConfig            GroupModelsListConfig             `json:"models_list_config,omitempty"`
@@ -162,6 +166,8 @@ type APIKeyAuthGroupSnapshot struct {
 
 	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
 	MaxReasoningEffort string `json:"max_reasoning_effort,omitempty"`
+	// MaxReasoningEffortOverLimit 超过上限时的访问控制：downgrade（默认）或 deny。
+	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit,omitempty"`
 	// ReasoningEffortMappings 在应用上限前改写显式的推理强度值。
 	ReasoningEffortMappings []ReasoningEffortMapping `json:"reasoning_effort_mappings"`
 

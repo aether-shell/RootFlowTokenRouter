@@ -120,8 +120,133 @@ func (s *OpenAIGatewayService) shouldBridgeOpenAIWSHTTP(account *Account, payloa
 	return threshold > 0 && int64(payloadBytes) >= threshold
 }
 
+// shouldBridgeOpenAIWSPassthroughFirstMessage 判断透传首帧是否应切换到 HTTP bridge。
+func (s *OpenAIGatewayService) shouldBridgeOpenAIWSPassthroughFirstMessage(account *Account, payload []byte) bool {
+	if account != nil && account.Platform == PlatformGrok {
+		return true
+	}
+	if !s.openAIWSHTTPBridgeEnabled() || int64(len(payload)) < s.openAIWSHTTPBridgeThresholdBytes() {
+		return false
+	}
+	if !json.Valid(payload) {
+		return false
+	}
+
+	i := skipOpenAIWSJSONSpace(payload, 0)
+	if i >= len(payload) || payload[i] != '{' {
+		return false
+	}
+	i++
+	eventType := "response.create"
+	previousResponseID := ""
+	typeSeen, previousResponseIDSeen := false, false
+	for {
+		i = skipOpenAIWSJSONSpace(payload, i)
+		if payload[i] == '}' {
+			break
+		}
+		keyStart := i
+		keyEnd := scanOpenAIWSJSONString(payload, keyStart)
+		i = skipOpenAIWSJSONSpace(payload, keyEnd)
+		i++ // json.Valid 已保证此处为冒号。
+		i = skipOpenAIWSJSONSpace(payload, i)
+		valueStart := i
+		i = skipOpenAIWSJSONValue(payload, i)
+
+		key := ""
+		// 关键字段解码后最多约 20 字节；限制编码长度可避免分配攻击者构造的超长键。
+		if keyEnd-keyStart <= 128 {
+			_ = json.Unmarshal(payload[keyStart:keyEnd], &key)
+		}
+		switch key {
+		case "type":
+			if typeSeen {
+				return false
+			}
+			typeSeen = true
+			var value *string
+			if err := json.Unmarshal(payload[valueStart:i], &value); err != nil {
+				return false
+			}
+			if value == nil || strings.TrimSpace(*value) == "" {
+				eventType = "response.create"
+			} else {
+				eventType = strings.TrimSpace(*value)
+			}
+		case "previous_response_id":
+			if previousResponseIDSeen {
+				return false
+			}
+			previousResponseIDSeen = true
+			var value *string
+			if err := json.Unmarshal(payload[valueStart:i], &value); err != nil {
+				return false
+			}
+			if value != nil {
+				previousResponseID = strings.TrimSpace(*value)
+			}
+		}
+		i = skipOpenAIWSJSONSpace(payload, i)
+		if payload[i] == ',' {
+			i++
+		}
+	}
+	return eventType == "response.create" && previousResponseID == ""
+}
+
+func skipOpenAIWSJSONSpace(payload []byte, i int) int {
+	for i < len(payload) {
+		switch payload[i] {
+		case ' ', '\t', '\r', '\n':
+			i++
+		default:
+			return i
+		}
+	}
+	return i
+}
+
+func scanOpenAIWSJSONString(payload []byte, i int) int {
+	for i++; i < len(payload); i++ {
+		switch payload[i] {
+		case '\\':
+			i++
+		case '"':
+			return i + 1
+		}
+	}
+	return len(payload)
+}
+
+func skipOpenAIWSJSONValue(payload []byte, i int) int {
+	if payload[i] == '"' {
+		return scanOpenAIWSJSONString(payload, i)
+	}
+	if payload[i] != '{' && payload[i] != '[' {
+		for i < len(payload) && payload[i] != ',' && payload[i] != '}' {
+			i++
+		}
+		return i
+	}
+	depth := 0
+	for ; i < len(payload); i++ {
+		switch payload[i] {
+		case '"':
+			i = scanOpenAIWSJSONString(payload, i) - 1
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	return len(payload)
+}
+
 // prepareOpenAIWSHTTPBridgeBody 将 response.create WS payload 转成 HTTP Responses body。
-func prepareOpenAIWSHTTPBridgeBody(payload []byte) ([]byte, error) {
+func prepareOpenAIWSHTTPBridgeBody(account *Account, payload []byte) ([]byte, error) {
 	var body map[string]any
 	if err := decodeOpenAIJSONUseNumber(payload, &body); err != nil {
 		return nil, err
@@ -132,6 +257,7 @@ func prepareOpenAIWSHTTPBridgeBody(payload []byte) ([]byte, error) {
 	delete(body, "type")
 	delete(body, "generate")
 	delete(body, "previous_response_id")
+	deleteOpenAIResponsesNoneReasoningEffortFromObject(account, body)
 	body["stream"] = true
 	return json.Marshal(body)
 }
@@ -356,7 +482,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		return nil, errors.New("client websocket writer is nil")
 	}
 
-	body, err := prepareOpenAIWSHTTPBridgeBody(payload)
+	body, err := prepareOpenAIWSHTTPBridgeBody(account, payload)
 	if err != nil {
 		return nil, fmt.Errorf("prepare http bridge body: %w", err)
 	}
@@ -600,6 +726,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			UpstreamResponseServiceTier: responseModelObserver.ServiceTier(),
 			ServiceTier:                 resolvedOpenAIUpstreamServiceTierFromObserver(responseModelObserver, extractOpenAIServiceTierFromBody(body)),
 			ReasoningEffort:             ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(body, mappedModel, originalModel), body, mappedModel),
+			RequestedReasoningEffort:    CanonicalRequestedReasoningEffort(body, originalModel, mappedModel),
 			Stream:                      reqStream,
 			OpenAIWSMode:                true,
 			UpstreamTerminalEvent:       upstreamTerminalEvent,
@@ -777,7 +904,11 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			if !wroteDownstream && shouldFailover &&
 				(turn == 1 || statusCode == http.StatusTooManyRequests) {
 				retrySame := requestScopedCapacity || terminalPolicy.Decision.RetryableOnSameAccount(account, statusCode)
-				return nil, s.newOpenAIStreamPolicyFailoverError(c, account, true, resp.Header.Get("x-request-id"), resp.Header, statusCode, upstreamMessage, errMessage, retrySame)
+				if !requestScopedCapacity {
+					// 终止事件策略已在上方执行；交给错误构造器消费一次性状态，避免重复写入模型限流。
+					markOpenAIWSFailureSideEffectsApplied(c, statusCode, terminalPolicy.Decision.StopScheduling)
+				}
+				return nil, s.newOpenAIStreamPolicyFailoverErrorWithModel(c, account, true, resp.Header.Get("x-request-id"), resp.Header, statusCode, upstreamMessage, errMessage, retrySame, mappedModel)
 			}
 			if wroteDownstream && requestScopedCapacity && !capacityFailoverSuppressedLogged {
 				logOpenAICapacityFailoverSuppressed(ctx, account, "ws_http_bridge", resp.Header.Get("x-request-id"), eventType)
@@ -811,7 +942,11 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 				}
 			} else if !requestScopedError {
 				defaultFailover = s.shouldFailoverOpenAIWSError(account, policyStatus, upstreamMessage)
-				decision = s.applyOpenAIAccountUpstreamError(ctx, account, policyStatus, resp.Header, upstreamMessage, mappedModel)
+				semanticHeaders := resp.Header
+				if policyStatus == http.StatusTooManyRequests {
+					semanticHeaders = openAIWSSemantic429Headers(account, mappedModel, semanticHeaders)
+				}
+				decision = s.applyOpenAIAccountUpstreamError(ctx, account, policyStatus, semanticHeaders, upstreamMessage, mappedModel)
 			}
 			if decision.StopScheduling {
 				failureAccountSideEffectsApplied = true
@@ -835,7 +970,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 						ShouldDisable: decision.StopScheduling,
 					})
 				}
-				return nil, s.newOpenAIStreamPolicyFailoverError(c, account, true, resp.Header.Get("x-request-id"), resp.Header, policyStatus, upstreamMessage, errMessage, retrySame)
+				return nil, s.newOpenAIStreamPolicyFailoverErrorWithModel(c, account, true, resp.Header.Get("x-request-id"), resp.Header, policyStatus, upstreamMessage, errMessage, retrySame, mappedModel)
 			}
 			if wroteDownstream && requestScopedCapacity && !capacityFailoverSuppressedLogged {
 				logOpenAICapacityFailoverSuppressed(ctx, account, "ws_http_bridge", resp.Header.Get("x-request-id"), eventType)
@@ -972,7 +1107,7 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 }
 
 func resolveGrokWSCacheIdentity(c *gin.Context, account *Account, payload []byte, routingModel string) (string, error) {
-	body, err := prepareOpenAIWSHTTPBridgeBody(payload)
+	body, err := prepareOpenAIWSHTTPBridgeBody(account, payload)
 	if err != nil {
 		return "", err
 	}

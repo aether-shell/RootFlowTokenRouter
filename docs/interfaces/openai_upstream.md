@@ -44,6 +44,12 @@ OpenAI 平台拥有以下正式协议族：
 
 OpenAI 分组支持 Messages、Responses 和 Chat，新建时默认启用 Responses 与 Chat；三项都可关闭。已有分组迁移时仅在旧 `allow_messages_dispatch` 开启时加入 Messages。该旧字段只作为 Messages 的弃用兼容镜像，专用 `messages_dispatch_model_config` 仍只负责 Claude 到 GPT 模型映射；系列和精确映射都只在目标值非空时生效，全部留空时不执行分组层模型映射。Responses WebSocket 是 OpenAI/Grok 的原生传输能力，不因其它平台启用兼容 Responses 而开放。
 
+管理员可在 OpenAI/Composite 分组上设置 `force_openai_fast`。网关在 HTTP Responses、Chat/Messages 转换、passthrough 和 Responses WebSocket 的 `response.create` 中统一把组级强制意图规范化为 `service_tier=priority`，再执行全局 Fast/Flex 策略；全局 `filter`/`block` 以及 API Key `force_off` 不会被绕过。该字段随 API Key 认证快照传递，快照版本变更后旧缓存必须重建；其它平台的值由管理服务清零。
+
+`free_openai_fast` 是同一分组的用户计费策略，不会改变出站 `service_tier`。只有 OpenAI 账号实际按 `priority`/`fast` 计费时才生效；网关使用同一模型映射、渠道价卡、峰值和长上下文时刻重新取得 Standard 价格，将其写入用户侧 `ActualCost` 和统一结算的基础金额，同时保留 Fast `TotalCost` 给 Usage Log、账号统计和账号额度。Standard 定价缺失时沿用零成本缺价记录，不能借此绕过原有定价错误边界；非 OpenAI 账号、普通 tier 和不可信认证快照均不适用。该字段也随 API Key 认证快照传递，因此快照版本为 v36，旧 v35 快照必须失效并重建。
+
+OpenAI 分组的 `max_reasoning_effort` 是显式推理强度上限，`max_reasoning_effort_over_limit` 取 `downgrade`（默认）或 `deny`。网关只对客户端真正发送的 `reasoning.effort`、`reasoning_effort` 和 Messages `output_config.effort` 执行策略，不会因为兼容桥为缺省 Messages 请求生成的默认 `medium` 而改变行为；模型范围映射先于上限比较。`downgrade` 把超限值改写为上限，`deny` 在 HTTP 上返回 403 `permission_error`，Messages 返回 Anthropic `forbidden_error`，Responses WebSocket 以 policy-violation 关闭。复合 Key 已在鉴权中间件解析到具体 OpenAI 分组，因而使用该分组的策略；本 fork 的管理端不开放 Composite 分组推理配置，也不恢复已移除的旧复合平台处理器。该动作和上限随认证快照传递，快照版本为 v35，旧 v34 快照必须失效并从数据库重建。
+
 ### API Key 文本配置
 
 OpenAI API Key 的普通文本配置把四个概念分开持久化：

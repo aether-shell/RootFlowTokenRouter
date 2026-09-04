@@ -562,6 +562,46 @@
         </div>
       </div>
 
+      <!-- 智谱团队版 Coding Plan：组织/项目 ID 可选，填写组织 ID 后切换团队额度端点。 -->
+      <div v-if="form.platform === 'zhipu' && accountMode === 'coding'" class="mt-4">
+        <div class="flex items-center gap-1">
+          <label class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.title') }}</label>
+          <HelpTooltip trigger="click" width-class="w-80">
+            <p class="mb-1 font-medium">{{ t('admin.accounts.cnProviders.zhipuTeam.help.title') }}</p>
+            <ol class="list-decimal space-y-1 pl-4">
+              <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step1') }}</li>
+              <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step2') }}</li>
+              <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step3') }}</li>
+              <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step4') }}</li>
+            </ol>
+            <p class="mt-2 break-all rounded bg-black/20 p-1.5 font-mono text-[11px] leading-relaxed">
+              {{ t('admin.accounts.cnProviders.zhipuTeam.help.example') }}
+            </p>
+          </HelpTooltip>
+        </div>
+        <div class="mt-2 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.organization') }}</label>
+            <input
+              v-model="zhipuOrganization"
+              type="text"
+              class="input"
+              :placeholder="t('admin.accounts.cnProviders.zhipuTeam.organizationPlaceholder')"
+            />
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.project') }}</label>
+            <input
+              v-model="zhipuProject"
+              type="text"
+              class="input"
+              :placeholder="t('admin.accounts.cnProviders.zhipuTeam.projectPlaceholder')"
+            />
+          </div>
+        </div>
+        <p class="input-hint mt-2">{{ t('admin.accounts.cnProviders.zhipuTeam.hint') }}</p>
+      </div>
+
       <!-- Account Type Selection (Gemini) -->
       <div v-if="form.platform === 'gemini'">
         <div class="flex items-center justify-between">
@@ -1606,7 +1646,7 @@
               />
             </div>
           </div>
-          <p v-if="form.platform !== 'deepseek'" class="input-hint">
+          <p v-if="!cnSupportsNativeResponses(form.platform)" class="input-hint">
             {{ t('admin.accounts.cnProviders.apiProtocol.responsesFallbackDesc') }}
           </p>
         </div>
@@ -4176,6 +4216,7 @@ import type { OpenAIOAuthImportDefaults } from '@/api/admin/settings'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -4191,6 +4232,7 @@ import {
   applyAntigravityProjectID,
   applyHeaderOverride,
   applyInterceptWarmup,
+  cnSupportsNativeResponses,
   defaultCNAdaptiveBaseUrls,
   defaultCNBaseUrl,
   isHeaderOverrideCapable,
@@ -4422,8 +4464,11 @@ const upstreamUsageWalletUserId = ref('')
 
 // 国产供应商账号的计费模式、协议与默认端点彼此联动。
 const accountMode = ref<CnAccountMode>('payg')
+// 智谱团队版 Coding Plan 的组织/项目 ID，仅在创建团队账号时写入凭据。
+const zhipuOrganization = ref('')
+const zhipuProject = ref('')
 // API 协议决定转发端点与格式：cc=现有转换链，anthropic=原生直通（Claude Code），
-// responses=deepseek 原生 Responses 端点（Codex）。与账号类型正交。
+// responses=deepseek / kimi 原生 Responses 端点（Codex）。与账号类型正交。
 const apiProtocol = ref<CnApiProtocol>('adaptive')
 const adaptiveBaseUrls = ref<Record<CnNativeApiProtocol, string>>({
   chat_completions: '',
@@ -4440,14 +4485,15 @@ const cnPresetPlatform = computed<'kimi' | 'zhipu' | 'deepseek'>(() => {
   }
   return 'kimi'
 })
+// 当前平台可选的协议档（responses 仅 deepseek / kimi）。
 const cnProtocolOptions = computed<Array<{ value: CnApiProtocol; labelKey: string }>>(() => {
   const options: Array<{ value: CnApiProtocol; labelKey: string }> = [
     { value: 'adaptive', labelKey: 'adaptive' },
     { value: 'chat_completions', labelKey: 'chatCompletions' },
     { value: 'anthropic', labelKey: 'anthropic' }
   ]
-  if (form.platform === 'deepseek') {
-    options.push({ value: 'responses', labelKey: 'responses' })
+	if (cnSupportsNativeResponses(form.platform)) {
+		options.push({ value: 'responses', labelKey: 'responses' })
   }
   return options
 })
@@ -4456,7 +4502,7 @@ const cnAdaptiveProtocolOptions = computed<Array<{ value: CnNativeApiProtocol; l
     { value: 'chat_completions', labelKey: 'chatCompletions' },
     { value: 'anthropic', labelKey: 'anthropic' }
   ]
-  if (form.platform === 'deepseek') opts.push({ value: 'responses', labelKey: 'responses' })
+  if (cnSupportsNativeResponses(form.platform)) opts.push({ value: 'responses', labelKey: 'responses' })
   return opts
 })
 
@@ -4497,6 +4543,10 @@ function selectCNPlatform(platform: 'kimi' | 'zhipu' | 'deepseek') {
   apiProtocol.value = 'adaptive'
   if (platform === 'deepseek') {
     accountMode.value = 'payg'
+  }
+  if (platform !== 'zhipu') {
+    zhipuOrganization.value = ''
+    zhipuProject.value = ''
   }
   apiKeyBaseUrl.value = defaultCNBaseUrl(platform, accountMode.value, apiProtocol.value)
   resetAdaptiveBaseUrls(platform, accountMode.value)
@@ -5837,6 +5887,8 @@ const resetForm = () => {
   addMethod.value = 'oauth'
   accountMode.value = 'payg'
   apiProtocol.value = 'adaptive'
+  zhipuOrganization.value = ''
+  zhipuProject.value = ''
   adaptiveBaseUrls.value = { chat_completions: '', anthropic: '', responses: '' }
   apiKeyBaseUrl.value = 'https://api.anthropic.com'
   apiKeyValue.value = ''
@@ -6486,6 +6538,14 @@ const handleSubmit = async () => {
     ).trim()
     if (apiProtocol.value !== 'adaptive' && resolvedCNBase) {
       credentials.base_url = resolvedCNBase
+    }
+    if (form.platform === 'zhipu' && accountMode.value === 'coding') {
+      const organization = zhipuOrganization.value.trim()
+      const project = zhipuProject.value.trim()
+      if (organization) {
+        credentials.zhipu_organization = organization
+        if (project) credentials.zhipu_project = project
+      }
     }
   }
 

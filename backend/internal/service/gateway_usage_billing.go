@@ -208,11 +208,14 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBill
 	if p.Cost.ActualCost > 0 {
 		cmd.BillableAmountUSD = p.Cost.ActualCost
 	}
-	if p.Cost.TotalCost > 0 {
-		cmd.BaseAmountUSD = p.Cost.TotalCost
+	baseAmount := p.Cost.TotalCost
+	if p.BillingBaseAmountUSD != nil {
+		baseAmount = *p.BillingBaseAmountUSD
+	}
+	if baseAmount > 0 {
+		cmd.BaseAmountUSD = baseAmount
 		applyUsageBillingRateMultipliers(cmd, p)
 	}
-
 	if p.shouldDeductAPIKeyQuota() {
 		cmd.APIKeyQuotaCost = p.Cost.ActualCost
 	}
@@ -245,11 +248,18 @@ func resolveUsageBillingAccountQuotaCost(usageLog *UsageLog, p *usageBillingPara
 }
 
 func applyUsageBillingRateMultipliers(cmd *UsageBillingCommand, p *usageBillingParams) {
-	if cmd == nil || p == nil || p.Cost == nil || p.Cost.TotalCost <= 0 {
+	if cmd == nil || p == nil || p.Cost == nil {
+		return
+	}
+	baseAmount := p.Cost.TotalCost
+	if p.BillingBaseAmountUSD != nil {
+		baseAmount = *p.BillingBaseAmountUSD
+	}
+	if baseAmount <= 0 {
 		return
 	}
 
-	effectiveRate := p.Cost.ActualCost / p.Cost.TotalCost
+	effectiveRate := p.Cost.ActualCost / baseAmount
 	if mode := strings.TrimSpace(p.Cost.BillingMode); mode != "" && mode != string(BillingModeToken) {
 		// 非 token 模式已在 ActualCost 中应用图片、视频或按次倍率；默认 allocation 必须沿用该倍率。
 		cmd.SubscriptionRateMultiplier = effectiveRate
@@ -483,11 +493,8 @@ func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usage
 	}
 }
 
-// recordUsageOpts 内部选项，参数化普通计费与长上下文计费的差异点。
+// recordUsageOpts 保存请求级计费时刻。长上下文规则已改由模型目录驱动。
 type recordUsageOpts struct {
-	// 长上下文计费（仅 Gemini 路径需要）
-	LongContextThreshold  int
-	LongContextMultiplier float64
 	// PricingAt 固定本次请求的计费时刻，供渠道分时倍率和高峰倍率共用。
 	PricingAt time.Time
 }
@@ -515,7 +522,8 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 	}, &recordUsageOpts{})
 }
 
-// RecordUsageLongContextInput 记录使用量的输入参数（支持长上下文双倍计费）
+// RecordUsageLongContextInput 是历史兼容结构。长上下文字段已不再直接控制计费，
+// 新代码应使用 RecordUsageInput。
 type RecordUsageLongContextInput struct {
 	Result                *ForwardResult
 	APIKey                *APIKey
@@ -530,8 +538,8 @@ type RecordUsageLongContextInput struct {
 	RequestPayloadHash    string             // 请求体语义哈希，用于降低 request_id 误复用时的静默误去重风险
 	RequestBody           []byte             // 原始请求体，用于数据共享 session 归一化采集
 	SessionID             string             // 当前请求的会话标识，用于数据共享聚合
-	LongContextThreshold  int                // 长上下文阈值（如 200000）
-	LongContextMultiplier float64            // 超出阈值部分的倍率（如 2.0）
+	LongContextThreshold  int                // 已废弃：保留字段以兼容旧调用方
+	LongContextMultiplier float64            // 已废弃：保留字段以兼容旧调用方
 	ForceCacheBilling     bool               // 强制缓存计费：将 input_tokens 转为 cache_read 计费（用于粘性会话切换）
 	APIKeyService         APIKeyQuotaUpdater // API Key 配额服务（可选）
 	QuotaPlatform         string             // user×platform 配额计量平台：handler 在请求 ctx 内经 QuotaPlatform() 算定后传入（后扣运行在 worker 池 background ctx 上，取不到 ForcePlatform）
@@ -539,7 +547,7 @@ type RecordUsageLongContextInput struct {
 	ChannelUsageFields // 渠道映射信息（由 handler 在 Forward 前解析）
 }
 
-// RecordUsageWithLongContext 记录使用量并扣费，支持长上下文双倍计费（用于 Gemini）
+// RecordUsageWithLongContext 兼容旧入口，实际委托统一目录定价路径。
 func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *RecordUsageLongContextInput) error {
 	return s.recordUsageCore(ctx, &recordUsageCoreInput{
 		Result:             input.Result,
@@ -559,10 +567,7 @@ func (s *GatewayService) RecordUsageWithLongContext(ctx context.Context, input *
 		APIKeyService:      input.APIKeyService,
 		QuotaPlatform:      input.QuotaPlatform,
 		ChannelUsageFields: input.ChannelUsageFields,
-	}, &recordUsageOpts{
-		LongContextThreshold:  input.LongContextThreshold,
-		LongContextMultiplier: input.LongContextMultiplier,
-	})
+	}, &recordUsageOpts{})
 }
 
 // recordUsageCoreInput 是 recordUsageCore 的公共输入字段，从两种输入结构体中提取。
@@ -586,8 +591,7 @@ type recordUsageCoreInput struct {
 	ChannelUsageFields
 }
 
-// recordUsageCore 是 RecordUsage 和 RecordUsageWithLongContext 的统一实现。
-// LongContextThreshold > 0 时 Token 计费回退走 CalculateCostWithLongContext。
+// recordUsageCore 是 RecordUsage 和历史兼容入口的统一实现。
 // @project-doc docs/domains/routing_and_billing.md#usage_settlement
 func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsageCoreInput, opts *recordUsageOpts) error {
 	if opts == nil {
@@ -963,11 +967,6 @@ func (s *GatewayService) calculateTokenCost(
 			}
 		}
 		switch {
-		case opts.LongContextThreshold > 0 && (apiKey.Group == nil || apiKey.Group.LongContextPricingEnabled):
-			// Gemini 等显式阈值只在分组允许长上下文价格时应用。
-			cost, err = s.billingService.CalculateCostWithLongContextAndServiceTier(
-				billingModel, tokens, multiplier, opts.LongContextThreshold, opts.LongContextMultiplier, serviceTier,
-			)
 		case s.resolver != nil && apiKey.Group != nil:
 			gid := apiKey.Group.ID
 			cost, err = s.billingService.CalculateCostUnified(CostInput{
@@ -1014,16 +1013,20 @@ func (s *GatewayService) buildRecordUsageLog(
 	durationMs := int(result.Duration.Milliseconds())
 	requestID := resolveUsageBillingRequestID(ctx, result.RequestID)
 	usageLog := &UsageLog{
-		UserID:                usageActorUserID(apiKey, user),
-		BillingUserID:         user.ID,
-		TeamID:                apiKey.TeamID,
-		APIKeyID:              apiKey.ID,
-		AccountID:             account.ID,
-		RequestID:             requestID,
-		Model:                 result.Model,
-		RequestedModel:        requestedModel,
-		UpstreamModel:         optionalTrimmedStringPtr(result.UpstreamModel),
-		ReasoningEffort:       result.ReasoningEffort,
+		UserID:          usageActorUserID(apiKey, user),
+		BillingUserID:   user.ID,
+		TeamID:          apiKey.TeamID,
+		APIKeyID:        apiKey.ID,
+		AccountID:       account.ID,
+		RequestID:       requestID,
+		Model:           result.Model,
+		RequestedModel:  requestedModel,
+		UpstreamModel:   optionalTrimmedStringPtr(result.UpstreamModel),
+		ReasoningEffort: result.ReasoningEffort,
+		RequestedReasoningEffort: coalesceRequestedReasoningEffort(
+			result.RequestedReasoningEffort,
+			CanonicalRequestedReasoningEffort(input.RequestBody, result.Model),
+		),
 		ServiceTier:           optionalTrimmedStringPtr(forwardResultServiceTier(result)),
 		InboundEndpoint:       optionalTrimmedStringPtr(input.InboundEndpoint),
 		UpstreamEndpoint:      optionalTrimmedStringPtr(input.UpstreamEndpoint),

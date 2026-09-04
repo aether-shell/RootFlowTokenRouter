@@ -78,6 +78,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 	reqModel := modelResult.String()
+	bindRequestedReasoningEffort(c, body, reqModel)
 	reqStream, ok := parseOpenAICompatibleStream(body)
 	if !ok {
 		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
@@ -317,6 +318,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 		clientSessionID := service.ExtractClientSessionID(c)
+		stampForwardRequestedReasoningEffort(result, c)
 		h.submitUsageRecordTask(c, func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
 				Result:             result,

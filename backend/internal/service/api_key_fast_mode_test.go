@@ -55,6 +55,55 @@ func TestOpenAIAPIKeyFastModeForceOnAndOff(t *testing.T) {
 	require.False(t, gjson.GetBytes(updated, "service_tier").Exists())
 }
 
+// TestOpenAIGroupFastForcesHTTPAndWS 验证没有客户端输入时，组级策略会同时注入 HTTP body 和 WS response.create 帧。
+func TestOpenAIGroupFastForcesHTTPAndWS(t *testing.T) {
+	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	group := &Group{ID: 12, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true, ForceOpenAIFast: true}
+	ctx := context.WithValue(context.Background(), ctxkey.Group, group)
+
+	body, err := svc.applyOpenAIFastPolicyToBody(ctx, account, "gpt-5.5", []byte(`{"model":"gpt-5.5"}`))
+	require.NoError(t, err)
+	require.Equal(t, OpenAIFastTierPriority, gjson.GetBytes(body, "service_tier").String())
+
+	frame, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(ctx, account, "gpt-5.5", []byte(`{"type":"response.create","model":"gpt-5.5"}`))
+	require.NoError(t, err)
+	require.Nil(t, blocked)
+	require.Equal(t, OpenAIFastTierPriority, gjson.GetBytes(frame, "service_tier").String())
+}
+
+// TestOpenAIGroupFastStillHonorsGlobalAndKeyPolicy 验证组级强制不会绕过全局过滤或 API Key ForceOff 策略。
+func TestOpenAIGroupFastStillHonorsGlobalAndKeyPolicy(t *testing.T) {
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	group := &Group{ID: 13, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true, ForceOpenAIFast: true}
+	base := context.WithValue(context.Background(), ctxkey.Group, group)
+
+	filtered := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
+	body, err := filtered.applyOpenAIFastPolicyToBody(base, account, "gpt-5.5", []byte(`{"model":"gpt-5.5"}`))
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(body, "service_tier").Exists())
+
+	forceOff := context.WithValue(base, ctxkey.APIKeyFastModePolicy, APIKeyFastModePolicyForceOff)
+	passed := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
+	body, err = passed.applyOpenAIFastPolicyToBody(forceOff, account, "gpt-5.5", []byte(`{"model":"gpt-5.5"}`))
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(body, "service_tier").Exists())
+}
+
+// TestOpenAIGroupFastRequiresTrustedOpenAIContext 防止不可信或非 OpenAI 上下文改变请求语义。
+func TestOpenAIGroupFastRequiresTrustedOpenAIContext(t *testing.T) {
+	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
+	for _, group := range []*Group{
+		{ID: 14, Platform: PlatformOpenAI, Status: StatusActive, ForceOpenAIFast: true},
+		{ID: 15, Platform: PlatformAnthropic, Status: StatusActive, Hydrated: true, ForceOpenAIFast: true},
+	} {
+		ctx := context.WithValue(context.Background(), ctxkey.Group, group)
+		body, err := svc.applyOpenAIFastPolicyToBody(ctx, &Account{Platform: PlatformOpenAI}, "gpt-5.5", []byte(`{"model":"gpt-5.5"}`))
+		require.NoError(t, err)
+		require.False(t, gjson.GetBytes(body, "service_tier").Exists())
+	}
+}
+
 func TestOpenAIAPIKeyFastModeIgnoresUnsupportedModel(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
 	svc.resolver = fastModeTestResolver()

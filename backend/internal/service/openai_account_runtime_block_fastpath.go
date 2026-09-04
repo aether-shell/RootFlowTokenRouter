@@ -199,6 +199,16 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 		return UpstreamErrorDecision{StopScheduling: true}
 	}
 
+	// 自构造图片请求始终携带匹配的 image_generation 工具，因此 400 "tool choice not found in 'tools'"
+	// 表示上游撤销了该账号的图片能力。此处必须受自构造标记保护：透传客户端自行控制
+	// tools/tool_choice，否则可能误伤健康账号。
+	if isOpenAIImagesSelfBuiltRequest(ctx) && isOpenAIImageCapabilityLossError(statusCode, responseBody) {
+		if s != nil && s.rateLimitService != nil {
+			_ = s.rateLimitService.HandleOpenAIImageCapabilityLoss(stateCtx, account, statusCode, responseBody)
+		}
+		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+	}
+
 	if s == nil || account == nil {
 		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
 	}
@@ -248,6 +258,10 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 		if len(canonicalModel) == 0 || strings.TrimSpace(canonicalModel[0]) == "" {
 			s.BlockAccountScheduling(account, time.Time{}, "upstream_disable")
 		}
+		return decision
+	}
+	if statusCode == http.StatusTooManyRequests && s.rateLimitService != nil && len(canonicalModel) > 0 &&
+		s.rateLimitService.HandleOpenAICodexSparkRateLimit(stateCtx, account, canonicalModel[0], statusCode, headers, responseBody) {
 		return decision
 	}
 	if suppressDefaultRateLimitState && statusCode == http.StatusTooManyRequests {

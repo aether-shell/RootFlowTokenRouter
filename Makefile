@@ -14,6 +14,7 @@ FRONTEND_CRITICAL_VITEST := \
 	src/components/user/profile/__tests__/ProfileEditForm.spec.ts \
 	src/components/user/profile/__tests__/ProfileInfoCard.spec.ts \
 	src/views/admin/__tests__/SettingsView.spec.ts \
+	src/components/admin/usage/__tests__/UsageStatsCards.spec.ts \
 	src/composables/__tests__/useQoderOAuth.spec.ts \
 	src/components/account/__tests__/CreateAccountModal.qoder.spec.ts \
 	src/views/admin/__tests__/AccountsView.qoderCreate.spec.ts

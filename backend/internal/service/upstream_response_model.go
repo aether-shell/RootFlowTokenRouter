@@ -20,8 +20,11 @@ const (
 // channel explicitly configured with billing_model_source = response_model,
 // where a conflict flag makes billing fall back to the baseline model
 // (see responseModelBillingDeclaration).
-// 同一个 observer 也记录上游实际使用的 service tier，供计费只降档使用；当上游
-// 未回显时，计费回退到最终出站请求体中的档位。
+//
+// The same observer also records the service tier the upstream reports having
+// used (OpenAI service_tier, Anthropic usage.speed). The observed tier stays
+// separate from the final outbound request tier until usage recording resolves
+// the billable tier for the selected credential protocol.
 type upstreamResponseModelObserver struct {
 	first    string
 	terminal string
@@ -192,19 +195,15 @@ func observedUpstreamResponseServiceTier(c *gin.Context) string {
 	return upstreamResponseModelObserverFromContext(c).ServiceTier()
 }
 
-// resolvedOpenAIUpstreamServiceTierFromObserver 返回计费实际使用的 service tier。
-// 上游明确回显时优先使用回显；没有回显时才回退到最终出站请求体的档位。
-func resolvedOpenAIUpstreamServiceTierFromObserver(observer *upstreamResponseModelObserver, outboundBodyTier *string) *string {
-	if observer != nil {
-		if tier := strings.TrimSpace(observer.ServiceTier()); tier != "" {
-			return normalizeOpenAIServiceTier(tier)
-		}
-	}
+// resolvedOpenAIUpstreamServiceTierFromObserver preserves the final outbound
+// request tier. The observed response tier remains separate on
+// OpenAIForwardResult.UpstreamResponseServiceTier and is reconciled once, at
+// usage time, where the account protocol is available. In particular, the
+// private ChatGPT Codex backend commonly reports default even for effective
+// Fast turns, while public API response tiers remain authoritative.
+func resolvedOpenAIUpstreamServiceTierFromObserver(_ *upstreamResponseModelObserver, outboundBodyTier *string) *string {
 	return outboundBodyTier
 }
-
-// resolvedOpenAIUpstreamServiceTier 读取当前请求 observer，并统一处理无 observer
-// 的调用方（例如测试或提前失败的路径）。
 func resolvedOpenAIUpstreamServiceTier(c *gin.Context, outboundBodyTier *string) *string {
 	return resolvedOpenAIUpstreamServiceTierFromObserver(upstreamResponseModelObserverFromContext(c), outboundBodyTier)
 }

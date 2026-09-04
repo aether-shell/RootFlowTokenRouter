@@ -2119,8 +2119,9 @@ func (c *upstreamUsageHTTPClient) getURL(ctx context.Context, endpoint string, a
 	return c.getURLWithBearer(ctx, endpoint, token, "")
 }
 
-// getURLWithHeader 请求固定的认证头；仅由内置适配器调用，调用方不能注入任意路径或头模板。
-func (c *upstreamUsageHTTPClient) getURLWithHeader(ctx context.Context, endpoint, headerName, headerValue string) ([]byte, int, error) {
+// getURLWithHeaders 请求内置适配器声明的固定请求头。
+// 账号级覆写先应用、再被固定头覆盖，避免探测请求改变认证或团队身份。
+func (c *upstreamUsageHTTPClient) getURLWithHeaders(ctx context.Context, endpoint string, fixedHeaders map[string]string) ([]byte, int, error) {
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return nil, 0, ErrUpstreamUsageConfigInvalid
@@ -2136,8 +2137,22 @@ func (c *upstreamUsageHTTPClient) getURLWithHeader(ctx context.Context, endpoint
 	// 账号级覆写不得改变内置适配器的认证身份。
 	req.Header.Del("Authorization")
 	req.Header.Del("api-key")
-	if strings.TrimSpace(headerName) != "" && strings.TrimSpace(headerValue) != "" {
-		req.Header.Set(headerName, headerValue)
+	for headerName, headerValue := range fixedHeaders {
+		name := strings.TrimSpace(headerName)
+		value := strings.TrimSpace(headerValue)
+		if name == "" || value == "" {
+			continue
+		}
+		if strings.ContainsAny(name, "\r\n") || strings.ContainsAny(value, "\r\n") {
+			return nil, 0, ErrUpstreamUsageConfigInvalid
+		}
+		// 固定头不允许被账号覆写；先删除所有大小写变体，再写入规范值。
+		for existing := range req.Header {
+			if strings.EqualFold(existing, name) {
+				delete(req.Header, existing)
+			}
+		}
+		req.Header.Set(name, value)
 	}
 	resp, err := c.upstream.DoWithTLS(req, c.proxyURL, c.account.ID, c.account.Concurrency, c.tlsProfile)
 	if err != nil {

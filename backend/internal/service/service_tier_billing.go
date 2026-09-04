@@ -48,12 +48,35 @@ func serviceTierCostRank(tier string) (rank int, known bool) {
 	}
 }
 
-// ApplyOpenAIServiceTierBillingResolution 将 OpenAI 结果的计费档位降到上游实际档位。
-func ApplyOpenAIServiceTierBillingResolution(result *OpenAIForwardResult) ServiceTierBillingResolution {
+// ResolveOpenAIServiceTierBilling 按凭据类型应用上游 service tier 计费契约。
+// 公共 OpenAI 响应的档位声明可降低计费；私有 ChatGPT Codex 常将有效 Fast 回显为
+// default，因此 OAuth 类凭据保留最终出站档位。
+func ResolveOpenAIServiceTierBilling(account *Account, requested, observed string) ServiceTierBillingResolution {
+	if account != nil && account.IsOpenAIOAuthLike() && codexOAuthResponseTierIsNonAuthoritative(observed) {
+		return ServiceTierBillingResolution{
+			Requested: normalizeBillingServiceTier(requested),
+			Observed:  normalizeBillingServiceTier(observed),
+			Billing:   normalizeBillingServiceTier(requested),
+		}
+	}
+	return ResolveBillingServiceTier(requested, observed)
+}
+
+func codexOAuthResponseTierIsNonAuthoritative(observed string) bool {
+	switch normalizeBillingServiceTier(observed) {
+	case "default":
+		return true
+	default:
+		return false
+	}
+}
+
+// ApplyOpenAIServiceTierBillingResolution 仅在上游档位对当前凭据有权威性时降档。
+func ApplyOpenAIServiceTierBillingResolution(account *Account, result *OpenAIForwardResult) ServiceTierBillingResolution {
 	if result == nil {
 		return ServiceTierBillingResolution{}
 	}
-	resolution := ResolveBillingServiceTier(optionalStringValue(result.ServiceTier), result.UpstreamResponseServiceTier)
+	resolution := ResolveOpenAIServiceTierBilling(account, optionalStringValue(result.ServiceTier), result.UpstreamResponseServiceTier)
 	if resolution.Downgraded {
 		billing := resolution.Billing
 		result.ServiceTier = &billing

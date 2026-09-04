@@ -21,7 +21,7 @@ import (
 func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	body := []byte(`{"model":"deepseek-v4-flash","input":"hello","reasoning":{"effort":"max"},"stream":false}`)
+	body := []byte(`{"model":"deepseek-v4-flash","input":"hello","reasoning":{"effort":"max"},"stream":false,"service_tier":"priority"}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
@@ -32,13 +32,14 @@ func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletion
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_resp_chat_json"}},
 		Body: io.NopCloser(strings.NewReader(
-			`{"id":"chatcmpl_json","object":"chat.completion","model":"gpt-5.4","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5,"prompt_tokens_details":{"cached_tokens":1}}}`,
+			`{"id":"chatcmpl_json","object":"chat.completion","model":"gpt-5.4","service_tier":"default","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5,"prompt_tokens_details":{"cached_tokens":1}}}`,
 		)),
 	}}
 	svc := &OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
 	}
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
 
 	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
 	require.NoError(t, err)
@@ -56,6 +57,9 @@ func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletion
 	require.Equal(t, "max", gjson.GetBytes(upstream.lastBody, "reasoning_effort").String())
 	require.NotNil(t, result.ReasoningEffort)
 	require.Equal(t, "max", *result.ReasoningEffort)
+	require.NotNil(t, result.ServiceTier)
+	require.Equal(t, "priority", *result.ServiceTier)
+	require.Equal(t, "default", result.UpstreamResponseServiceTier)
 	require.False(t, result.Stream)
 }
 

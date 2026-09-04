@@ -70,6 +70,8 @@ describe('TokenUsageTrend', () => {
     )
     // 命中率 = 1500 / (500 + 1500 + 0) * 100 = 75%
     expect(hitRateDataset.data[0]).toBe(75)
+    // 缓存命中率曲线使用实线，避免与用户要求的虚线样式混淆。
+    expect(hitRateDataset.borderDash).toBeUndefined()
   })
 
   it('returns 0 hit rate when all prompt tokens are zero', () => {

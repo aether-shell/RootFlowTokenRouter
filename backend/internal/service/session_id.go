@@ -18,6 +18,15 @@ var clientSessionIDHeaders = append(
 	claudeCodeSessionHeader,
 )
 
+// ClaudeCodeSessionIDFromHeader 解析 Claude Code 会话头，用于消息协议的粘性路由。
+// 该入口与仅用于用量日志的 ExtractClientSessionID 分离，避免改变其他协议的会话语义。
+func ClaudeCodeSessionIDFromHeader(c *gin.Context) string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	return sanitizeSessionID(c.GetHeader(claudeCodeSessionHeader))
+}
+
 // ExtractClientSessionID 从请求头解析并清理客户端显式提供的会话标识，用于关联
 // 用量日志。所有网关协议共用该入口，确保 session_id 记录口径一致；没有有效值时
 // 返回空字符串。

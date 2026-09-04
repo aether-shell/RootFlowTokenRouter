@@ -40,6 +40,8 @@ type OpenAIRecordUsageInput struct {
 	APIKeyService     APIKeyQuotaUpdater
 	QuotaPlatform     string // user×platform 配额计量平台，由 handler 在请求 ctx 内算定后传入。
 	CyberBlocked      bool
+	// NativeCompactionV2 表示请求体运行时被识别为原生远程 compaction v2。
+	NativeCompactionV2 bool
 	ChannelUsageFields
 }
 
@@ -61,6 +63,8 @@ type CyberPolicyUsageInput struct {
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
 	QuotaPlatform      string
+	// NativeCompactionV2 保留错误路径中原生 compaction 标记。
+	NativeCompactionV2 bool
 	ChannelUsageFields
 }
 
@@ -95,6 +99,7 @@ func (s *OpenAIGatewayService) RecordCyberPolicyUsageLog(ctx context.Context, in
 		QuotaPlatform:      in.QuotaPlatform,
 		ChannelUsageFields: in.ChannelUsageFields,
 		CyberBlocked:       true,
+		NativeCompactionV2: in.NativeCompactionV2,
 	}); err != nil {
 		logger.LegacyPrintf("service.openai_gateway", "cyber usage record failed: request_id=%s err=%v", in.RequestID, err)
 	}
@@ -142,6 +147,23 @@ func openAIUsageBillingModel(result *OpenAIForwardResult, fields ChannelUsageFie
 	return billingModel
 }
 
+// groupBillsOpenAIFastAtStandard 判断分组免费 Fast 是否适用于当前 OpenAI 账号和计费档位。
+// 分组策略只改变用户侧价格，不改变实际发往上游的 service_tier。
+func groupBillsOpenAIFastAtStandard(apiKey *APIKey, account *Account, serviceTier string) bool {
+	if apiKey == nil || apiKey.Group == nil || !apiKey.Group.FreeOpenAIFast {
+		return false
+	}
+	if account == nil || !account.IsOpenAI() || !groupSupportsOpenAIFast(apiKey.Group.Platform) {
+		return false
+	}
+	switch normalizeBillingServiceTier(serviceTier) {
+	case "priority", "fast":
+		return true
+	default:
+		return false
+	}
+}
+
 // RecordUsage records usage and deducts balance
 func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) error {
 	if input == nil {
@@ -163,10 +185,14 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if apiKey == nil || user == nil || account == nil {
 		return errors.New("openai usage input requires api key, user, and account")
 	}
+	billingAccount, err := resolveCredentialAccount(ctx, s.accountRepo, account)
+	if err != nil {
+		return err
+	}
 	if !isGrokVideoUsageResult(result, nil) {
 		ApplyOpenAIImageBillingResolution(result)
 	}
-	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(result))
+	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(billingAccount, result))
 
 	// OpenAI input_tokens 是总输入，包含缓存读取和缓存写入明细。
 	// 将三类 token 拆成互斥桶，避免缓存写入同时按普通输入和 cache_write 重复计费。
@@ -225,7 +251,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
 
 	var cost *CostBreakdown
-	var err error
 	billingModel := openAIUsageBillingModel(result, input.ChannelUsageFields)
 	billingModels := usageBillingModelCandidates(
 		billingModel,
@@ -269,6 +294,40 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		cost = &CostBreakdown{BillingMode: string(BillingModeToken)}
 	}
 
+	// 免费 Fast 只减免用户侧费用。保留 Fast 的 TotalCost 供账号统计和审计，
+	// 并记录 Standard 基础金额供统一订阅/余额分配使用。
+	var billingBaseAmountUSD *float64
+	if groupBillsOpenAIFastAtStandard(apiKey, billingAccount, serviceTier) && cost != nil {
+		standardCost, standardErr := s.calculateOpenAIRecordUsageCostAt(
+			ctx,
+			result,
+			apiKey,
+			billingModels,
+			multiplier,
+			imageMultiplier,
+			videoMultiplier,
+			baseMultiplier,
+			tokens,
+			"",
+			rateNow,
+		)
+		if standardErr != nil {
+			if !isUsagePricingUnavailableError(standardErr) {
+				return standardErr
+			}
+			// 标准价不可用时沿用既有缺价行为：不向用户扣费，但保留 Fast
+			// 成本用于账号统计，避免一次新策略把成功请求变成计费错误。
+			logger.L().With(
+				zap.String("component", "service.openai_gateway"),
+				zap.String("request_id", result.RequestID),
+			).Warn("openai_usage.standard_pricing_missing_free_fast_zero_cost", zap.Error(standardErr))
+			standardCost = &CostBreakdown{}
+		}
+		standardBase := standardCost.TotalCost
+		billingBaseAmountUSD = &standardBase
+		cost.ActualCost = standardCost.ActualCost
+	}
+
 	// 预填 billing_type 仅用于 simple mode / 持久化前对象，真实扣费结果会在统一扣费后回填。
 	isSubscriptionBilling := subscription != nil
 	billingType := BillingTypeBalance
@@ -304,17 +363,21 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 
 	usageLog := &UsageLog{
-		UserID:              usageActorUserID(apiKey, user),
-		BillingUserID:       user.ID,
-		TeamID:              apiKey.TeamID,
-		APIKeyID:            apiKey.ID,
-		AccountID:           account.ID,
-		RequestID:           requestID,
-		Model:               result.Model,
-		RequestedModel:      requestedModel,
-		UpstreamModel:       optionalTrimmedStringPtr(result.UpstreamModel),
-		ServiceTier:         result.ServiceTier,
-		ReasoningEffort:     result.ReasoningEffort,
+		UserID:          usageActorUserID(apiKey, user),
+		BillingUserID:   user.ID,
+		TeamID:          apiKey.TeamID,
+		APIKeyID:        apiKey.ID,
+		AccountID:       account.ID,
+		RequestID:       requestID,
+		Model:           result.Model,
+		RequestedModel:  requestedModel,
+		UpstreamModel:   optionalTrimmedStringPtr(result.UpstreamModel),
+		ServiceTier:     result.ServiceTier,
+		ReasoningEffort: result.ReasoningEffort,
+		RequestedReasoningEffort: coalesceRequestedReasoningEffort(
+			result.RequestedReasoningEffort,
+			CanonicalRequestedReasoningEffort(input.RequestBody, input.OriginalModel, input.ChannelMappedModel),
+		),
 		InboundEndpoint:     optionalTrimmedStringPtr(input.InboundEndpoint),
 		UpstreamEndpoint:    optionalTrimmedStringPtr(input.UpstreamEndpoint),
 		InputTokens:         actualInputTokens,
@@ -358,6 +421,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	usageLog.AccountRateMultiplier = &accountRateMultiplier
 	usageLog.BillingType = billingType
 	usageLog.Stream = result.Stream
+	usageLog.NativeCompactionV2 = input.NativeCompactionV2
 	if input.CyberBlocked {
 		usageLog.RequestType = RequestTypeCyberBlocked
 	}
@@ -438,6 +502,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			BalanceRateMultiplier:           balanceMultiplier,
 			APIKeyService:                   input.APIKeyService,
 			Platform:                        quotaPlatform,
+			BillingBaseAmountUSD:            billingBaseAmountUSD,
 		}, s.billingDeps(), s.usageBillingRepo)
 		return err
 	}()

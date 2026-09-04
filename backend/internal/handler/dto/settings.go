@@ -235,6 +235,7 @@ type SystemSettings struct {
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
 	// 网关转发行为
+	OpenAITTFTMode                         string                               `json:"openai_ttft_mode"`
 	EnableFingerprintUnification           bool                                 `json:"enable_fingerprint_unification"`
 	EnableMetadataPassthrough              bool                                 `json:"enable_metadata_passthrough"`
 	EnableCCHSigning                       bool                                 `json:"enable_cch_signing"`
@@ -468,6 +469,10 @@ type OpenAI403CooldownSettings struct {
 type RateLimit429CooldownSettings struct {
 	Enabled         bool `json:"enabled"`
 	CooldownSeconds int  `json:"cooldown_seconds"`
+}
+
+type OpenAIImagesOAuthUnavailableCooldownSettings struct {
+	CooldownMinutes int `json:"cooldown_minutes"`
 }
 
 // PanelRateLimitSettings 面板 API 限流配置 DTO

@@ -269,6 +269,8 @@ type OpenAIWSIngressHooks struct {
 	InitialTurnStartedAt time.Time
 	// MaxReasoningEffort 限制当前 WS 会话中显式指定的推理强度。
 	MaxReasoningEffort string
+	// MaxReasoningEffortOverLimit 控制显式推理强度超限时降档或拒绝。
+	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings 在当前 WS 会话中改写显式指定的推理强度。
 	ReasoningEffortMappings []ReasoningEffortMapping
 	// ResolveRoutingModel 在账号映射前逐轮把客户端模型 R 解析为渠道模型 C。

@@ -160,6 +160,12 @@
           <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
         </div>
 
+        <!-- 原生 compaction 筛选仅适用于用量记录。 -->
+        <div v-if="mode !== 'errors'" class="w-full sm:w-auto sm:min-w-[220px]">
+          <label class="input-label">{{ t('usage.compactionFilter') }}</label>
+          <Select v-model="filters.native_compaction_v2" :options="compactionOptions" @change="emitChange" />
+        </div>
+
         <!-- 错误阶段筛选，仅用于错误列表。 -->
         <div v-if="mode === 'errors'" class="w-full sm:w-auto sm:min-w-[180px]">
           <label class="input-label">{{ t('admin.ops.errorLog.type') }}</label>
@@ -329,6 +335,12 @@ const billingModeOptions = ref<SelectOption[]>([
   { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
   { value: 'image', label: t('admin.usage.billingModeImage') },
   { value: 'video', label: t('admin.usage.billingModeVideo') }
+])
+
+const compactionOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('usage.allCompactions') },
+  { value: true, label: t('usage.nativeCompactionV2') },
+  { value: false, label: t('usage.legacyCompaction') },
 ])
 
 const emitChange = () => emit('change')

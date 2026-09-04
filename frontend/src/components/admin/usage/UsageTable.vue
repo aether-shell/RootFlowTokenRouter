@@ -89,8 +89,16 @@
         </template>
 
         <template #cell-reasoning_effort="{ row }">
-          <span class="text-sm text-gray-900 dark:text-white">
-            {{ formatReasoningEffort(row.reasoning_effort) }}
+          <div v-if="hasReasoningEffortMapping(row)" data-testid="reasoning-effort-cell" class="space-y-0.5 text-xs">
+            <div class="font-medium text-gray-900 dark:text-white">
+              {{ formatReasoningEffort(row.requested_reasoning_effort) }}
+            </div>
+            <div class="text-gray-500 dark:text-gray-400">
+              <span class="mr-0.5">↳</span>{{ formatReasoningEffort(row.reasoning_effort) }}
+            </div>
+          </div>
+          <span v-else data-testid="reasoning-effort-cell" class="text-sm text-gray-900 dark:text-white">
+            {{ formatReasoningEffort(row.requested_reasoning_effort || row.reasoning_effort) }}
           </span>
         </template>
 
@@ -115,9 +123,14 @@
         </template>
 
         <template #cell-stream="{ row }">
-          <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium" :class="getRequestTypeBadgeClass(row)">
-            {{ getRequestTypeLabel(row) }}
-          </span>
+          <div class="flex flex-wrap items-center gap-1">
+            <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium" :class="getRequestTypeBadgeClass(row)">
+              {{ getRequestTypeLabel(row) }}
+            </span>
+            <span v-if="row.native_compaction_v2" class="inline-flex items-center rounded bg-fuchsia-100 px-2 py-0.5 text-xs font-medium text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-200">
+              {{ t('usage.nativeCompactionV2') }}
+            </span>
+          </div>
         </template>
 
         <template #cell-billing_mode="{ row }">
@@ -605,7 +618,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useClipboard } from '@/composables/useClipboard'
-import { formatDateTime, formatReasoningEffort } from '@/utils/format'
+import { formatDateTime, formatReasoningEffort, reasoningEffortValuesEqual } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
@@ -730,6 +743,14 @@ const usageUserTitle = (row: AdminUsageLog): string => {
 }
 
 const showIpGeoToolbar = computed(() => props.showIpGeoToolbar && props.columns.some((col) => col.key === 'ip_address'))
+
+// 管理员行在请求档位与实际转发档位不同的时候同时展示两者；用户行没有上游字段，
+// 因而自然只显示请求档位。
+const hasReasoningEffortMapping = (row: AdminUsageLog): boolean => {
+  const requested = row.requested_reasoning_effort?.trim() || ''
+  const forwarded = row.reasoning_effort?.trim() || ''
+  return requested !== '' && forwarded !== '' && !reasoningEffortValuesEqual(requested, forwarded)
+}
 
 const currentPageIps = computed(() =>
   Array.from(new Set(props.data.map((row) => row.ip_address).filter((ip): ip is string => Boolean(ip))))

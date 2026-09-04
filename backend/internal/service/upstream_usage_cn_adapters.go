@@ -41,7 +41,30 @@ func (*zhipuCodingUsageAdapter) Query(ctx context.Context, client *upstreamUsage
 		return nil, ErrUpstreamUsageConfigInvalid.WithCause(err)
 	}
 	// 智谱 Coding Plan 额度接口使用裸 API key，不是 Bearer token。
-	body, status, err := client.getURLWithHeader(ctx, endpoint, "Authorization", client.apiKey)
+	teamHeaders := map[string]string{"Authorization": client.apiKey}
+	organization := strings.TrimSpace(client.account.GetCredential("zhipu_organization"))
+	if organization != "" {
+		if strings.ContainsAny(organization, "\r\n") {
+			return nil, ErrUpstreamUsageConfigInvalid
+		}
+		// 团队版接口通过 type=2 和组织请求头区分个人 Coding Plan。
+		parsed, parseErr := url.Parse(endpoint)
+		if parseErr != nil || parsed.Scheme == "" || parsed.Host == "" {
+			return nil, ErrUpstreamUsageConfigInvalid
+		}
+		query := parsed.Query()
+		query.Set("type", "2")
+		parsed.RawQuery = query.Encode()
+		endpoint = parsed.String()
+		teamHeaders["bigmodel-organization"] = organization
+		if project := strings.TrimSpace(client.account.GetCredential("zhipu_project")); project != "" {
+			if strings.ContainsAny(project, "\r\n") {
+				return nil, ErrUpstreamUsageConfigInvalid
+			}
+			teamHeaders["bigmodel-project"] = project
+		}
+	}
+	body, status, err := client.getURLWithHeaders(ctx, endpoint, teamHeaders)
 	if err != nil {
 		return nil, err
 	}

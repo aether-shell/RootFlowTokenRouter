@@ -230,7 +230,7 @@ func anthropicUserToChatMessages(raw json.RawMessage) ([]ChatMessage, error) {
 }
 
 // anthropicAssistantToChatMessages 把文本与 tool_use 合并到 assistant 消息的 content/tool_calls；
-// Chat Completions 没有入站 thinking 字段，因此与旧桥一致地丢弃 thinking block。
+// thinking 块仅在同一消息包含工具调用时写入 reasoning_content，避免污染纯文本轮次。
 func anthropicAssistantToChatMessages(raw json.RawMessage) ([]ChatMessage, error) {
 	// 纯字符串直接生成单条 assistant 消息。
 	var s string
@@ -269,7 +269,31 @@ func anthropicAssistantToChatMessages(raw json.RawMessage) ([]ChatMessage, error
 		})
 	}
 
+	msg.ReasoningContent = anthropicThinkingToReasoningContent(blocks, len(msg.ToolCalls) > 0)
+
 	return []ChatMessage{msg}, nil
+}
+
+// anthropicThinkingToReasoningContent 将 thinking 块回填到 Chat Completions 的 reasoning_content 字段。
+//
+// chatMessageToAnthropicBlocks 出站时会把上游 reasoning_content 生成 thinking 块，
+// 多轮客户端随后会原样回传；此处丢弃会使桥接丢失刚生成的内容。DeepSeek thinking 模式要求
+// 产生工具调用的 assistant 消息回传 reasoning_content，否则响应 400；Responses→Chat 桥
+// 已通过 pendingReasoning 实现同样行为。hasToolCalls 保证范围一致：reasoning 仅随工具调用传递。
+//
+// redacted_thinking 与仅含签名的占位块没有明文，不参与拼接；多个块用 "\n" 连接，
+// 与 extractResponsesReasoningText 保持一致。
+func anthropicThinkingToReasoningContent(blocks []AnthropicContentBlock, hasToolCalls bool) string {
+	if !hasToolCalls {
+		return ""
+	}
+	var parts []string
+	for _, b := range blocks {
+		if b.Type == "thinking" && b.Thinking != "" {
+			parts = append(parts, b.Thinking)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 // anthropicToolsToChatTools 把 Anthropic 工具映射为 Chat function tools，

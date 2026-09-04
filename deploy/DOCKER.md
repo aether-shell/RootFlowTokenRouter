@@ -37,6 +37,10 @@ ghcr.io/tokenflux/tokenrouter:latest
 | `JWT_SECRET` | 登录会话的稳定签名密钥 |
 | `TOTP_ENCRYPTION_KEY` | 双因素认证的稳定加密密钥 |
 
+## 数据库启动恢复
+
+应用启动执行数据库迁移时，会对 PostgreSQL 暂时不可用和连接类错误进行有限次数的指数退避重试；凭据错误、迁移校验失败及其他永久错误会立即返回。Compose 的 PostgreSQL 健康检查同时执行 `pg_isready` 和简单 SQL 查询，应用级重试仍用于宿主机重启后数据库恢复场景。
+
 必须持久化 `/app/data`，把公开端口绑定到预期的宿主机接口，并应用独立 Compose 文件中的安全与资源限制。应用不使用旧的 `DATABASE_URL` 或 `REDIS_URL` 变量。
 
 ## 支持架构

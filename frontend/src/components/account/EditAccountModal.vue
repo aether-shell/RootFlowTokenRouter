@@ -111,7 +111,7 @@
               <input v-model="editAdaptiveBaseUrls[item.value]" type="text" class="input" />
             </div>
           </div>
-          <p v-if="account.platform !== 'deepseek'" class="input-hint">
+          <p v-if="!cnSupportsNativeResponses(account.platform)" class="input-hint">
             {{ t('admin.accounts.cnProviders.apiProtocol.responsesFallbackDesc') }}
           </p>
         </div>
@@ -156,6 +156,45 @@
             </button>
           </div>
           <p class="input-hint">{{ t(`admin.accounts.cnProviders.apiProtocol.${cnProtocolDescKey}Desc`) }}</p>
+        </div>
+        <!-- 智谱团队版 Coding Plan：组织/项目 ID 可选，清空组织 ID 即回到个人额度端点。 -->
+        <div v-if="account.platform === 'zhipu' && editAccountMode === 'coding'">
+          <div class="flex items-center gap-1">
+            <label class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.title') }}</label>
+            <HelpTooltip trigger="click" width-class="w-80">
+              <p class="mb-1 font-medium">{{ t('admin.accounts.cnProviders.zhipuTeam.help.title') }}</p>
+              <ol class="list-decimal space-y-1 pl-4">
+                <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step1') }}</li>
+                <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step2') }}</li>
+                <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step3') }}</li>
+                <li>{{ t('admin.accounts.cnProviders.zhipuTeam.help.step4') }}</li>
+              </ol>
+              <p class="mt-2 break-all rounded bg-black/20 p-1.5 font-mono text-[11px] leading-relaxed">
+                {{ t('admin.accounts.cnProviders.zhipuTeam.help.example') }}
+              </p>
+            </HelpTooltip>
+          </div>
+          <div class="mt-2 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.organization') }}</label>
+              <input
+                v-model="editZhipuOrganization"
+                type="text"
+                class="input"
+                :placeholder="t('admin.accounts.cnProviders.zhipuTeam.organizationPlaceholder')"
+              />
+            </div>
+            <div>
+              <label class="input-label">{{ t('admin.accounts.cnProviders.zhipuTeam.project') }}</label>
+              <input
+                v-model="editZhipuProject"
+                type="text"
+                class="input"
+                :placeholder="t('admin.accounts.cnProviders.zhipuTeam.projectPlaceholder')"
+              />
+            </div>
+          </div>
+          <p class="input-hint mt-2">{{ t('admin.accounts.cnProviders.zhipuTeam.hint') }}</p>
         </div>
         <div v-if="account.platform === 'gemini'">
           <label class="input-label">{{ t('admin.accounts.gemini.providerType.label') }}</label>
@@ -2824,6 +2863,7 @@ import type {
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
@@ -2848,6 +2888,7 @@ import {
   isHeaderOverrideCapable,
   splitHeaderOverridesObject,
   validateHeaderOverrideRows,
+  cnSupportsNativeResponses,
   defaultCNAdaptiveBaseUrls,
   defaultCNBaseUrl,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
@@ -2987,6 +3028,9 @@ const cnPresetPlatform = computed<'kimi' | 'zhipu' | 'deepseek'>(() => {
 })
 const editApiProtocol = ref<CnApiProtocol>('adaptive')
 const editAccountMode = ref<CnAccountMode>('payg')
+// 智谱团队版 Coding Plan 的组织/项目 ID，清空后随完整凭据更新一并移除。
+const editZhipuOrganization = ref('')
+const editZhipuProject = ref('')
 const editAdaptiveBaseUrls = ref<Record<CnNativeApiProtocol, string>>({
   chat_completions: '',
   anthropic: '',
@@ -3014,8 +3058,8 @@ const cnProtocolOptions = computed<Array<{ value: CnApiProtocol; labelKey: strin
     { value: 'chat_completions', labelKey: 'chatCompletions' },
     { value: 'anthropic', labelKey: 'anthropic' }
   ]
-  if (props.account?.platform === 'deepseek') {
-    options.push({ value: 'responses', labelKey: 'responses' })
+	if (cnSupportsNativeResponses(props.account?.platform ?? '')) {
+		options.push({ value: 'responses', labelKey: 'responses' })
   }
   return options
 })
@@ -3024,7 +3068,7 @@ const editAdaptiveProtocolOptions = computed<Array<{ value: CnNativeApiProtocol;
     { value: 'chat_completions', labelKey: 'chatCompletions' },
     { value: 'anthropic', labelKey: 'anthropic' }
   ]
-  if (props.account?.platform === 'deepseek') opts.push({ value: 'responses', labelKey: 'responses' })
+  if (cnSupportsNativeResponses(props.account?.platform ?? '')) opts.push({ value: 'responses', labelKey: 'responses' })
   return opts
 })
 watch(editApiProtocol, (protocol, previousProtocol) => {
@@ -3743,6 +3787,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
   // Load intercept warmup requests setting (applies to all account types)
   const credentials = newAccount.credentials as Record<string, unknown> | undefined
+  editZhipuOrganization.value = ''
+  editZhipuProject.value = ''
   geminiProviderType.value = 'official'
   geminiAIStudioTier.value = 'aistudio_free'
   if (newAccount.platform === 'gemini' && newAccount.type === 'apikey') {
@@ -3992,7 +4038,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
         storedProtocol === 'responses'
           ? storedProtocol
           : 'chat_completions'
-      if (newAccount.platform !== 'deepseek' && editApiProtocol.value === 'responses') {
+      if (!cnSupportsNativeResponses(newAccount.platform) && editApiProtocol.value === 'responses') {
         editApiProtocol.value = 'chat_completions'
       }
       const adaptiveDefaults = defaultCNAdaptiveBaseUrls(newAccount.platform, editAccountMode.value)
@@ -4026,6 +4072,14 @@ const syncFormFromAccount = (newAccount: Account | null) => {
         nextAdaptiveBaseUrls[legacyProtocol] = legacyBaseUrl
       }
       editAdaptiveBaseUrls.value = nextAdaptiveBaseUrls
+      if (newAccount.platform === 'zhipu') {
+        editZhipuOrganization.value = typeof credentials.zhipu_organization === 'string'
+          ? credentials.zhipu_organization
+          : ''
+        editZhipuProject.value = typeof credentials.zhipu_project === 'string'
+          ? credentials.zhipu_project
+          : ''
+      }
     }
     const platformDefaultUrl =
       newAccount.platform === 'openai'
@@ -4832,6 +4886,18 @@ const handleSubmit = async () => {
           newCredentials.base_url = protocolBaseUrls.chat_completions
         } else {
           delete newCredentials.api_base_urls
+        }
+        if (props.account.platform === 'zhipu') {
+          const organization = editZhipuOrganization.value.trim()
+          const project = editZhipuProject.value.trim()
+          if (editAccountMode.value === 'coding' && organization) {
+            newCredentials.zhipu_organization = organization
+            if (project) newCredentials.zhipu_project = project
+            else delete newCredentials.zhipu_project
+          } else {
+            delete newCredentials.zhipu_organization
+            delete newCredentials.zhipu_project
+          }
         }
       }
 

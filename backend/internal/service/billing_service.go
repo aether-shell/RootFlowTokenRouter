@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 )
 
@@ -111,12 +112,6 @@ type ModelPricing struct {
 	ImageOutputPricePerToken           float64  // 图片输出 token 价格 (USD)
 	ImageOutputPriceExplicit           bool     // 是否由渠道定价显式设定，显式设定后不再回退
 }
-
-const (
-	openAIGPT54LongContextInputThreshold   = 272000
-	openAIGPT54LongContextInputMultiplier  = 2.0
-	openAIGPT54LongContextOutputMultiplier = 1.5
-)
 
 func normalizeBillingServiceTier(serviceTier string) string {
 	return strings.ToLower(strings.TrimSpace(serviceTier))
@@ -265,6 +260,74 @@ func resolvedChannelTimeMultiplier(resolved *ResolvedPricing, at time.Time) floa
 // ErrModelPricingUnavailable 表示当前所有定价来源都无法为请求模型提供价格。
 var ErrModelPricingUnavailable = errors.New("pricing not found")
 
+// DeepSeek 官方价卡以美元/token 表示；峰值时段为工作日 UTC 01:00–04:00
+// 与 06:00–10:00，峰值价格是低谷价格的 2 倍。
+const (
+	deepseekFlashOffPeakInputPrice  = 2.2e-7
+	deepseekFlashOffPeakOutputPrice = 6.6e-7
+	deepseekFlashOffPeakCacheRead   = 7e-9
+	deepseekProOffPeakInputPrice    = 6.6e-7
+	deepseekProOffPeakOutputPrice   = 1.98e-6
+	deepseekProOffPeakCacheRead     = 2.2e-8
+)
+
+// isDeepSeekModel 判断模型名是否属于 DeepSeek 系列，未知后缀也按 Flash 价卡处理。
+func isDeepSeekModel(model string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "deepseek-")
+}
+
+// deepseekPeakMultiplierAt 返回 DeepSeek 官方峰谷倍率。周末按北京时间判断，
+// 其余日期按 UTC 窗口判断，避免服务器时区影响计费结果。
+func deepseekPeakMultiplierAt(now time.Time) float64 {
+	beijing := now.In(time.FixedZone("Asia/Shanghai", 8*3600))
+	if beijing.Weekday() == time.Saturday || beijing.Weekday() == time.Sunday {
+		return 1
+	}
+	hour := now.UTC().Hour()
+	if (hour >= 1 && hour < 4) || (hour >= 6 && hour < 10) {
+		return 2
+	}
+	return 1
+}
+
+// applyDeepSeekOfficialPricing 用官方低谷价覆盖远端或旧的 DeepSeek 价卡，
+// 保留其它能力字段，确保渠道/分组显式价格不会经过此函数。
+func applyDeepSeekOfficialPricing(model string, pricing *ModelPricing) *ModelPricing {
+	if pricing == nil || !isDeepSeekModel(model) {
+		return pricing
+	}
+	cloned := *pricing
+	if strings.Contains(strings.ToLower(strings.TrimSpace(model)), "deepseek-v4-pro") {
+		cloned.InputPricePerToken = deepseekProOffPeakInputPrice
+		cloned.OutputPricePerToken = deepseekProOffPeakOutputPrice
+		cloned.CacheReadPricePerToken = deepseekProOffPeakCacheRead
+	} else {
+		cloned.InputPricePerToken = deepseekFlashOffPeakInputPrice
+		cloned.OutputPricePerToken = deepseekFlashOffPeakOutputPrice
+		cloned.CacheReadPricePerToken = deepseekFlashOffPeakCacheRead
+	}
+	return &cloned
+}
+
+// applyDeepSeekPeakPricing 在默认模型价卡上叠加官方峰值倍率；自定义价格不应调用。
+func applyDeepSeekPeakPricing(model string, pricing *ModelPricing, pricingAt time.Time) *ModelPricing {
+	if pricing == nil || !isDeepSeekModel(model) {
+		return pricing
+	}
+	if pricingAt.IsZero() {
+		pricingAt = timezone.Now()
+	}
+	multiplier := deepseekPeakMultiplierAt(pricingAt)
+	if multiplier <= 1 {
+		return pricing
+	}
+	cloned := *pricing
+	cloned.InputPricePerToken *= multiplier
+	cloned.OutputPricePerToken *= multiplier
+	cloned.CacheReadPricePerToken *= multiplier
+	return &cloned
+}
+
 // BillingService 计费服务
 type BillingService struct {
 	cfg            *config.Config
@@ -364,6 +427,26 @@ func (s *BillingService) initFallbackPricing() {
 		SupportsServiceTier:        true,
 	}
 
+	// Claude Fable 5.x 的输入/输出和缓存写入价格相同；5.1 的缓存读取价降为每百万 token 0.25 美元。
+	s.fallbackPrices["claude-fable-5"] = &ModelPricing{
+		InputPricePerToken:         10e-6,
+		OutputPricePerToken:        50e-6,
+		CacheCreationPricePerToken: 12.5e-6,
+		CacheCreation5mPrice:       12.5e-6,
+		CacheCreation1hPrice:       20e-6,
+		CacheReadPricePerToken:     1e-6,
+		SupportsCacheBreakdown:     true,
+	}
+	s.fallbackPrices["claude-fable-5-1"] = &ModelPricing{
+		InputPricePerToken:         10e-6,
+		OutputPricePerToken:        50e-6,
+		CacheCreationPricePerToken: 12.5e-6,
+		CacheCreation5mPrice:       12.5e-6,
+		CacheCreation1hPrice:       20e-6,
+		CacheReadPricePerToken:     0.25e-6,
+		SupportsCacheBreakdown:     true,
+	}
+
 	// Gemini 3.1 Pro
 	s.fallbackPrices["gemini-3.1-pro"] = &ModelPricing{
 		InputPricePerToken:         2e-6,   // $2 per MTok
@@ -401,9 +484,6 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerToken:         0.25e-6, // $0.25 per MTok
 		CacheReadPricePerTokenPriority: 0.5e-6,  // $0.5 per MTok
 		SupportsCacheBreakdown:         false,
-		LongContextInputThreshold:      openAIGPT54LongContextInputThreshold,
-		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
-		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
 	}
 	// OpenAI GPT-5.5（按官方发布价格兜底）
 	s.fallbackPrices["gpt-5.5"] = &ModelPricing{
@@ -415,10 +495,6 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerToken:         0.5e-6,  // $0.5 per MTok
 		CacheReadPricePerTokenPriority: 1.25e-6, // $1.25 per MTok
 		SupportsCacheBreakdown:         false,
-		// GPT-5.5 长上下文阈值/倍率官方尚未明确，暂沿用 GPT-5.4 规则兜底。
-		LongContextInputThreshold:   openAIGPT54LongContextInputThreshold,
-		LongContextInputMultiplier:  openAIGPT54LongContextInputMultiplier,
-		LongContextOutputMultiplier: openAIGPT54LongContextOutputMultiplier,
 	}
 	// OpenAI GPT-5.5 Pro（按官方发布价格兜底）
 	s.fallbackPrices["gpt-5.5-pro"] = &ModelPricing{
@@ -430,10 +506,6 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerToken:         3e-6,   // $3 per MTok
 		CacheReadPricePerTokenPriority: 7.5e-6, // $7.5 per MTok
 		SupportsCacheBreakdown:         false,
-		// GPT-5.5 Pro 长上下文阈值/倍率官方尚未明确，暂沿用 GPT-5.4 规则兜底。
-		LongContextInputThreshold:   openAIGPT54LongContextInputThreshold,
-		LongContextInputMultiplier:  openAIGPT54LongContextInputMultiplier,
-		LongContextOutputMultiplier: openAIGPT54LongContextOutputMultiplier,
 	}
 
 	// OpenAI GPT-5.6 官方价格（USD/token）。缓存写入为输入价的 1.25 倍。
@@ -447,9 +519,6 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerToken:             0.5e-6,
 		CacheReadPricePerTokenPriority:     1e-6,
 		SupportsServiceTier:                true,
-		LongContextInputThreshold:          openAIGPT54LongContextInputThreshold,
-		LongContextInputMultiplier:         openAIGPT54LongContextInputMultiplier,
-		LongContextOutputMultiplier:        openAIGPT54LongContextOutputMultiplier,
 	}
 	s.fallbackPrices["gpt-5.6-terra"] = &ModelPricing{
 		InputPricePerToken:                 2e-6,
@@ -461,9 +530,6 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerToken:             0.2e-6,
 		CacheReadPricePerTokenPriority:     0.4e-6,
 		SupportsServiceTier:                true,
-		LongContextInputThreshold:          openAIGPT54LongContextInputThreshold,
-		LongContextInputMultiplier:         openAIGPT54LongContextInputMultiplier,
-		LongContextOutputMultiplier:        openAIGPT54LongContextOutputMultiplier,
 	}
 	s.fallbackPrices["gpt-5.6-luna"] = &ModelPricing{
 		InputPricePerToken:                 0.2e-6,
@@ -475,9 +541,6 @@ func (s *BillingService) initFallbackPricing() {
 		CacheReadPricePerToken:             0.02e-6,
 		CacheReadPricePerTokenPriority:     0.04e-6,
 		SupportsServiceTier:                true,
-		LongContextInputThreshold:          openAIGPT54LongContextInputThreshold,
-		LongContextInputMultiplier:         openAIGPT54LongContextInputMultiplier,
-		LongContextOutputMultiplier:        openAIGPT54LongContextOutputMultiplier,
 	}
 
 	s.fallbackPrices["gpt-5.4-mini"] = &ModelPricing{
@@ -521,19 +584,25 @@ func (s *BillingService) initFallbackPricing() {
 	// 覆盖逻辑见同文件 getFallbackPricing()
 	// ============================================================
 
-	// ---- DeepSeek V4 系列 ----
+	// ---- DeepSeek 系列 ----
 	// 资料来源：https://api-docs.deepseek.com/quick_start/pricing
-	// deepseek-chat / deepseek-reasoner 为 deepseek-v4-flash 的兼容别名。
+	// 下面存储官方低谷价；高峰倍率由 applyDeepSeekPeakPricing 按请求时刻计算。
 	s.fallbackPrices["deepseek-v4-pro"] = &ModelPricing{
-		InputPricePerToken:     4.35e-7,  // 每百万 token $0.435（缓存未命中）
-		OutputPricePerToken:    8.7e-7,   // 每百万 token $0.87
-		CacheReadPricePerToken: 3.625e-9, // 每百万 token $0.003625（缓存命中）
+		InputPricePerToken:     deepseekProOffPeakInputPrice,
+		OutputPricePerToken:    deepseekProOffPeakOutputPrice,
+		CacheReadPricePerToken: deepseekProOffPeakCacheRead,
 		SupportsCacheBreakdown: false,
 	}
 	s.fallbackPrices["deepseek-v4-flash"] = &ModelPricing{
-		InputPricePerToken:     1.4e-7, // 每百万 token $0.14（缓存未命中）
-		OutputPricePerToken:    2.8e-7, // 每百万 token $0.28
-		CacheReadPricePerToken: 2.8e-9, // 每百万 token $0.0028（缓存命中）
+		InputPricePerToken:     deepseekFlashOffPeakInputPrice,
+		OutputPricePerToken:    deepseekFlashOffPeakOutputPrice,
+		CacheReadPricePerToken: deepseekFlashOffPeakCacheRead,
+		SupportsCacheBreakdown: false,
+	}
+	s.fallbackPrices["deepseek-v4-flash-vision-exp"] = &ModelPricing{
+		InputPricePerToken:     deepseekFlashOffPeakInputPrice,
+		OutputPricePerToken:    deepseekFlashOffPeakOutputPrice,
+		CacheReadPricePerToken: deepseekFlashOffPeakCacheRead,
 		SupportsCacheBreakdown: false,
 	}
 
@@ -796,6 +865,14 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	modelLower := strings.ToLower(model)
 
 	// 按模型系列匹配
+	// Fable 5.1 的别名必须先于 Fable 5，避免降级到旧缓存读取价。
+	if strings.Contains(modelLower, "fable-5-1") || strings.Contains(modelLower, "fable-5.1") ||
+		strings.Contains(modelLower, "fable5.1") || strings.Contains(modelLower, "fable51") {
+		return s.fallbackPrices["claude-fable-5-1"]
+	}
+	if strings.Contains(modelLower, "fable-5") || strings.Contains(modelLower, "fable5") {
+		return s.fallbackPrices["claude-fable-5"]
+	}
 	if strings.Contains(modelLower, "opus") {
 		if strings.Contains(modelLower, "4.8") || strings.Contains(modelLower, "4-8") {
 			return s.fallbackPrices["claude-opus-4.8"]
@@ -837,14 +914,17 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 		return s.fallbackPrices["gemini-3.6-flash"]
 	}
 
-	// 国产模型采用白名单语义，未知型号不回退，避免给未确认价的 alias 误计费。
+	// DeepSeek 官方模型按专属价卡，版本化名称和其它 deepseek-* 按 Flash 价卡兜底。
+	if strings.Contains(modelLower, "deepseek-v4-flash-vision-exp") {
+		return s.fallbackPrices["deepseek-v4-flash-vision-exp"]
+	}
 	if strings.Contains(modelLower, "deepseek-v4-flash") {
 		return s.fallbackPrices["deepseek-v4-flash"]
 	}
 	if strings.Contains(modelLower, "deepseek-v4-pro") {
 		return s.fallbackPrices["deepseek-v4-pro"]
 	}
-	if strings.Contains(modelLower, "deepseek-chat") || strings.Contains(modelLower, "deepseek-reasoner") {
+	if strings.HasPrefix(modelLower, "deepseek-") {
 		return s.fallbackPrices["deepseek-v4-flash"]
 	}
 	// 带小数点的具体型号必须先于裸 glm-5 匹配，避免被子串规则抢走。
@@ -1064,11 +1144,13 @@ func (s *BillingService) GetModelPricing(model string) (*ModelPricing, error) {
 				CacheCreation1hPrice:               price1h,
 				SupportsCacheBreakdown:             enableBreakdown,
 				SupportsServiceTier:                litellmPricing.SupportsServiceTier,
-				LongContextInputThreshold:          litellmPricing.LongContextInputTokenThreshold,
-				LongContextInputMultiplier:         litellmPricing.LongContextInputCostMultiplier,
-				LongContextOutputMultiplier:        litellmPricing.LongContextOutputCostMultiplier,
-				ImageInputPricePerToken:            litellmPricing.InputCostPerImageToken,
-				ImageOutputPricePerToken:           litellmPricing.OutputCostPerImageToken,
+				// xAI 的目录语义是达到阈值即进入高档，其他提供商保持严格大于。
+				LongContextThresholdInclusive: strings.EqualFold(litellmPricing.LiteLLMProvider, "xai"),
+				LongContextInputThreshold:     litellmPricing.LongContextInputTokenThreshold,
+				LongContextInputMultiplier:    litellmPricing.LongContextInputCostMultiplier,
+				LongContextOutputMultiplier:   litellmPricing.LongContextOutputCostMultiplier,
+				ImageInputPricePerToken:       litellmPricing.InputCostPerImageToken,
+				ImageOutputPricePerToken:      litellmPricing.OutputCostPerImageToken,
 			}), nil
 		}
 	}
@@ -1123,7 +1205,14 @@ func applyChannelTokenPriceOverrides(pricing *ModelPricing, channelPricing *Chan
 		pricing.CacheCreationPriceExplicit = true
 		pricing.cacheCreationPriorityDerived = false
 		pricing.CacheCreation5mPrice = *channelPricing.CacheWritePrice
-		pricing.CacheCreation1hPrice = *channelPricing.CacheWritePrice
+		if channelPricing.CacheWrite1hPrice == nil {
+			// 兼容旧配置：未拆分时继续让 cache_write_price 覆盖两个 TTL 档位。
+			pricing.CacheCreation1hPrice = *channelPricing.CacheWritePrice
+		}
+	}
+	if channelPricing.CacheWrite1hPrice != nil {
+		pricing.CacheCreation1hPrice = *channelPricing.CacheWrite1hPrice
+		pricing.SupportsCacheBreakdown = true
 	}
 	if channelPricing.CacheReadPrice != nil {
 		priority := channelTierOverridePrice(pricing.CacheReadPricePerToken, pricing.CacheReadPricePerTokenPriority, *channelPricing.CacheReadPrice)
@@ -1230,7 +1319,10 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 		return nil, fmt.Errorf("no pricing available for model: %s: %w", input.Model, ErrModelPricingUnavailable)
 	}
 
-	pricing = s.applyModelSpecificPricingPolicy(input.Model, pricing)
+	pricing = s.applyModelSpecificPricingPolicyEx(input.Model, pricing, resolved.Source == PricingSourceLiteLLM || resolved.Source == PricingSourceFallback)
+	if resolved.Source == PricingSourceLiteLLM || resolved.Source == PricingSourceFallback {
+		pricing = applyDeepSeekPeakPricing(input.Model, pricing, input.PricingAt)
+	}
 
 	// 长上下文定价仅在无区间定价且分组允许时应用（区间定价已包含上下文分层）。
 	applyLongCtx := len(resolved.Intervals) == 0 && resolved.longContextPricingEnabled
@@ -1288,15 +1380,17 @@ func (s *BillingService) computeTokenBreakdown(
 	var baselineCost *CostBreakdown
 	if longContextPricingEligible {
 		baselineCost = s.computeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, false)
-		inputPrice *= pricing.LongContextInputMultiplier
-		outputPrice *= pricing.LongContextOutputMultiplier
+		// 未配置的一侧倍率按 1 计，避免部分覆盖条目把对应分项算成免费。
+		longContextInputMultiplier := longContextMultiplierOrOne(pricing.LongContextInputMultiplier)
+		inputPrice *= longContextInputMultiplier
+		outputPrice *= longContextMultiplierOrOne(pricing.LongContextOutputMultiplier)
 		// 缓存读取本质上是输入侧的复用，应与 input 一同应用长上下文倍率；
 		// 否则 cache hit 越多，少计的费用越多（见 #2293）。
-		cacheReadPrice *= pricing.LongContextInputMultiplier
+		cacheReadPrice *= longContextInputMultiplier
 		// 缓存创建（cache_write）也是输入侧操作，三档价格（标准 / 5m / 1h）
 		// 都通过 computeCacheCreationCost 直接读取 pricing.*，不会经过这里
 		// 的倍率修改，因此显式向下传一个倍率，避免长上下文场景下被漏乘。
-		cacheCreationMultiplier = pricing.LongContextInputMultiplier
+		cacheCreationMultiplier = longContextInputMultiplier
 	}
 
 	bd := &CostBreakdown{}
@@ -1456,26 +1550,32 @@ func (s *BillingService) calculateCostInternal(model string, tokens UsageTokens,
 	if err != nil {
 		return nil, err
 	}
+	if channelPricing == nil {
+		pricing = applyDeepSeekPeakPricing(model, pricing, time.Time{})
+	}
 
 	return s.computeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, true), nil
 }
 
 func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *ModelPricing) *ModelPricing {
+	return s.applyModelSpecificPricingPolicyEx(model, pricing, true)
+}
+
+// applyModelSpecificPricingPolicyEx 应用模型专属定价修正；forceDeepSeekRates 为 false
+// 时保留分组/渠道对 DeepSeek 的显式价格，避免官方价覆盖运营者配置。
+func (s *BillingService) applyModelSpecificPricingPolicyEx(model string, pricing *ModelPricing, forceDeepSeekRates bool) *ModelPricing {
 	if pricing == nil {
 		return nil
 	}
+	if forceDeepSeekRates && isDeepSeekModel(model) {
+		return applyDeepSeekOfficialPricing(model, pricing)
+	}
 	normalized := normalizeKnownOpenAICodexModel(model)
 	isGPT56 := isOpenAIGPT56Model(normalized)
-	usesLegacyLongContextPricing := usesOpenAILegacyLongContextPricing(normalized)
-	if !isGPT56 && !usesLegacyLongContextPricing {
-		return pricing
-	}
-	needsLongContextPolicy := (isGPT56 || usesLegacyLongContextPricing) &&
-		(pricing.LongContextInputThreshold <= 0 || pricing.LongContextInputMultiplier <= 0 || pricing.LongContextOutputMultiplier <= 0)
 	needsCacheCreationPolicy := isGPT56 && !pricing.CacheCreationPriceExplicit && (pricing.CacheCreationPricePerToken <= 0 ||
 		(pricing.InputPricePerTokenPriority > 0 && pricing.CacheCreationPricePerTokenPriority <= 0))
 	fastRatio := openAIModelFastPricingRatio(normalized)
-	if !needsLongContextPolicy && !needsCacheCreationPolicy && fastRatio <= 0 {
+	if !needsCacheCreationPolicy && fastRatio <= 0 {
 		return pricing
 	}
 	cloned := *pricing
@@ -1487,21 +1587,18 @@ func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *
 			cloned.CacheCreationPricePerTokenPriority = cloned.InputPricePerTokenPriority * 1.25
 		}
 	}
-	if isGPT56 || usesLegacyLongContextPricing {
-		if cloned.LongContextInputThreshold <= 0 {
-			cloned.LongContextInputThreshold = openAIGPT54LongContextInputThreshold
-		}
-		if cloned.LongContextInputMultiplier <= 0 {
-			cloned.LongContextInputMultiplier = openAIGPT54LongContextInputMultiplier
-		}
-		if cloned.LongContextOutputMultiplier <= 0 {
-			cloned.LongContextOutputMultiplier = openAIGPT54LongContextOutputMultiplier
-		}
-	}
 	if fastRatio > 0 {
 		enforceOpenAIFastPricingRatio(&cloned, fastRatio)
 	}
 	return &cloned
+}
+
+// longContextMultiplierOrOne 将未配置的长上下文倍率归一为 1。
+func longContextMultiplierOrOne(multiplier float64) float64 {
+	if multiplier <= 0 {
+		return 1
+	}
+	return multiplier
 }
 
 // openAIModelFastPricingRatio 返回业务口径下 OpenAI GPT-5.x 模型 Fast/priority
@@ -1553,10 +1650,6 @@ func (s *BillingService) shouldApplySessionLongContextPricing(tokens UsageTokens
 		return totalInputTokens >= pricing.LongContextInputThreshold
 	}
 	return totalInputTokens > pricing.LongContextInputThreshold
-}
-
-func usesOpenAILegacyLongContextPricing(normalized string) bool {
-	return normalized == "gpt-5.4" || normalized == "gpt-5.5" || normalized == "gpt-5.5-pro"
 }
 
 // CalculateCostWithConfig 使用配置中的默认倍率计算费用
@@ -1714,42 +1807,47 @@ type ImagePriceConfig struct {
 // ModelDisplayPricing 是面向前端展示的模型价格快照。
 // 所有价格都已经应用了分组倍率，直接表示实际扣费单价。
 type ModelDisplayPricing struct {
-	PricingMode                  string
-	PriceStatus                  string
-	InputPricePerToken           float64
-	ImageInputPricePerToken      float64
-	OutputPricePerToken          float64
-	CacheWritePricePerToken      float64
-	CacheReadPricePerToken       float64
-	ImageOutputPricePerToken     float64
-	FastInputPricePerToken       float64
-	FastImageInputPricePerToken  float64
-	FastOutputPricePerToken      float64
-	FastCacheWritePricePerToken  float64
-	FastCacheReadPricePerToken   float64
-	FastImageOutputPricePerToken float64
-	ContextIntervals             []ModelDisplayPricingInterval
-	ImagePrice1K                 float64
-	ImagePrice2K                 float64
-	ImagePrice4K                 float64
+	PricingMode             string
+	PriceStatus             string
+	InputPricePerToken      float64
+	ImageInputPricePerToken float64
+	OutputPricePerToken     float64
+	CacheWritePricePerToken float64
+	// CacheWrite1hPricePerToken 是可选的 1 小时缓存写入展示单价。
+	CacheWrite1hPricePerToken     float64
+	CacheReadPricePerToken        float64
+	ImageOutputPricePerToken      float64
+	FastInputPricePerToken        float64
+	FastImageInputPricePerToken   float64
+	FastOutputPricePerToken       float64
+	FastCacheWritePricePerToken   float64
+	FastCacheWrite1hPricePerToken float64
+	FastCacheReadPricePerToken    float64
+	FastImageOutputPricePerToken  float64
+	ContextIntervals              []ModelDisplayPricingInterval
+	ImagePrice1K                  float64
+	ImagePrice2K                  float64
+	ImagePrice4K                  float64
 }
 
 // ModelDisplayPricingInterval 是按上下文 token 区间展示的模型价格。
 type ModelDisplayPricingInterval struct {
-	MinTokens                    int
-	MaxTokens                    *int
-	InputPricePerToken           float64
-	ImageInputPricePerToken      float64
-	OutputPricePerToken          float64
-	CacheWritePricePerToken      float64
-	CacheReadPricePerToken       float64
-	ImageOutputPricePerToken     float64
-	FastInputPricePerToken       float64
-	FastImageInputPricePerToken  float64
-	FastOutputPricePerToken      float64
-	FastCacheWritePricePerToken  float64
-	FastCacheReadPricePerToken   float64
-	FastImageOutputPricePerToken float64
+	MinTokens                     int
+	MaxTokens                     *int
+	InputPricePerToken            float64
+	ImageInputPricePerToken       float64
+	OutputPricePerToken           float64
+	CacheWritePricePerToken       float64
+	CacheWrite1hPricePerToken     float64
+	CacheReadPricePerToken        float64
+	ImageOutputPricePerToken      float64
+	FastInputPricePerToken        float64
+	FastImageInputPricePerToken   float64
+	FastOutputPricePerToken       float64
+	FastCacheWritePricePerToken   float64
+	FastCacheWrite1hPricePerToken float64
+	FastCacheReadPricePerToken    float64
+	FastImageOutputPricePerToken  float64
 }
 
 // GetDisplayPricing 返回用于模型广场展示的价格信息。
@@ -1897,6 +1995,7 @@ func pricingIntervalHasEffectiveTokenPricing(interval PricingInterval) bool {
 	return interval.InputPrice != nil ||
 		interval.OutputPrice != nil ||
 		interval.CacheWritePrice != nil ||
+		interval.CacheWrite1hPrice != nil ||
 		interval.CacheReadPrice != nil
 }
 
@@ -1908,6 +2007,8 @@ func sameDisplayTokenPricing(a *ModelPricing, b *ModelPricing) bool {
 		a.ImageInputPricePerToken == b.ImageInputPricePerToken &&
 		a.OutputPricePerToken == b.OutputPricePerToken &&
 		a.CacheCreationPricePerToken == b.CacheCreationPricePerToken &&
+		a.CacheCreation5mPrice == b.CacheCreation5mPrice &&
+		a.CacheCreation1hPrice == b.CacheCreation1hPrice &&
 		a.CacheReadPricePerToken == b.CacheReadPricePerToken &&
 		a.ImageOutputPricePerToken == b.ImageOutputPricePerToken
 }
@@ -1938,25 +2039,45 @@ func buildTokenDisplayPricing(pricing *ModelPricing, rateMultiplier float64) Mod
 		return buildTokenIntervalDisplayPricing(intervals)
 	}
 
+	cacheWritePrice, cacheWrite1hPrice := cacheCreationDisplayPrices(pricing)
 	displayPricing := ModelDisplayPricing{
-		PricingMode:              "token",
-		PriceStatus:              "priced",
-		InputPricePerToken:       pricing.InputPricePerToken * rateMultiplier,
-		ImageInputPricePerToken:  pricing.ImageInputPricePerToken * rateMultiplier,
-		OutputPricePerToken:      pricing.OutputPricePerToken * rateMultiplier,
-		CacheWritePricePerToken:  pricing.CacheCreationPricePerToken * rateMultiplier,
-		CacheReadPricePerToken:   pricing.CacheReadPricePerToken * rateMultiplier,
-		ImageOutputPricePerToken: pricing.ImageOutputPricePerToken * rateMultiplier,
+		PricingMode:               "token",
+		PriceStatus:               "priced",
+		InputPricePerToken:        pricing.InputPricePerToken * rateMultiplier,
+		ImageInputPricePerToken:   pricing.ImageInputPricePerToken * rateMultiplier,
+		OutputPricePerToken:       pricing.OutputPricePerToken * rateMultiplier,
+		CacheWritePricePerToken:   cacheWritePrice * rateMultiplier,
+		CacheWrite1hPricePerToken: cacheWrite1hPrice * rateMultiplier,
+		CacheReadPricePerToken:    pricing.CacheReadPricePerToken * rateMultiplier,
+		ImageOutputPricePerToken:  pricing.ImageOutputPricePerToken * rateMultiplier,
 	}
 	if fastPricing, ok := fastModeDisplayPricing(pricing); ok {
 		displayPricing.FastInputPricePerToken = fastPricing.InputPricePerToken * rateMultiplier
 		displayPricing.FastImageInputPricePerToken = fastPricing.ImageInputPricePerToken * rateMultiplier
 		displayPricing.FastOutputPricePerToken = fastPricing.OutputPricePerToken * rateMultiplier
-		displayPricing.FastCacheWritePricePerToken = fastPricing.CacheCreationPricePerToken * rateMultiplier
+		fastCacheWritePrice, fastCacheWrite1hPrice := cacheCreationDisplayPrices(fastPricing)
+		displayPricing.FastCacheWritePricePerToken = fastCacheWritePrice * rateMultiplier
+		displayPricing.FastCacheWrite1hPricePerToken = fastCacheWrite1hPrice * rateMultiplier
 		displayPricing.FastCacheReadPricePerToken = fastPricing.CacheReadPricePerToken * rateMultiplier
 		displayPricing.FastImageOutputPricePerToken = fastPricing.ImageOutputPricePerToken * rateMultiplier
 	}
 	return displayPricing
+}
+
+// cacheCreationDisplayPrices 返回展示用的 5m/1h 缓存写入单价。
+// 未启用 TTL 明细时只返回兼容旧配置的聚合单价。
+func cacheCreationDisplayPrices(pricing *ModelPricing) (float64, float64) {
+	if pricing == nil {
+		return 0, 0
+	}
+	short := pricing.CacheCreationPricePerToken
+	if pricing.SupportsCacheBreakdown && pricing.CacheCreation5mPrice > 0 {
+		short = pricing.CacheCreation5mPrice
+	}
+	if !pricing.SupportsCacheBreakdown {
+		return short, 0
+	}
+	return short, pricing.CacheCreation1hPrice
 }
 
 // longContextDisplayPricingIntervals 将内置长上下文倍率转换成模型广场可展示的两段价格。
@@ -1981,16 +2102,19 @@ func applyLongContextDisplayMultipliers(pricing *ModelPricing) *ModelPricing {
 		return nil
 	}
 	adjusted := *pricing
-	adjusted.InputPricePerToken *= pricing.LongContextInputMultiplier
-	adjusted.InputPricePerTokenPriority *= pricing.LongContextInputMultiplier
-	adjusted.OutputPricePerToken *= pricing.LongContextOutputMultiplier
-	adjusted.OutputPricePerTokenPriority *= pricing.LongContextOutputMultiplier
-	adjusted.CacheCreationPricePerToken *= pricing.LongContextInputMultiplier
-	adjusted.CacheCreationPricePerTokenPriority *= pricing.LongContextInputMultiplier
-	adjusted.CacheCreation5mPrice *= pricing.LongContextInputMultiplier
-	adjusted.CacheCreation1hPrice *= pricing.LongContextInputMultiplier
-	adjusted.CacheReadPricePerToken *= pricing.LongContextInputMultiplier
-	adjusted.CacheReadPricePerTokenPriority *= pricing.LongContextInputMultiplier
+	// 与结算路径保持一致：覆盖文件只声明一侧倍率时，另一侧按 1x 展示，不能显示为免费。
+	inputMultiplier := longContextMultiplierOrOne(pricing.LongContextInputMultiplier)
+	outputMultiplier := longContextMultiplierOrOne(pricing.LongContextOutputMultiplier)
+	adjusted.InputPricePerToken *= inputMultiplier
+	adjusted.InputPricePerTokenPriority *= inputMultiplier
+	adjusted.OutputPricePerToken *= outputMultiplier
+	adjusted.OutputPricePerTokenPriority *= outputMultiplier
+	adjusted.CacheCreationPricePerToken *= inputMultiplier
+	adjusted.CacheCreationPricePerTokenPriority *= inputMultiplier
+	adjusted.CacheCreation5mPrice *= inputMultiplier
+	adjusted.CacheCreation1hPrice *= inputMultiplier
+	adjusted.CacheReadPricePerToken *= inputMultiplier
+	adjusted.CacheReadPricePerTokenPriority *= inputMultiplier
 	return &adjusted
 }
 
@@ -2001,21 +2125,25 @@ func hasLongContextDisplayPricing(pricing *ModelPricing) bool {
 }
 
 func modelPricingDisplayInterval(minTokens int, maxTokens *int, pricing *ModelPricing, rateMultiplier float64) ModelDisplayPricingInterval {
+	cacheWritePrice, cacheWrite1hPrice := cacheCreationDisplayPrices(pricing)
 	interval := ModelDisplayPricingInterval{
-		MinTokens:                minTokens,
-		MaxTokens:                maxTokens,
-		InputPricePerToken:       pricing.InputPricePerToken * rateMultiplier,
-		ImageInputPricePerToken:  pricing.ImageInputPricePerToken * rateMultiplier,
-		OutputPricePerToken:      pricing.OutputPricePerToken * rateMultiplier,
-		CacheWritePricePerToken:  pricing.CacheCreationPricePerToken * rateMultiplier,
-		CacheReadPricePerToken:   pricing.CacheReadPricePerToken * rateMultiplier,
-		ImageOutputPricePerToken: pricing.ImageOutputPricePerToken * rateMultiplier,
+		MinTokens:                 minTokens,
+		MaxTokens:                 maxTokens,
+		InputPricePerToken:        pricing.InputPricePerToken * rateMultiplier,
+		ImageInputPricePerToken:   pricing.ImageInputPricePerToken * rateMultiplier,
+		OutputPricePerToken:       pricing.OutputPricePerToken * rateMultiplier,
+		CacheWritePricePerToken:   cacheWritePrice * rateMultiplier,
+		CacheWrite1hPricePerToken: cacheWrite1hPrice * rateMultiplier,
+		CacheReadPricePerToken:    pricing.CacheReadPricePerToken * rateMultiplier,
+		ImageOutputPricePerToken:  pricing.ImageOutputPricePerToken * rateMultiplier,
 	}
 	if fastPricing, ok := fastModeDisplayPricing(pricing); ok {
 		interval.FastInputPricePerToken = fastPricing.InputPricePerToken * rateMultiplier
 		interval.FastImageInputPricePerToken = fastPricing.ImageInputPricePerToken * rateMultiplier
 		interval.FastOutputPricePerToken = fastPricing.OutputPricePerToken * rateMultiplier
-		interval.FastCacheWritePricePerToken = fastPricing.CacheCreationPricePerToken * rateMultiplier
+		fastCacheWritePrice, fastCacheWrite1hPrice := cacheCreationDisplayPrices(fastPricing)
+		interval.FastCacheWritePricePerToken = fastCacheWritePrice * rateMultiplier
+		interval.FastCacheWrite1hPricePerToken = fastCacheWrite1hPrice * rateMultiplier
 		interval.FastCacheReadPricePerToken = fastPricing.CacheReadPricePerToken * rateMultiplier
 		interval.FastImageOutputPricePerToken = fastPricing.ImageOutputPricePerToken * rateMultiplier
 	}
@@ -2396,6 +2524,7 @@ func hasAnyDisplayTokenPricing(pricing *ModelPricing) bool {
 		pricing.ImageInputPricePerToken > 0 ||
 		pricing.OutputPricePerToken > 0 ||
 		pricing.CacheCreationPricePerToken > 0 ||
+		pricing.CacheCreation1hPrice > 0 ||
 		pricing.CacheReadPricePerToken > 0 ||
 		pricing.ImageOutputPricePerToken > 0
 }

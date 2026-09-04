@@ -22,11 +22,13 @@ type openAIQuotaWorkflowStub struct {
 	queryErr    error
 	cacheErr    error
 
-	resetCalls  int
-	queryCalls  int
-	cacheCalls  int
-	queryCtxErr error
-	cacheCtxErr error
+	resetCalls          int
+	queryCalls          int
+	cacheCalls          int
+	cacheCreditsCalls   int
+	cachePostResetCalls int
+	queryCtxErr         error
+	cacheCtxErr         error
 }
 
 func (s *openAIQuotaWorkflowStub) ResetCredit(context.Context, int64) (*service.OpenAIQuotaResetResult, error) {
@@ -42,6 +44,14 @@ func (s *openAIQuotaWorkflowStub) QueryUsage(ctx context.Context, _ int64) (*ser
 
 func (s *openAIQuotaWorkflowStub) CacheResetCreditsSnapshot(ctx context.Context, _ int64, _ *service.OpenAIRateLimitResetCredits) error {
 	s.cacheCalls++
+	s.cacheCreditsCalls++
+	s.cacheCtxErr = ctx.Err()
+	return s.cacheErr
+}
+
+func (s *openAIQuotaWorkflowStub) CachePostResetSnapshot(ctx context.Context, _ int64, _ *service.OpenAIQuotaUsage) error {
+	s.cacheCalls++
+	s.cachePostResetCalls++
 	s.cacheCtxErr = ctx.Err()
 	return s.cacheErr
 }
@@ -161,6 +171,8 @@ func TestOpenAIResetQuotaRecoversAccountBeforeRefreshingCache(t *testing.T) {
 	require.Equal(t, 1, quota.resetCalls)
 	require.Equal(t, 1, quota.queryCalls)
 	require.Equal(t, 1, quota.cacheCalls)
+	require.Zero(t, quota.cacheCreditsCalls, "重置后应写入完整 usage 快照，不应只写 credits")
+	require.Equal(t, 1, quota.cachePostResetCalls)
 	require.Equal(t, 1, adminService.calls)
 }
 
@@ -244,6 +256,8 @@ func TestOpenAIRefreshQuotaPersistFailureStillReturnsUsage(t *testing.T) {
 	require.Equal(t, int64(456), envelope.Data.FetchedAt)
 	require.NotNil(t, envelope.Data.RateLimitResetCredits)
 	require.Equal(t, 2, envelope.Data.RateLimitResetCredits.AvailableCount)
+	require.Equal(t, 1, quota.cacheCreditsCalls, "手动 refresh 只应更新 credits 快照")
+	require.Zero(t, quota.cachePostResetCalls)
 }
 
 func TestNewOpenAIOAuthHandlerKeepsNilQuotaCapabilitiesGuarded(t *testing.T) {

@@ -274,8 +274,12 @@ type CreateGroupInput struct {
 	// AllowedClientProtocols 为 nil 时使用平台默认值；显式空数组对所有平台都合法。
 	AllowedClientProtocols []GroupClientProtocol
 	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
-	AllowMessagesDispatch       bool
-	AllowLive                   bool
+	AllowMessagesDispatch bool
+	AllowLive             bool
+	// ForceOpenAIFast 仅对 OpenAI/Composite 分组启用组级 Fast 强制策略。
+	ForceOpenAIFast bool
+	// FreeOpenAIFast 仅对 OpenAI/Composite 分组启用 Standard 计费策略。
+	FreeOpenAIFast              bool
 	DefaultMappedModel          string
 	RequireOAuthOnly            bool
 	RequirePrivacySet           bool
@@ -287,6 +291,8 @@ type CreateGroupInput struct {
 	RPMLimit int
 	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
 	MaxReasoningEffort string
+	// MaxReasoningEffortOverLimit 超过上限时的访问控制：downgrade（默认）或 deny。
+	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings OpenAI/Codex 推理强度精确映射。
 	ReasoningEffortMappings []ReasoningEffortMapping
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
@@ -358,8 +364,12 @@ type UpdateGroupInput struct {
 	// AllowedClientProtocols 为 nil 时保留原值；非 nil 表示显式替换完整集合。
 	AllowedClientProtocols *[]GroupClientProtocol
 	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
-	AllowMessagesDispatch       *bool
-	AllowLive                   *bool
+	AllowMessagesDispatch *bool
+	AllowLive             *bool
+	// ForceOpenAIFast 为 nil 时保留原值；仅对 OpenAI/Composite 分组生效。
+	ForceOpenAIFast *bool
+	// FreeOpenAIFast 为 nil 时保留原值；仅对 OpenAI/Composite 分组生效。
+	FreeOpenAIFast              *bool
 	DefaultMappedModel          *string
 	RequireOAuthOnly            *bool
 	RequirePrivacySet           *bool
@@ -371,6 +381,8 @@ type UpdateGroupInput struct {
 	RPMLimit *int
 	// MaxReasoningEffort 空字符串表示清除上限；nil 表示未提供不改动。
 	MaxReasoningEffort *string
+	// MaxReasoningEffortOverLimit 空字符串视为 downgrade；nil 表示未提供不改动。
+	MaxReasoningEffortOverLimit *string
 	// ReasoningEffortMappings nil 表示不修改，空数组表示清空，非空数组表示替换。
 	ReasoningEffortMappings *[]ReasoningEffortMapping
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）

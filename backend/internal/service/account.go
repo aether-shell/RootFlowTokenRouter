@@ -949,6 +949,11 @@ func normalizeQoderModelForWhitelist(model string) string {
 // 5. 为兼容旧数据，非 Qoder 平台若未配置独立 model_whitelist，会继续把精确自映射条目视作最终白名单。
 // 6. OpenAI OAuth 非透传账号还会排除明确属于其他厂商的模型，避免 Codex 上游返回不可重试的 400。
 func (a *Account) IsModelSupported(requestedModel string) bool {
+	// OpenAI 透传模式仅替换认证，模型能力由上游决定；必须在 model_mapping
+	// 分支前短路，否则调度快照中的历史映射会把可用账号误判为不支持模型。
+	if a.IsOpenAIPassthroughEnabled() {
+		return true
+	}
 	mapping := a.GetModelMapping()
 	// Antigravity 仍保持“请求模型命中映射即可支持”的既有语义。
 	// 该平台的最终模型（含 thinking 后缀）校验由网关层专门处理，不能在这里提前套用通用白名单规则。
@@ -1629,8 +1634,8 @@ func (a *Account) IsCodingPlan() bool {
 
 // GetAPIProtocol 返回国产供应商账号的上游 API 协议。存储于
 // credentials["api_protocol"]；缺失或与平台不匹配时回退 chat_completions
-// （与既有行为完全一致）。responses 协议仅 deepseek 支持（官方原生 /responses
-// 端点，适配 Codex）；kimi/zhipu 无此端点。
+// （与既有行为完全一致）。responses 协议仅 deepseek / kimi 支持（官方原生
+// Responses 端点，适配 Codex）；zhipu 无此端点。
 func (a *Account) GetAPIProtocol() string {
 	if a == nil || !a.IsCNProvider() {
 		return APIProtocolChatCompletions
@@ -1641,13 +1646,42 @@ func (a *Account) GetAPIProtocol() string {
 	case APIProtocolAnthropic:
 		return APIProtocolAnthropic
 	case APIProtocolResponses:
-		if a.Platform == PlatformDeepseek {
+		if a.SupportsNativeCNResponses() {
 			return APIProtocolResponses
 		}
 	case APIProtocolChatCompletions:
 		return APIProtocolChatCompletions
 	}
 	return APIProtocolChatCompletions
+}
+
+// SupportsNativeCNResponses 报告该国产供应商是否提供原生 Responses 端点。
+// DeepSeek 官方为 /responses（无 /v1）；Kimi 按量付费与 Coding Plan 均为
+// /v1/responses（moonshot.cn / kimi.com/coding）。
+func (a *Account) SupportsNativeCNResponses() bool {
+	if a == nil {
+		return false
+	}
+	switch a.Platform {
+	case PlatformDeepseek, PlatformKimi:
+		return true
+	default:
+		return false
+	}
+}
+
+// UsesNativeCNResponses 报告当前账号是否应按原生 Responses 协议转发
+// （显式 responses，或 adaptive 且平台具备原生端点）。
+func (a *Account) UsesNativeCNResponses() bool {
+	if a == nil || !a.SupportsNativeCNResponses() {
+		return false
+	}
+	switch a.GetAPIProtocol() {
+	case APIProtocolResponses, APIProtocolAdaptive:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsAdaptiveAPIProtocol 报告账号是否按入站协议动态选择供应商原生端点。

@@ -515,17 +515,25 @@ func runUpstreamToClient(
 		msgType, payload, err := upstreamConn.ReadFrame(ctx)
 		if err != nil {
 			emitTurnComplete(onTurnComplete, state, finalizePendingBareError(state, nowFn()))
+			graceful := isDisconnectError(err)
+			// WebSocket 正常关闭只表示传输握手完成；上游一旦开始 Responses 回合，
+			// 仍必须收到终态协议事件才算成功。1000/EOF 若发生在终态前，应视为
+			// relay 失败，避免适配器在回合仍活跃时错误报告 relay_completed。
+			if graceful && openAIWSRelayActiveTurnID(state) != "" {
+				graceful = false
+				err = errors.New("upstream websocket closed before terminal event: " + err.Error())
+			}
 			emitRelayTrace(onTrace, RelayTraceEvent{
 				Stage:           "read_upstream_failed",
 				Direction:       "upstream_to_client",
 				Error:           err.Error(),
-				Graceful:        isDisconnectError(err),
+				Graceful:        graceful,
 				WroteDownstream: wroteDownstream,
 			})
 			exitCh <- relayExitSignal{
 				stage:           "read_upstream",
 				err:             err,
-				graceful:        isDisconnectError(err),
+				graceful:        graceful,
 				wroteDownstream: wroteDownstream,
 			}
 			return

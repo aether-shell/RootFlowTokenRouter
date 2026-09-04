@@ -19,7 +19,8 @@ type usageAnalyticsQuery struct {
 
 // buildUsageAnalyticsQuery 生成“日表主体、小时边界、原始首尾”的无重叠查询源。
 func (r *usageLogRepository) buildUsageAnalyticsQuery(ctx context.Context, filters UsageLogFilters, start, end time.Time, useDaily bool) (usageAnalyticsQuery, bool, error) {
-	if filters.AccountID > 0 || strings.TrimSpace(filters.RequestID) != "" {
+	// 聚合表尚未保存原生 compaction 维度，带该过滤时必须回退原始表。
+	if filters.AccountID > 0 || strings.TrimSpace(filters.RequestID) != "" || filters.NativeCompactionV2 != nil {
 		return usageAnalyticsQuery{}, false, nil
 	}
 	modelSource := strings.TrimSpace(filters.ModelFilterSource)
@@ -596,7 +597,7 @@ func (r *usageLogRepository) getUsageRankingFromAnalytics(ctx context.Context, s
 // getUserBreakdownStatsFromAnalytics 从组合聚合源计算可支持维度下的用户明细。
 func (r *usageLogRepository) getUserBreakdownStatsFromAnalytics(ctx context.Context, start, end time.Time, dim usagestats.UserBreakdownDimension, limit int) ([]usagestats.UserBreakdownItem, bool, error) {
 	modelSource := usagestats.NormalizeModelSource(dim.ModelType)
-	if dim.AccountID > 0 || (dim.Model != "" && modelSource != usagestats.ModelSourceRequested) {
+	if dim.AccountID > 0 || dim.NativeCompactionV2 != nil || (dim.Model != "" && modelSource != usagestats.ModelSourceRequested) {
 		return nil, false, nil
 	}
 	if dim.Endpoint != "" && dim.EndpointType != "" && dim.EndpointType != "inbound" {

@@ -1069,8 +1069,8 @@ rate_limit:
 # 定价数据源（可选）
 # =============================================================================
 pricing:
-  # URL to fetch model pricing data (default: pinned model-price-repo commit)
-  # 获取模型定价数据的 URL（默认：固定 commit 的 model-price-repo）
+  # URL to fetch model pricing data (default: model-price-repo main branch)
+  # 获取模型定价数据的 URL（默认：model-price-repo main 分支）
   remote_url: "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/refs/heads/main//model_prices_and_context_window.json"
   # Hash verification URL (optional)
   # 哈希校验 URL（可选）
@@ -1081,6 +1081,9 @@ pricing:
   # Fallback pricing file
   # 备用定价文件
   fallback_file: "./resources/model-pricing/model_prices_and_context_window.json"
+  # Optional highest-priority field-level pricing override file.
+  # 可选的最高优先级价格字段覆盖文件，null 值会删除目录字段。
+  # override_file: "./data/model_pricing_overrides.json"
   # Update interval in hours
   # 更新间隔（小时）
   update_interval_hours: 24

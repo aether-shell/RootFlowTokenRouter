@@ -340,6 +340,8 @@ export default {
       selectGroup: 'Select Group',
       selectGroupPlaceholder: 'Choose a subscription group',
       validityDays: 'Validity Days',
+      expiryDateRequired: 'Please enter a valid expiry date and time',
+      localTimeZoneHint: 'Custom time is interpreted in your browser time zone ({timezone}).',
       groupRequired: 'Please select a subscription group',
       days: ' days',
       status: {
