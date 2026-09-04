@@ -115,12 +115,16 @@ backend/.installed
 # ===================
 # 其他
 # ===================
+__pycache__/
+*.pyc
 # 本地同步和计划文档，不上传到远端
 SYNC.md
 PLAN.md
 tests
 !deploy/tests/
 !deploy/tests/**
+deploy/tests/**/__pycache__/
+deploy/tests/**/*.pyc
 CLAUDE.md
 .claude
 scripts

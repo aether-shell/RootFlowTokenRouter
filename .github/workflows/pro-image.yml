@@ -1,0 +1,109 @@
+name: Pro Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full commit on origin/main to package
+        required: true
+        type: string
+      deployed_base_commit:
+        description: Full commit currently deployed on Pro
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: pro-image-${{ inputs.commit }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+      - name: Resolve origin/main
+        run: git fetch origin main:refs/remotes/origin/main
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          check-latest: false
+          cache-dependency-path: backend/go.sum
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Generate audited release manifest
+        run: >-
+          python3 tools/pro_release_guard.py
+          --base-ref "${{ inputs.deployed_base_commit }}"
+          --output build/pro-release-manifest.json
+      - name: Read build metadata
+        id: metadata
+        shell: bash
+        run: |
+          commit=$(git rev-parse HEAD)
+          version=$(tr -d '\r\n' < backend/cmd/server/VERSION)-pro.${commit:0:8}
+          build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "commit=${commit}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "build_date=${build_date}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Refuse to overwrite an existing commit tag
+        env:
+          IMAGE_TAG: ghcr.io/aether-shell/rootflowtokenrouter:${{ steps.metadata.outputs.commit }}
+        run: |
+          if docker manifest inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "Immutable Pro image tag already exists: $IMAGE_TAG" >&2
+            exit 1
+          fi
+      - name: Build and validate complete Pro image
+        env:
+          DOCKER_BUILDKIT: '1'
+          PRO_IMAGE: ghcr.io/aether-shell/rootflowtokenrouter:${{ steps.metadata.outputs.commit }}
+        run: bash tools/pro-image.sh build/pro-release-manifest.json
+      - name: Push validated immutable Pro image
+        id: image
+        env:
+          IMAGE_TAG: ghcr.io/aether-shell/rootflowtokenrouter:${{ steps.metadata.outputs.commit }}
+        run: |
+          docker push "$IMAGE_TAG"
+          reference=$(docker image inspect "$IMAGE_TAG" --format '{{ index .RepoDigests 0 }}')
+          digest=${reference#*@}
+          test -n "$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Attach immutable image digest to manifest
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          IMAGE_VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          image="ghcr.io/aether-shell/rootflowtokenrouter@${IMAGE_DIGEST}"
+          jq --arg image "$image" --arg digest "$IMAGE_DIGEST" --arg version "$IMAGE_VERSION" \
+            '.image = {reference: $image, digest: $digest, version: $version}' \
+            build/pro-release-manifest.json > build/pro-release-manifest.tmp
+          mv build/pro-release-manifest.tmp build/pro-release-manifest.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pro-release-${{ steps.metadata.outputs.commit }}
+          path: build/pro-release-manifest.json
+          if-no-files-found: error
+          retention-days: 30

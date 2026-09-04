@@ -1,0 +1,4 @@
+services:
+  app:
+    image: ${PRO_APP_IMAGE:?PRO_APP_IMAGE is required}
+    pull_policy: never

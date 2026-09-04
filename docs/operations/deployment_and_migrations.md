@@ -38,6 +38,23 @@
 
 `GET /health` 是容器健康检查入口。健康响应只能说明当前进程可服务，不能替代升级后的业务抽样、账本核对或后台任务检查。
 
+## Pro fork 发布门禁
+
+Pro 的发布事实源是 `deploy/pro/customizations.yaml`。该文件使用 JSON 语法的 YAML 1.2，便于 Python 标准库在本地和 CI 中无额外依赖地严格解析。它记录规范仓库、上游基线、受保护二开基线、测试、镜像命令和线上运行契约。
+
+发布分四个相互隔离的阶段：
+
+1. `make pro-verify` 核对 fork 身份、提交关系、必需文件和全部二开测试。
+2. `make pro-release-manifest PRO_BASE_REF=<当前线上提交>` 重新运行严格门禁，记录源码树、测试结果和相对线上版本新增的迁移。
+3. `make pro-image` 从清单锁定的完整源码构建本地镜像；人工发布 GHCR 镜像时使用 `.github/workflows/pro-image.yml`，该流程只接受 `origin/main` 的完整提交并输出不可变摘要。
+4. `make pro-release PRO_IMAGE_DIGEST=<ghcr.io/...@sha256:...> PRO_EXECUTE=1` 通过固定 SSH 主机部署；未提供 `PRO_EXECUTE=1` 时不得连接服务器。
+
+构建与部署不能合并成自动流水线。镜像必须包含 fork source、完整 revision、版本和 `cc.tknhub.product=pro` 标签；部署只接受 `ghcr.io/aether-shell/rootflowtokenrouter@sha256:<digest>`，禁止 `latest`、普通 tag、官方镜像和手工二进制替换。
+
+部署脚本在切换前核对 Pro 主机、Compose、应用容器、数据库容器和域名，保存发布证据并使用 Pro PostgreSQL 容器创建完整 dump，再用 `pg_restore --list` 验证。应用通过独立 Compose override 和 `--no-deps app` 更新，不重建 PostgreSQL、Redis 或 sidecar。若相对 `PRO_BASE_REF` 存在 SQL 迁移或 Ent schema 变化，必须额外设置 `PRO_ALLOW_MIGRATIONS=1`；失败时不自动回退应用，以免旧二进制连接已变化的数据库。没有数据库变更时，验证失败可恢复旧应用镜像。
+
+发布后的最低验收包括容器健康、零重启、内嵌 commit、二开二进制标识、公开健康接口、管理仪表盘和盈利页面。任一检查失败均不算发布成功。发布证据保存在 `/opt/tokenrouter-pro/releases/`，旧镜像和数据库备份在验收结束前不得删除。
+
 <a id="migration_execution"></a>
 ## 迁移执行
 

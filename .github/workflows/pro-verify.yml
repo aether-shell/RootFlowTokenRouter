@@ -1,0 +1,63 @@
+name: Pro Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  customizations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          check-latest: false
+          cache-dependency-path: backend/go.sum
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Verify Pro customizations on pull request
+        if: github.event_name == 'pull_request'
+        run: python3 tools/pro_release_guard.py --development
+      - name: Verify Pro customizations on main
+        if: github.event_name != 'pull_request'
+        run: python3 tools/pro_release_guard.py
+
+  image:
+    if: github.event_name != 'pull_request'
+    needs: customizations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Validate complete Pro image build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: pro-verification:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/aether-shell/RootFlowTokenRouter
+            org.opencontainers.image.revision=${{ github.sha }}
+            cc.tknhub.product=pro
+          build-args: |
+            COMMIT=${{ github.sha }}
+            VERSION=verification-pro.${{ github.sha }}

@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "product": "pro",
+  "canonical_repository": {
+    "origin_urls": [
+      "https://github.com/aether-shell/RootFlowTokenRouter.git",
+      "https://github.com/aether-shell/RootFlowTokenRouter",
+      "git@github.com:aether-shell/RootFlowTokenRouter.git"
+    ],
+    "branch": "main",
+    "image_repository": "ghcr.io/aether-shell/rootflowtokenrouter",
+    "upstream_release": "v0.1.274",
+    "upstream_commit": "8406f5bcd960b9b7b17951d856c57409fbd4c1ca",
+    "protected_ancestors": [
+      "0272bdec77e0749b61c2c1150effb0d64373c8f5"
+    ]
+  },
+  "release_tests": [
+    {
+      "id": "openai-client-policy-service",
+      "working_directory": "backend",
+      "command": [
+        "go",
+        "test",
+        "./internal/service",
+        "-run",
+        "Test(AdminServiceNormalizeOpenAIClientPolicyAccount|NormalizeOpenAIClientPolicyPatch|OpenAICodexClientRestrictionDetector_Detect_ClientPolicy|AccountTestService_AutomaticOpenAIProbeRejectsClientPolicyLocally)$"
+      ]
+    },
+    {
+      "id": "openai-client-policy-cache",
+      "working_directory": "backend",
+      "command": [
+        "go",
+        "test",
+        "./internal/repository",
+        "-run",
+        "^TestFilterSchedulerExtraKeepsOpenAIClientPolicyTLSSettings$"
+      ]
+    },
+    {
+      "id": "dashboard-group-filter-backend",
+      "working_directory": "backend",
+      "command": [
+        "go",
+        "test",
+        "./internal/handler/admin",
+        "./internal/repository",
+        "-run",
+        "Test(DashboardHandler_.*Groups|GetDashboardUsageStatsByGroupFromAnalyticsScopesTotalAndToday)$"
+      ]
+    },
+    {
+      "id": "pro-frontend",
+      "working_directory": "frontend",
+      "command": [
+        "pnpm",
+        "exec",
+        "vitest",
+        "run",
+        "src/components/account/__tests__/CreateAccountModal.spec.ts",
+        "src/components/account/__tests__/EditAccountModal.spec.ts",
+        "src/components/account/__tests__/BulkEditAccountModal.spec.ts",
+        "src/views/admin/__tests__/DashboardView.spec.ts"
+      ]
+    },
+    {
+      "id": "docker-runtime-contract",
+      "working_directory": ".",
+      "command": [
+        "bash",
+        "deploy/tests/docker-runtime-resources-test.sh"
+      ]
+    },
+    {
+      "id": "pro-release-tooling",
+      "working_directory": ".",
+      "command": [
+        "bash",
+        "deploy/tests/pro-release-contract-test.sh"
+      ]
+    }
+  ],
+  "customizations": [
+    {
+      "id": "openai-api-key-client-policy",
+      "scope": "application",
+      "required_paths": [
+        "backend/internal/service/admin_openai_client_policy_test.go",
+        "backend/internal/service/openai_client_restriction_detector.go",
+        "frontend/src/components/account/EditAccountModal.vue"
+      ],
+      "test_ids": [
+        "openai-client-policy-service",
+        "openai-client-policy-cache",
+        "pro-frontend"
+      ],
+      "binary_markers": [
+        "openai_client_policy",
+        "tls_router_matched_only",
+        "codex_only"
+      ]
+    },
+    {
+      "id": "dashboard-group-filter",
+      "scope": "application",
+      "required_paths": [
+        "backend/internal/handler/admin/dashboard_handler_cache_test.go",
+        "frontend/src/views/admin/DashboardView.vue",
+        "frontend/src/views/admin/__tests__/DashboardView.spec.ts"
+      ],
+      "test_ids": [
+        "dashboard-group-filter-backend",
+        "pro-frontend"
+      ],
+      "binary_markers": [
+        "group_ids"
+      ]
+    },
+    {
+      "id": "postgres-client-tools",
+      "scope": "image",
+      "required_paths": [
+        "Dockerfile",
+        "deploy/Dockerfile",
+        "deploy/tests/docker-runtime-resources-test.sh"
+      ],
+      "test_ids": [
+        "docker-runtime-contract"
+      ],
+      "image_commands": [
+        ["pg_dump", "--version"],
+        ["psql", "--version"]
+      ]
+    },
+    {
+      "id": "profitability-sidecar",
+      "scope": "deployment",
+      "required_paths": [],
+      "test_ids": [],
+      "runtime_http_paths": [
+        "/custom/tokenrouter-profitability"
+      ]
+    },
+    {
+      "id": "pro-tr-boundary",
+      "scope": "governance",
+      "required_paths": [
+        "AGENTS.md",
+        "docs/project_overview.md"
+      ],
+      "test_ids": [
+        "pro-release-tooling"
+      ]
+    }
+  ],
+  "runtime_contract": {
+    "ssh_host": "67.21.68.75",
+    "ssh_user": "root",
+    "ssh_identity_file": "~/.ssh/id_ed25519_sharktech",
+    "compose_file": "/opt/tokenrouter-pro/compose.yaml",
+    "compose_override_file": "/opt/tokenrouter-pro/compose.pro-release.yaml",
+    "app_container": "tokenrouter-pro-app",
+    "database_container": "tokenrouter-pro-postgres",
+    "public_base_url": "https://pro.tknhub.cc",
+    "health_path": "/health"
+  }
+}

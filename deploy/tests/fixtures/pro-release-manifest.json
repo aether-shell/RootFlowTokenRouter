@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "product": "pro",
+  "source": {
+    "commit": "23f0f33700e46d46e53a480b525fc7ab4cc64f82",
+    "dirty": false
+  },
+  "changed_migrations": [],
+  "changed_database_paths": [],
+  "automatic_app_rollback_allowed": true,
+  "image": {
+    "reference": "ghcr.io/aether-shell/rootflowtokenrouter@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}
