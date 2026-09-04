@@ -6,4 +6,5 @@
 - [Implementation Status](implementation-status.md)
 - [发布契约](topics/release-contract.md)
 - [决策：完整不可变镜像](decisions/001-immutable-fork-image.md)
+- [v0.1.276 发布复盘](history/2026-09-04-v0.1.276-release.md)
 - [项目基线](../../baseline/README.md)

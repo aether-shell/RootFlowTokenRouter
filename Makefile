@@ -1,4 +1,4 @@
-.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan pro-verify pro-release-manifest pro-image pro-deploy-check pro-release
+.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan pro-verify pro-release-manifest pro-image pro-image-dispatch pro-deploy-check pro-remote-check pro-release
 
 PNPM ?= npx --yes pnpm@9
 PRO_RELEASE_MANIFEST ?= build/pro-release-manifest.json
@@ -67,10 +67,28 @@ pro-release-manifest:
 pro-image:
 	@bash tools/pro-image.sh "$(PRO_RELEASE_MANIFEST)"
 
+# 由当前准确 HEAD 触发 Pro 镜像工作流，避免手工填写或环境变量覆盖 gh 凭据。
+pro-image-dispatch:
+	@test -n "$(PRO_BASE_REF)" || (echo "PRO_BASE_REF is required" >&2; exit 2)
+	@command -v gh >/dev/null 2>&1 || (echo "gh is required" >&2; exit 2)
+	@commit="$$(git rev-parse HEAD)"; \
+	base_ref="$$(git rev-parse --verify '$(PRO_BASE_REF)^{commit}')"; \
+	test "$$(git branch --show-current)" = "main" || (echo "current branch must be main" >&2; exit 2); \
+	test -z "$$(git status --porcelain)" || (echo "working tree must be clean" >&2; exit 2); \
+	test "$$commit" = "$$(git rev-parse origin/main)" || (echo "HEAD must match origin/main" >&2; exit 2); \
+	env -u GITHUB_TOKEN gh workflow run pro-image.yml --ref main \
+		-f commit="$$commit" -f deployed_base_commit="$$base_ref"; \
+	echo "Dispatched Pro Image for $$commit (base $$base_ref)"
+
 # 只检查部署参数，不连接 Pro 服务器。
 pro-deploy-check:
 	@test -n "$(PRO_IMAGE_DIGEST)" || (echo "PRO_IMAGE_DIGEST is required" >&2; exit 2)
 	@bash tools/pro-deploy.sh --manifest "$(PRO_RELEASE_MANIFEST)" --image "$(PRO_IMAGE_DIGEST)" $(if $(filter 1,$(PRO_ALLOW_MIGRATIONS)),--allow-migrations,)
+
+# 连接固定 Pro 主机，只拉取并核验镜像和容器归属，不创建发布目录或切换服务。
+pro-remote-check:
+	@test -n "$(PRO_IMAGE_DIGEST)" || (echo "PRO_IMAGE_DIGEST is required" >&2; exit 2)
+	@bash tools/pro-remote-check.sh --manifest "$(PRO_RELEASE_MANIFEST)" --image "$(PRO_IMAGE_DIGEST)"
 
 # 唯一 Pro 应用发布入口；必须双重显式提供镜像摘要和 PRO_EXECUTE=1。
 pro-release:

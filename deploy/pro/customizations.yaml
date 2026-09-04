@@ -160,8 +160,11 @@
     "ssh_identity_file": "~/.ssh/id_ed25519_sharktech",
     "compose_file": "/opt/tokenrouter-pro/compose.yaml",
     "compose_override_file": "/opt/tokenrouter-pro/compose.pro-release.yaml",
+    "compose_project": "tokenrouter-pro",
     "app_container": "tokenrouter-pro-app",
+    "app_service": "app",
     "database_container": "tokenrouter-pro-postgres",
+    "database_service": "postgres",
     "public_base_url": "https://pro.tknhub.cc",
     "health_path": "/health"
   }

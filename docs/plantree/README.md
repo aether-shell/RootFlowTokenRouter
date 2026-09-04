@@ -15,6 +15,6 @@
 
 | Plan | Status | Current Phase | Last Landed | Next Target |
 | --- | --- | --- | --- | --- |
-| [Pro 发布安全](plans/pro-release-safety/README.md) | Done | Pro v0.1.276 已发布并完成证据归档 | 线上应用 `aa2d857c`；发布工具修复 `07ced684` | 下次应用发布以 `aa2d857c` 为线上基线 |
+| [Pro 发布安全](plans/pro-release-safety/README.md) | Done | Pro v0.1.276 复盘已转化为发布门禁 | 自动镜像调度、远端预检和分阶段失败输出（当前提交） | 配置 GHCR 只读部署凭据；下次发布以 `aa2d857c` 为线上基线 |
 
 低承诺想法记录在 [ideas/inbox.md](ideas/inbox.md)。

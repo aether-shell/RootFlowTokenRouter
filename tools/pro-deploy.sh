@@ -8,9 +8,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CUSTOMIZATIONS="${REPO_ROOT}/deploy/pro/customizations.yaml"
 OVERRIDE_FILE="${REPO_ROOT}/deploy/pro/compose.image-override.yaml"
 RELEASE_MANIFEST="${REPO_ROOT}/build/pro-release-manifest.json"
+REMOTE_CHECK_SCRIPT="${REPO_ROOT}/tools/pro-remote-check.sh"
 IMAGE=""
 EXECUTE=false
 ALLOW_MIGRATIONS=false
+STAGE="local_validation"
 
 usage() {
   cat <<'EOF'
@@ -25,9 +27,17 @@ EOF
 }
 
 fail() {
-  echo "[pro-deploy] FAIL: $*" >&2
+  echo "[pro-deploy] FAIL stage=${STAGE}: $*" >&2
   exit 1
 }
+
+report_error() {
+  status=$?
+  trap - ERR
+  echo "[pro-deploy] FAIL stage=${STAGE} status=${status}" >&2
+  exit "${status}"
+}
+trap report_error ERR
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -43,6 +53,7 @@ done
 command -v jq >/dev/null 2>&1 || fail "缺少 jq"
 [[ -f "${CUSTOMIZATIONS}" ]] || fail "缺少 Pro 二开清单"
 [[ -f "${OVERRIDE_FILE}" ]] || fail "缺少 Compose 镜像覆盖文件"
+[[ -f "${REMOTE_CHECK_SCRIPT}" ]] || fail "缺少远端镜像预检脚本"
 [[ -f "${RELEASE_MANIFEST}" ]] || fail "发布清单不存在: ${RELEASE_MANIFEST}"
 [[ "${IMAGE}" =~ ^ghcr\.io/aether-shell/rootflowtokenrouter@sha256:[0-9a-f]{64}$ ]] || \
   fail "镜像必须使用 Pro GHCR 的不可变 sha256 摘要"
@@ -100,17 +111,24 @@ SSH_KEY="${HOME}/.ssh/id_ed25519_sharktech"
 [[ -f "${SSH_KEY}" ]] || fail "SSH 私钥不存在: ${SSH_KEY}"
 SSH_OPTIONS=(-i "${SSH_KEY}" -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=10)
 REMOTE="${SSH_USER}@${HOST}"
+
+# 预检失败时不得创建发布目录、备份数据库或触碰 Compose。
+STAGE="image_preflight"
+bash "${REMOTE_CHECK_SCRIPT}" --manifest "${RELEASE_MANIFEST}" --image "${IMAGE}"
+
 RELEASE_ID="app-${EXPECTED_COMMIT:0:8}-$(date -u +%Y%m%dT%H%M%SZ)"
 REMOTE_RELEASE_DIR="/opt/tokenrouter-pro/releases/${RELEASE_ID}"
 OVERRIDE_SHA="$(shasum -a 256 "${OVERRIDE_FILE}" | awk '{print $1}')"
 MANIFEST_SHA="$(shasum -a 256 "${RELEASE_MANIFEST}" | awk '{print $1}')"
 
+STAGE="artifact_upload"
 ssh "${SSH_OPTIONS[@]}" "${REMOTE}" "mkdir -p '${REMOTE_RELEASE_DIR}'"
 scp "${SSH_OPTIONS[@]}" "${OVERRIDE_FILE}" "${REMOTE}:${REMOTE_RELEASE_DIR}/compose.image-override.yaml"
 scp "${SSH_OPTIONS[@]}" "${RELEASE_MANIFEST}" "${REMOTE}:${REMOTE_RELEASE_DIR}/release-manifest.json"
 ssh "${SSH_OPTIONS[@]}" "${REMOTE}" \
   "echo '${OVERRIDE_SHA}  ${REMOTE_RELEASE_DIR}/compose.image-override.yaml' | sha256sum -c - && echo '${MANIFEST_SHA}  ${REMOTE_RELEASE_DIR}/release-manifest.json' | sha256sum -c -"
 
+STAGE="remote_release"
 ssh "${SSH_OPTIONS[@]}" "${REMOTE}" bash -s -- \
   "${IMAGE}" "${EXPECTED_COMMIT}" "${COMPOSE_FILE}" "${REMOTE_OVERRIDE}" \
   "${APP_CONTAINER}" "${DB_CONTAINER}" "${BASE_URL}" "${HEALTH_PATH}" \
@@ -131,13 +149,14 @@ database_change_count="${10}"
 auto_rollback="${11}"
 marker_regex="$(printf '%s' "${12}" | base64 -d)"
 profitability_path="$(printf '%s' "${13}" | base64 -d)"
-source_url="https://github.com/aether-shell/RootFlowTokenRouter"
 switched=false
 previous_image=""
+stage="release_setup"
 
 rollback_app() {
   status=$?
   trap - ERR
+  echo "[pro-deploy] FAIL stage=${stage} status=${status}" >&2
   if [[ "${switched}" == true && "${auto_rollback}" == true && -n "${previous_image}" ]]; then
     echo "[pro-deploy] 验证失败，恢复旧应用镜像 ${previous_image}" >&2
     PRO_APP_IMAGE="${previous_image}" docker compose \
@@ -153,29 +172,27 @@ trap rollback_app ERR
 [[ "$(docker inspect -f '{{.Name}}' "${app_container}")" == "/${app_container}" ]]
 [[ "$(docker inspect -f '{{.Name}}' "${db_container}")" == "/${db_container}" ]]
 
-docker pull "${image}"
-[[ "$(docker image inspect "${image}" --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" == "${source_url}" ]]
-[[ "$(docker image inspect "${image}" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" == "${expected_commit}" ]]
-[[ "$(docker image inspect "${image}" --format '{{ index .Config.Labels "cc.tknhub.product" }}')" == "pro" ]]
-
-install -m 0644 "${release_dir}/compose.image-override.yaml" "${override_file}"
 cp "${compose_file}" "${release_dir}/compose.yaml.before"
 docker inspect "${app_container}" > "${release_dir}/app.inspect.before.json"
 printf '%s\n' "${database_change_count}" > "${release_dir}/database-change-count.txt"
 previous_image="$(docker inspect -f '{{.Config.Image}}' "${app_container}")"
 printf '%s\n' "${previous_image}" > "${release_dir}/previous-image.txt"
 
+stage="backup"
 backup_file="${release_dir}/database.before.dump"
 docker exec "${db_container}" sh -ceu \
   'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "${backup_file}"
 test -s "${backup_file}"
 docker exec -i "${db_container}" pg_restore --list < "${backup_file}" >/dev/null
 
+stage="switch_app"
+install -m 0644 "${release_dir}/compose.image-override.yaml" "${override_file}"
+switched=true
 PRO_APP_IMAGE="${image}" docker compose \
   -f "${compose_file}" -f "${override_file}" up -d --no-deps app
-switched=true
 started_at="$(docker inspect -f '{{.State.StartedAt}}' "${app_container}")"
 
+stage="runtime_verify"
 healthy=false
 for _ in $(seq 1 60); do
   state="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${app_container}")"
@@ -205,6 +222,7 @@ if grep -Ei 'FATAL|panic' "${release_dir}/severe-logs.after.txt" >/dev/null; the
   exit 1
 fi
 
+stage="http_verify"
 curl -fsS "${base_url}${health_path}" > "${release_dir}/health.after.json"
 curl -fsS -o /dev/null "${base_url}/admin/dashboard"
 curl -fsS -o /dev/null "${base_url}${profitability_path}"
@@ -213,6 +231,8 @@ db_name="$(docker exec "${db_container}" printenv POSTGRES_DB)"
 menu_items="$(docker exec "${db_container}" psql -U "${db_user}" -d "${db_name}" -Atc \
   "SELECT value FROM settings WHERE key = 'custom_menu_items'")"
 [[ "${menu_items}" == *"${profitability_path}"* ]]
+
+stage="evidence_finalize"
 docker inspect "${app_container}" > "${release_dir}/app.inspect.after.json"
 printf '%s\n' "${version_output}" > "${release_dir}/version.after.txt"
 for evidence_file in "${release_dir}"/*; do
@@ -222,3 +242,5 @@ done > "${release_dir}/SHA256SUMS"
 trap - ERR
 echo "[pro-deploy] PASS: ${image}"
 REMOTE_SCRIPT
+
+trap - ERR
