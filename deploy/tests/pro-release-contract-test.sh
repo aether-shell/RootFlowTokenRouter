@@ -13,6 +13,13 @@ python3 -m py_compile "${REPO_ROOT}/tools/pro_release_guard.py"
 PYTHONDONTWRITEBYTECODE=1 python3 "${REPO_ROOT}/deploy/tests/pro_release_guard_test.py"
 jq -e '.schema_version == 1 and .product == "pro"' "${MANIFEST}" >/dev/null
 
+IMAGE_CHECK_OUTPUT="$("${REPO_ROOT}/tools/pro-image.sh" \
+  "${REPO_ROOT}/deploy/tests/fixtures/pro-release-manifest.json" 2>&1 || true)"
+if [[ "${IMAGE_CHECK_OUTPUT}" != *"当前 HEAD 与发布清单不一致"* ]]; then
+  echo "Pro 镜像脚本错误拒绝了 source.dirty=false 的干净清单" >&2
+  exit 1
+fi
+
 grep -Fq '67.21.68.75' "${REPO_ROOT}/tools/pro-deploy.sh"
 grep -Fq 'tokenrouter-pro-app' "${REPO_ROOT}/tools/pro-deploy.sh"
 grep -Fq -- '--no-deps app' "${REPO_ROOT}/tools/pro-deploy.sh"

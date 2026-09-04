@@ -3,6 +3,7 @@
   "product": "pro",
   "source": {
     "commit": "23f0f33700e46d46e53a480b525fc7ab4cc64f82",
+    "tree": "0000000000000000000000000000000000000000",
     "dirty": false
   },
   "changed_migrations": [],
