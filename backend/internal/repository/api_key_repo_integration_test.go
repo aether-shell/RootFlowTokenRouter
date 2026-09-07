@@ -56,7 +56,6 @@ func (s *APIKeyRepoSuite) TestCreate() {
 
 func (s *APIKeyRepoSuite) TestUpdateForkSpecificFields() {
 	user := s.mustCreateUser("fork-update-fields@test.com")
-	group := s.mustCreateGroup("g-fork-update-fields")
 	key := &service.APIKey{
 		UserID: user.ID,
 		Key:    "sk-fork-update-fields",
@@ -67,27 +66,19 @@ func (s *APIKeyRepoSuite) TestUpdateForkSpecificFields() {
 
 	loaded, err := s.repo.GetByID(s.ctx, key.ID)
 	s.Require().NoError(err)
-	confirmedAt := time.Now().UTC().Truncate(time.Microsecond)
 	loaded.FastModePolicy = service.APIKeyFastModePolicyForceOff
 	loaded.FallbackToDefaultGroupWhenUnavailable = false
-	loaded.DataSharingNoticeVersion = 7
-	loaded.DataSharingConfirmedGroupID = &group.ID
-	loaded.DataSharingConfirmedAt = &confirmedAt
 
 	// fork 扩展列必须各自由显式掩码控制，不能因收窄标准字段而停止持久化。
 	s.Require().NoError(s.repo.Update(s.ctx, loaded, service.APIKeyUpdateFields{
 		FastModePolicy:                        true,
 		FallbackToDefaultGroupWhenUnavailable: true,
-		DataSharingConfirmation:               true,
 	}))
 
 	updated, err := s.repo.GetByID(s.ctx, key.ID)
 	s.Require().NoError(err)
 	s.Require().Equal(service.APIKeyFastModePolicyForceOff, updated.FastModePolicy)
 	s.Require().False(updated.FallbackToDefaultGroupWhenUnavailable)
-	s.Require().Equal(7, updated.DataSharingNoticeVersion)
-	s.Require().Equal(group.ID, *updated.DataSharingConfirmedGroupID)
-	s.Require().WithinDuration(confirmedAt, *updated.DataSharingConfirmedAt, time.Microsecond)
 }
 
 func (s *APIKeyRepoSuite) TestCompositeKeyCRUDAndGroupQueries() {

@@ -117,8 +117,18 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	// ops_system_logs: 按 API Key ID 过滤系统日志的列和索引。
 	requireColumn(t, tx, "ops_system_logs", "api_key_id", "bigint", 0, true)
 	requireIndex(t, tx, "ops_system_logs", "idx_ops_system_logs_api_key_id_created_at")
-	// data_share_sessions: 实际扣费积分保持可空，历史未知 session 不回填。
-	requireColumn(t, tx, "data_share_sessions", "actual_cost", "numeric", 0, true)
+	// 数据共享 schema 已由破坏性迁移完整移除。
+	for _, table := range []string{"data_share_sessions", "data_share_export_artifacts"} {
+		var regclass sql.NullString
+		require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.' || $1)", table).Scan(&regclass))
+		require.Falsef(t, regclass.Valid, "expected %s table to be absent", table)
+	}
+	requireNoColumn(t, tx, "groups", "data_sharing_enabled")
+	requireNoColumn(t, tx, "api_keys", "data_sharing_notice_version")
+	requireNoColumn(t, tx, "api_keys", "data_sharing_confirmed_group_id")
+	requireNoColumn(t, tx, "api_keys", "data_sharing_confirmed_at")
+	requireNoColumn(t, tx, "api_key_composite_groups", "data_sharing_notice_version")
+	requireNoColumn(t, tx, "api_key_composite_groups", "data_sharing_confirmed_at")
 	requireColumn(t, tx, "ops_metrics_hourly", "ttft_sample_count", "bigint", 0, false)
 	requireColumn(t, tx, "ops_metrics_daily", "ttft_sample_count", "bigint", 0, false)
 	requireConstraintDefinitionContains(

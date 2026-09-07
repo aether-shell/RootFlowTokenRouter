@@ -869,20 +869,6 @@ func (_c *GroupCreate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapp
 	return _c
 }
 
-// SetDataSharingEnabled sets the "data_sharing_enabled" field.
-func (_c *GroupCreate) SetDataSharingEnabled(v bool) *GroupCreate {
-	_c.mutation.SetDataSharingEnabled(v)
-	return _c
-}
-
-// SetNillableDataSharingEnabled sets the "data_sharing_enabled" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableDataSharingEnabled(v *bool) *GroupCreate {
-	if v != nil {
-		_c.SetDataSharingEnabled(*v)
-	}
-	return _c
-}
-
 // SetSessionIsolationEnabled sets the "session_isolation_enabled" field.
 func (_c *GroupCreate) SetSessionIsolationEnabled(v bool) *GroupCreate {
 	_c.mutation.SetSessionIsolationEnabled(v)
@@ -1202,10 +1188,6 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultReasoningEffortMappings
 		_c.mutation.SetReasoningEffortMappings(v)
 	}
-	if _, ok := _c.mutation.DataSharingEnabled(); !ok {
-		v := group.DefaultDataSharingEnabled
-		_c.mutation.SetDataSharingEnabled(v)
-	}
 	if _, ok := _c.mutation.SessionIsolationEnabled(); !ok {
 		v := group.DefaultSessionIsolationEnabled
 		_c.mutation.SetSessionIsolationEnabled(v)
@@ -1421,9 +1403,6 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.ReasoningEffortMappings(); !ok {
 		return &ValidationError{Name: "reasoning_effort_mappings", err: errors.New(`ent: missing required field "Group.reasoning_effort_mappings"`)}
-	}
-	if _, ok := _c.mutation.DataSharingEnabled(); !ok {
-		return &ValidationError{Name: "data_sharing_enabled", err: errors.New(`ent: missing required field "Group.data_sharing_enabled"`)}
 	}
 	if _, ok := _c.mutation.SessionIsolationEnabled(); !ok {
 		return &ValidationError{Name: "session_isolation_enabled", err: errors.New(`ent: missing required field "Group.session_isolation_enabled"`)}
@@ -1710,10 +1689,6 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ReasoningEffortMappings(); ok {
 		_spec.SetField(group.FieldReasoningEffortMappings, field.TypeJSON, value)
 		_node.ReasoningEffortMappings = value
-	}
-	if value, ok := _c.mutation.DataSharingEnabled(); ok {
-		_spec.SetField(group.FieldDataSharingEnabled, field.TypeBool, value)
-		_node.DataSharingEnabled = value
 	}
 	if value, ok := _c.mutation.SessionIsolationEnabled(); ok {
 		_spec.SetField(group.FieldSessionIsolationEnabled, field.TypeBool, value)
@@ -2866,18 +2841,6 @@ func (u *GroupUpsert) SetReasoningEffortMappings(v []domain.ReasoningEffortMappi
 // UpdateReasoningEffortMappings sets the "reasoning_effort_mappings" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateReasoningEffortMappings() *GroupUpsert {
 	u.SetExcluded(group.FieldReasoningEffortMappings)
-	return u
-}
-
-// SetDataSharingEnabled sets the "data_sharing_enabled" field.
-func (u *GroupUpsert) SetDataSharingEnabled(v bool) *GroupUpsert {
-	u.Set(group.FieldDataSharingEnabled, v)
-	return u
-}
-
-// UpdateDataSharingEnabled sets the "data_sharing_enabled" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateDataSharingEnabled() *GroupUpsert {
-	u.SetExcluded(group.FieldDataSharingEnabled)
 	return u
 }
 
@@ -4093,20 +4056,6 @@ func (u *GroupUpsertOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMa
 func (u *GroupUpsertOne) UpdateReasoningEffortMappings() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateReasoningEffortMappings()
-	})
-}
-
-// SetDataSharingEnabled sets the "data_sharing_enabled" field.
-func (u *GroupUpsertOne) SetDataSharingEnabled(v bool) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetDataSharingEnabled(v)
-	})
-}
-
-// UpdateDataSharingEnabled sets the "data_sharing_enabled" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateDataSharingEnabled() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateDataSharingEnabled()
 	})
 }
 
@@ -5490,20 +5439,6 @@ func (u *GroupUpsertBulk) SetReasoningEffortMappings(v []domain.ReasoningEffortM
 func (u *GroupUpsertBulk) UpdateReasoningEffortMappings() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateReasoningEffortMappings()
-	})
-}
-
-// SetDataSharingEnabled sets the "data_sharing_enabled" field.
-func (u *GroupUpsertBulk) SetDataSharingEnabled(v bool) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetDataSharingEnabled(v)
-	})
-}
-
-// UpdateDataSharingEnabled sets the "data_sharing_enabled" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateDataSharingEnabled() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateDataSharingEnabled()
 	})
 }
 

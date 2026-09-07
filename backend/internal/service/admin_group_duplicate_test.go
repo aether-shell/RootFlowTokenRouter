@@ -141,7 +141,6 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		IsDefault:                    true,
 		Status:                       StatusActive,
 		Hydrated:                     true,
-		DataSharingEnabled:           true,
 		SessionIsolationEnabled:      true,
 		AllowImageGeneration:         true,
 		AllowBatchImageGeneration:    true,
@@ -223,7 +222,6 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.NotSame(t, source.AdvancedSchedulerOverrides.LBTopK, duplicate.AdvancedSchedulerOverrides.LBTopK)
 	require.Equal(t, source.DisplayBrand, duplicate.DisplayBrand)
 	require.False(t, duplicate.IsDefault)
-	require.Equal(t, source.DataSharingEnabled, duplicate.DataSharingEnabled)
 	require.Equal(t, source.SessionIsolationEnabled, duplicate.SessionIsolationEnabled)
 	require.Equal(t, source.RateMultiplier, duplicate.RateMultiplier)
 	require.Equal(t, source.PeakRateMultiplier, duplicate.PeakRateMultiplier)

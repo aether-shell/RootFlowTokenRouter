@@ -613,7 +613,7 @@ func (r *userSubscriptionRepository) attachUserSubscriptionRelations(ctx context
 	}
 
 	client := clientFromContext(ctx, r.client)
-	users, err := client.User.Query().Where(dbuser.IDIn(uniqueInt64s(userIDs)...)).All(ctx)
+	users, err := client.User.Query().Where(dbuser.IDIn(uniquePositiveInt64s(userIDs)...)).All(ctx)
 	if err != nil {
 		return err
 	}
@@ -622,7 +622,7 @@ func (r *userSubscriptionRepository) attachUserSubscriptionRelations(ctx context
 		userByID[u.ID] = userEntityToService(u)
 	}
 
-	plans, err := client.SubscriptionPlan.Query().Where(subscriptionplan.IDIn(uniqueInt64s(planIDs)...)).All(ctx)
+	plans, err := client.SubscriptionPlan.Query().Where(subscriptionplan.IDIn(uniquePositiveInt64s(planIDs)...)).All(ctx)
 	if err != nil {
 		return err
 	}
@@ -633,7 +633,7 @@ func (r *userSubscriptionRepository) attachUserSubscriptionRelations(ctx context
 
 	assignedByID := map[int64]*service.User{}
 	if len(assignedByIDs) > 0 {
-		assignedUsers, err := client.User.Query().Where(dbuser.IDIn(uniqueInt64s(assignedByIDs)...)).All(ctx)
+		assignedUsers, err := client.User.Query().Where(dbuser.IDIn(uniquePositiveInt64s(assignedByIDs)...)).All(ctx)
 		if err != nil {
 			return err
 		}

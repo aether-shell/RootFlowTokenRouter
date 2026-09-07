@@ -161,19 +161,16 @@ func normalizeKnownOpenAICodexModel(model string) string {
 	}
 
 	switch {
+	case isOpenAIGPT6AstraModel(normalized):
+		return "gpt-6-astra"
 	case strings.Contains(normalized, "gpt-5.6-sol"):
 		return "gpt-5.6-sol"
 	case strings.Contains(normalized, "gpt-5.6-terra"):
 		return "gpt-5.6-terra"
 	case strings.Contains(normalized, "gpt-5.6-luna"):
 		return "gpt-5.6-luna"
-	case normalized == "gpt-5.6":
-		return "gpt-5.6-sol"
-	case strings.HasPrefix(normalized, "gpt-5.6-"):
-		suffix := strings.TrimPrefix(normalized, "gpt-5.6-")
-		if suffix == "max" || isKnownCodexModelSuffix(suffix) {
-			return "gpt-5.6-sol"
-		}
+	case normalized == "gpt-5.6" || strings.HasPrefix(normalized, "gpt-5.6-"):
+		// 只内置 Sol/Terra/Luna，裸名称和未知变体不得落入旧 GPT 兜底。
 		return ""
 	case strings.Contains(normalized, "gpt-5.5-pro"):
 		return "gpt-5.5-pro"
@@ -206,18 +203,18 @@ func normalizeKnownOpenAICodexModel(model string) string {
 // （含大小写/路径/后缀变体）或已归一化的基名，两者均能正确识别。
 func isOpenAIGPT56Model(model string) bool {
 	normalized := canonicalizeOpenAIModelAliasSpelling(model)
-	if normalized == "gpt-5.6" {
-		return true
-	}
-	if suffix, ok := strings.CutPrefix(normalized, "gpt-5.6-"); ok && (suffix == "max" || isKnownCodexModelSuffix(suffix)) {
-		return true
-	}
 	for _, prefix := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
 		if normalized == prefix || strings.HasPrefix(normalized, prefix+"-") {
 			return true
 		}
 	}
 	return false
+}
+
+// isOpenAIGPT6AstraModel 判断是否 GPT-6 Astra 模型；支持带渠道前缀和版本后缀的名称。
+func isOpenAIGPT6AstraModel(model string) bool {
+	normalized := canonicalizeOpenAIModelAliasSpelling(model)
+	return normalized == "gpt-6-astra" || strings.HasPrefix(normalized, "gpt-6-astra-")
 }
 
 func appendUsageBillingModelCandidate(candidates []string, seen map[string]struct{}, model string) []string {

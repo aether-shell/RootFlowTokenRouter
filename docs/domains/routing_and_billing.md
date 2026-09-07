@@ -59,7 +59,7 @@ OpenAI/Composite 分组可启用 `force_openai_fast`，使可信认证快照中�
 
 同一范围的分组还可启用 `free_openai_fast`。当最终使用的是 OpenAI 账号且计费档位为 `priority`/`fast` 时，网关保持发往上游的 Fast 档位不变，只用同一分组、渠道、长上下文和峰值规则重新计算 Standard 用户价格。Usage Log 的 `total_cost`、账号统计和账号额度继续保留 Fast 成本；`actual_cost`、余额/订阅分配和 API Key 配额使用 Standard 价格。缺少 Standard 定价时沿用既有缺价零成本记录路径，不把请求改写成普通上游请求；其它平台、普通档位和不可信认证上下文必须忽略该字段。
 
-OpenAI 分组还可设置 `max_reasoning_effort` 与 `max_reasoning_effort_over_limit`。策略只处理客户端显式提供的 `reasoning.effort`、`reasoning_effort` 或 Messages 的 `output_config.effort`；缺省 effort 不会被桥接器补出的默认值误判为客户端请求。先按分组的模型范围映射（精确、前缀或后缀）得到有效档位，再比较 `minimal < low < medium < high < xhigh < max`：`downgrade`（默认）改写为上限，`deny` 返回本地 403 权限错误并标记为业务限制。复合 Key 在鉴权阶段已经选出具体 OpenAI 分组，因此沿用该分组策略；当前 fork 不重新开放 Composite 分组本身的推理配置。HTTP Responses/Chat、Messages 转换和 Responses WebSocket 的每个请求帧都必须执行同一裁决，且策略快照随 API Key 认证缓存传播。
+OpenAI 分组还可设置 `max_reasoning_effort` 与 `max_reasoning_effort_over_limit`。策略只处理客户端显式提供的 `reasoning.effort`、`reasoning_effort` 或 Messages 的 `output_config.effort`；缺省 effort 不会被桥接器补出的默认值误判为客户端请求。先按分组的模型范围映射（精确、前缀或后缀）得到有效档位，再比较 `minimal < low < medium < high < xhigh < max`：`downgrade`（默认）改写为上限，`deny` 返回本地 403 权限错误并标记为业务限制。推理档位改写仅能来自管理员配置的映射或上限策略，普通转发层不得再隐式改写；`none` 可作为映射和请求审计值，但不参与上限排序。Usage Log 同时保留策略前的请求档位与最终转发档位。复合 Key 在鉴权阶段已经选出具体 OpenAI 分组，因此沿用该分组策略；当前 fork 不重新开放 Composite 分组本身的推理配置。HTTP Responses/Chat、Messages 转换和 Responses WebSocket 的每个请求帧都必须执行同一裁决，且策略快照随 API Key 认证缓存传播。
 
 ## 可用性与缓存
 

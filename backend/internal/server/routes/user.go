@@ -18,9 +18,6 @@ func RegisterUserRoutes(
 	settingService *service.SettingService,
 	panelRateLimiter *middleware.PanelRateLimiter,
 ) {
-	// 数据共享下载链接只依赖短期签名票据，便于浏览器原生下载超大文件。
-	v1.GET("/data-sharing/export/download", h.DataSharing.DownloadExport)
-
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))
 	authenticated.Use(middleware.BackendModeUserGuard(settingService))
@@ -124,18 +121,6 @@ func RegisterUserRoutes(
 		{
 			groups.GET("/available", h.APIKey.GetAvailableGroups)
 			groups.GET("/rates", h.APIKey.GetUserGroupRates)
-		}
-
-		// 数据共享：用户查看和签发自己被采集的 Agent session 下载票据。
-		dataSharing := authenticated.Group("/data-sharing")
-		{
-			dataSharing.GET("/notice", h.DataSharing.GetNotice)
-			dataSharing.POST("/confirm", h.DataSharing.ConfirmNotice)
-			dataSharing.GET("/filter-options", h.DataSharing.FilterOptions)
-			dataSharing.GET("/sessions", h.DataSharing.ListSessions)
-			dataSharing.GET("/sessions/:id", h.DataSharing.GetSession)
-			dataSharing.POST("/sessions/:id/export-ticket", h.DataSharing.CreateSessionExportTicket)
-			dataSharing.POST("/export-ticket", h.DataSharing.CreateExportTicket)
 		}
 
 		// 使用记录（聚合统计属重查询，叠加更严格的按用户限流）

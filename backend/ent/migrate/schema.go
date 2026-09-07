@@ -39,9 +39,6 @@ var (
 		{Name: "window_5h_start", Type: field.TypeTime, Nullable: true},
 		{Name: "window_1d_start", Type: field.TypeTime, Nullable: true},
 		{Name: "window_7d_start", Type: field.TypeTime, Nullable: true},
-		{Name: "data_sharing_notice_version", Type: field.TypeInt, Default: 0},
-		{Name: "data_sharing_confirmed_group_id", Type: field.TypeInt64, Nullable: true},
-		{Name: "data_sharing_confirmed_at", Type: field.TypeTime, Nullable: true},
 		{Name: "fallback_to_default_group_when_unavailable", Type: field.TypeBool, Default: true},
 		{Name: "managed_by", Type: field.TypeString, Nullable: true, Size: 32},
 		{Name: "group_id", Type: field.TypeInt64, Nullable: true},
@@ -56,19 +53,19 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "api_keys_groups_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[33]},
+				Columns:    []*schema.Column{APIKeysColumns[30]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "api_keys_teams_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[34]},
+				Columns:    []*schema.Column{APIKeysColumns[31]},
 				RefColumns: []*schema.Column{TeamsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "api_keys_users_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[35]},
+				Columns:    []*schema.Column{APIKeysColumns[32]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -77,17 +74,17 @@ var (
 			{
 				Name:    "apikey_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[35]},
+				Columns: []*schema.Column{APIKeysColumns[32]},
 			},
 			{
 				Name:    "apikey_team_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[34]},
+				Columns: []*schema.Column{APIKeysColumns[31]},
 			},
 			{
 				Name:    "apikey_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[33]},
+				Columns: []*schema.Column{APIKeysColumns[30]},
 			},
 			{
 				Name:    "apikey_status",
@@ -114,11 +111,6 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{APIKeysColumns[18]},
 			},
-			{
-				Name:    "apikey_data_sharing_confirmed_group_id",
-				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[29]},
-			},
 		},
 	}
 	// APIKeyCompositeGroupsColumns holds the columns for the "api_key_composite_groups" table.
@@ -129,8 +121,6 @@ var (
 		{Name: "prefix", Type: field.TypeString, Size: 32},
 		{Name: "normalized_prefix", Type: field.TypeString, Size: 32},
 		{Name: "sort_order", Type: field.TypeInt, Default: 0},
-		{Name: "data_sharing_notice_version", Type: field.TypeInt, Default: 0},
-		{Name: "data_sharing_confirmed_at", Type: field.TypeTime, Nullable: true},
 		{Name: "api_key_id", Type: field.TypeInt64},
 		{Name: "group_id", Type: field.TypeInt64},
 	}
@@ -142,13 +132,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "api_key_composite_groups_api_keys_composite_groups",
-				Columns:    []*schema.Column{APIKeyCompositeGroupsColumns[8]},
+				Columns:    []*schema.Column{APIKeyCompositeGroupsColumns[6]},
 				RefColumns: []*schema.Column{APIKeysColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
 			{
 				Symbol:     "api_key_composite_groups_groups_api_key_composite_groups",
-				Columns:    []*schema.Column{APIKeyCompositeGroupsColumns[9]},
+				Columns:    []*schema.Column{APIKeyCompositeGroupsColumns[7]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.Cascade,
 			},
@@ -157,22 +147,22 @@ var (
 			{
 				Name:    "apikeycompositegroup_api_key_id_group_id",
 				Unique:  true,
-				Columns: []*schema.Column{APIKeyCompositeGroupsColumns[8], APIKeyCompositeGroupsColumns[9]},
+				Columns: []*schema.Column{APIKeyCompositeGroupsColumns[6], APIKeyCompositeGroupsColumns[7]},
 			},
 			{
 				Name:    "apikeycompositegroup_api_key_id_normalized_prefix",
 				Unique:  true,
-				Columns: []*schema.Column{APIKeyCompositeGroupsColumns[8], APIKeyCompositeGroupsColumns[4]},
+				Columns: []*schema.Column{APIKeyCompositeGroupsColumns[6], APIKeyCompositeGroupsColumns[4]},
 			},
 			{
 				Name:    "apikeycompositegroup_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeyCompositeGroupsColumns[9]},
+				Columns: []*schema.Column{APIKeyCompositeGroupsColumns[7]},
 			},
 			{
 				Name:    "apikeycompositegroup_api_key_id_sort_order",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeyCompositeGroupsColumns[8], APIKeyCompositeGroupsColumns[5]},
+				Columns: []*schema.Column{APIKeyCompositeGroupsColumns[6], APIKeyCompositeGroupsColumns[5]},
 			},
 		},
 	}
@@ -875,116 +865,6 @@ var (
 			},
 		},
 	}
-	// DataShareSessionsColumns holds the columns for the "data_share_sessions" table.
-	DataShareSessionsColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "trajectory_id", Type: field.TypeString, Unique: true, Size: 128},
-		{Name: "session_id", Type: field.TypeString, Size: 256},
-		{Name: "dataset", Type: field.TypeString, Size: 128},
-		{Name: "provider", Type: field.TypeString, Size: 50},
-		{Name: "model", Type: field.TypeString, Size: 100},
-		{Name: "request_path", Type: field.TypeString, Size: 128, Default: ""},
-		{Name: "user_agent", Type: field.TypeString, Size: 512, Default: ""},
-		{Name: "status", Type: field.TypeString, Size: 20, Default: "completed"},
-		{Name: "is_final_snapshot", Type: field.TypeBool, Default: true},
-		{Name: "source_request_count", Type: field.TypeInt, Default: 0},
-		{Name: "system_prompt", Type: field.TypeString, Nullable: true, SchemaType: map[string]string{"postgres": "text"}},
-		{Name: "tools", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "messages", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "usage", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "meta", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "session_json", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "payload_compressed", Type: field.TypeBytes, Nullable: true, SchemaType: map[string]string{"postgres": "bytea"}},
-		{Name: "payload_encoding", Type: field.TypeString, Size: 20, Default: ""},
-		{Name: "payload_bytes", Type: field.TypeInt64, Default: 0},
-		{Name: "exportable", Type: field.TypeBool, Default: false},
-		{Name: "quality_status", Type: field.TypeString, Size: 20, Default: "invalid"},
-		{Name: "quality_errors", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "storage_bytes", Type: field.TypeInt64, Default: 0},
-		{Name: "input_tokens", Type: field.TypeInt64, Default: 0},
-		{Name: "output_tokens", Type: field.TypeInt64, Default: 0},
-		{Name: "total_tokens", Type: field.TypeInt64, Default: 0},
-		{Name: "actual_cost", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,10)"}},
-		{Name: "user_id", Type: field.TypeInt64},
-		{Name: "api_key_id", Type: field.TypeInt64},
-		{Name: "group_id", Type: field.TypeInt64},
-		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "ended_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
-		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
-	}
-	// DataShareSessionsTable holds the schema information for the "data_share_sessions" table.
-	DataShareSessionsTable = &schema.Table{
-		Name:       "data_share_sessions",
-		Columns:    DataShareSessionsColumns,
-		PrimaryKey: []*schema.Column{DataShareSessionsColumns[0]},
-		Indexes: []*schema.Index{
-			{
-				Name:    "datasharesession_session_id",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[2]},
-			},
-			{
-				Name:    "datasharesession_user_id",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[28]},
-			},
-			{
-				Name:    "datasharesession_api_key_id",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[29]},
-			},
-			{
-				Name:    "datasharesession_group_id",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[30]},
-			},
-			{
-				Name:    "datasharesession_provider",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[4]},
-			},
-			{
-				Name:    "datasharesession_model",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[5]},
-			},
-			{
-				Name:    "datasharesession_request_path",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[6]},
-			},
-			{
-				Name:    "datasharesession_user_agent",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[7]},
-			},
-			{
-				Name:    "datasharesession_exportable",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[20]},
-			},
-			{
-				Name:    "datasharesession_quality_status",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[21]},
-			},
-			{
-				Name:    "datasharesession_created_at",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[31]},
-			},
-			{
-				Name:    "datasharesession_created_at_id",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[31], DataShareSessionsColumns[0]},
-			},
-			{
-				Name:    "datasharesession_updated_at",
-				Unique:  false,
-				Columns: []*schema.Column{DataShareSessionsColumns[33]},
-			},
-		},
-	}
 	// ErrorPassthroughRulesColumns holds the columns for the "error_passthrough_rules" table.
 	ErrorPassthroughRulesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1089,7 +969,6 @@ var (
 		{Name: "max_reasoning_effort", Type: field.TypeString, Size: 20, Default: ""},
 		{Name: "max_reasoning_effort_over_limit", Type: field.TypeString, Size: 20, Default: "downgrade"},
 		{Name: "reasoning_effort_mappings", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
-		{Name: "data_sharing_enabled", Type: field.TypeBool, Default: false},
 		{Name: "session_isolation_enabled", Type: field.TypeBool, Default: false},
 	}
 	// GroupsTable holds the schema information for the "groups" table.
@@ -1129,14 +1008,9 @@ var (
 				Columns: []*schema.Column{GroupsColumns[49]},
 			},
 			{
-				Name:    "group_data_sharing_enabled",
-				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[65]},
-			},
-			{
 				Name:    "group_session_isolation_enabled",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[66]},
+				Columns: []*schema.Column{GroupsColumns[65]},
 			},
 			{
 				Name:    "idx_groups_duplicate_operation_id_active",
@@ -2556,7 +2430,6 @@ var (
 		CreativeRunsTable,
 		CreativeRunOutboxTable,
 		CreativeRunOutputsTable,
-		DataShareSessionsTable,
 		ErrorPassthroughRulesTable,
 		GroupsTable,
 		IdempotencyRecordsTable,
@@ -2646,9 +2519,6 @@ func init() {
 	}
 	CreativeRunOutputsTable.Annotation = &entsql.Annotation{
 		Table: "creative_run_outputs",
-	}
-	DataShareSessionsTable.Annotation = &entsql.Annotation{
-		Table: "data_share_sessions",
 	}
 	ErrorPassthroughRulesTable.Annotation = &entsql.Annotation{
 		Table: "error_passthrough_rules",

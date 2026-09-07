@@ -26,7 +26,6 @@ const appStore = vi.hoisted(() => ({
     payment_enabled?: boolean
     risk_control_enabled?: boolean
     team_enabled?: boolean
-    data_sharing_enabled?: boolean
     usage_ranking_enabled?: boolean
     custom_menu_items?: []
   },
@@ -146,7 +145,6 @@ describe('feature route guard', () => {
     ['payment', { requiresPayment: true }, '/purchase'],
     ['risk control', { requiresRiskControl: true }, '/admin/risk-control'],
     ['team', { requiresTeam: true }, '/team'],
-    ['data sharing', { requiresDataSharing: true }, '/data-sharing'],
     ['usage ranking', { requiresUsageRanking: true }, '/usage-ranking'],
     ['creative', { requiresCreative: true }, '/creative'],
   ])('does not treat a failed %s settings load as explicitly disabled', async (_name, meta, path) => {
@@ -172,8 +170,6 @@ describe('feature route guard', () => {
     ],
     ['team', { requiresTeam: true }, { team_enabled: false }, '/dashboard', false],
     ['admin team', { requiresTeam: true }, { team_enabled: false }, '/admin/settings', true],
-    ['data sharing', { requiresDataSharing: true }, { data_sharing_enabled: false }, '/dashboard', false],
-    ['admin data sharing', { requiresDataSharing: true }, { data_sharing_enabled: false }, '/admin/settings', true],
     ['usage ranking', { requiresUsageRanking: true }, { usage_ranking_enabled: false }, '/dashboard', false],
     ['creative', { requiresCreative: true }, { creative_enabled: false }, '/dashboard', false],
     ['admin creative', { requiresCreative: true }, { creative_enabled: false }, '/admin/settings', true],

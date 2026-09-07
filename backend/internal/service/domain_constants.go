@@ -217,7 +217,6 @@ const (
 	SettingKeyAffiliateRebatePerInviteeCap        = "affiliate_rebate_per_invitee_cap" // 单个被邀请人的累计返利积分上限（0=无上限）
 	SettingKeyAffiliateAdminRechargeEnabled       = "affiliate_admin_recharge_enabled" // 管理员充值是否产生返利
 	SettingKeyTeamEnabled                         = "team_enabled"                     // 是否显示团队功能相关页面
-	SettingKeyDataSharingEnabled                  = "data_sharing_enabled"             // 是否显示数据共享相关页面
 	SettingKeyCreativeEnabled                     = "creative_enabled"                 // 创作台功能开关
 	SettingKeyCreativeModelSettings               = "creative_model_settings"          // 创作台生图模型与能力白名单（JSON）
 	SettingKeyCreativeWorkerCount                 = "creative_worker_count"            // 创作台 worker 数量（正整数）
@@ -264,16 +263,6 @@ const (
 	SettingKeyAPIKeyACLTrustForwardedIP = "api_key_acl_trust_forwarded_ip" // API Key IP 白/黑名单是否信任转发 IP
 	SettingKeyForwardedClientIPHeaders  = "forwarded_client_ip_headers"    // 自定义 CDN 客户端 IP 请求头（JSON 数组）
 	settingKeyForwardedClientIPModeV2   = "forwarded_client_ip_mode_v2_migrated"
-
-	// 数据共享须知设置
-	SettingKeyDataSharingNoticeContent      = "data_sharing_notice_content"       // 数据共享须知正文
-	SettingKeyDataSharingNoticeVersion      = "data_sharing_notice_version"       // 数据共享须知版本号
-	SettingKeyDataSharingCaptureSkipRules   = "data_sharing_capture_skip_rules"   // 数据共享采集跳过规则
-	SettingKeyDataSharingExportTicketKey    = "data_sharing_export_ticket_key"    // 数据共享导出下载票据签名密钥
-	SettingKeyDataSharingExportRemoteConfig = "data_sharing_export_remote_config" // 数据共享导出文件上传到独立 S3/R2 端点的配置
-	SettingKeyDataSharingExportRemotePrefix = "data_sharing_export_remote_prefix" // 数据共享导出文件上传到 S3/R2 的旧版对象前缀
-	SettingKeyDataSharingStorageLimit       = "data_sharing_storage_limit_bytes"  // 数据共享采集空间阈值，0 表示不限制
-	SettingKeyDataSharingCaptureRuntime     = "data_sharing_capture_runtime"      // 数据共享采集运行时配置（JSON，可在线更新）
 
 	// TOTP 双因素认证设置
 	SettingKeyTotpEnabled = "totp_enabled" // 是否启用 TOTP 2FA 功能

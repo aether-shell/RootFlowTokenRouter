@@ -37,7 +37,6 @@ type AdminHandlers struct {
 	ContentModeration     *admin.ContentModerationHandler
 	Payment               *admin.PaymentHandler
 	Affiliate             *admin.AffiliateHandler
-	DataSharing           *admin.DataSharingHandler
 	CodexInviteReset      *admin.CodexInviteResetHandler
 	AuditLog              *admin.AuditLogHandler
 	Team                  *admin.TeamHandler
@@ -62,7 +61,6 @@ type Handlers struct {
 	Passkey          *PasskeyHandler
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
-	DataSharing      *DataSharingHandler
 	BatchImage       *BatchImageHandler
 	Creative         *CreativeHandler
 	Team             *TeamHandler

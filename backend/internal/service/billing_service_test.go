@@ -669,6 +669,7 @@ func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
 		{name: "gemini unknown no fallback", model: "gemini-2.0-pro", expectNilPricing: true},
 		{name: "openai gpt5.4", model: "gpt-5.4", expectedInput: 2.5e-6},
 		{name: "openai gpt5.4 mini", model: "gpt-5.4-mini", expectedInput: 7.5e-7},
+		{name: "openai gpt6 astra", model: "gpt-6-astra-preview", expectedInput: 10e-6, expectedOutput: testPtrFloat64(50e-6), expectedCache: testPtrFloat64(1e-6)},
 		{name: "openai gpt5.6 sol", model: "gpt-5.6-sol-max", expectedInput: 5e-6, expectedOutput: testPtrFloat64(30e-6), expectedCache: testPtrFloat64(0.5e-6)},
 		{name: "openai gpt5.6 terra", model: "gpt-5.6-terra-max", expectedInput: 2e-6, expectedOutput: testPtrFloat64(12e-6), expectedCache: testPtrFloat64(0.2e-6)},
 		{name: "openai gpt5.6 luna", model: "gpt-5.6-luna", expectedInput: 0.2e-6, expectedOutput: testPtrFloat64(1.2e-6), expectedCache: testPtrFloat64(0.02e-6)},

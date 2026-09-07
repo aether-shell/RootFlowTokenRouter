@@ -100,7 +100,7 @@ Grok Build CLI 的模型配置必须指向 TokenRouter 对外地址（以 `/v1` 
 - `grok-imagine-video`
 - `grok-imagine-video-1.5`
 
-`grok`、`grok-latest` 和 `grok-4.5-latest` 归一化为 `grok-4.5`，`grok-4.6-latest` 归一化为 `grok-4.6`，其它内置别名由 `internal/pkg/xai/models.go` 维护。模型列表默认展示当前目录，并结合账号模型映射/范围和 API Key 别名；未知模型保持透传，以支持管理员配置的 xAI 兼容上游。未知 Grok 文本族在没有显式定价时按 `grok-4.5` 回退，图片、视频、Voice 和搜索等非文本族不会误用该价格。
+文本 Responses 的 `grok`、`grok-latest` 使用运行时默认文本模型，未配置时为 `grok-4.6`；带明确版本的 `grok-4.5-latest`、`grok-4.6-latest` 分别归一化为对应版本。模型市场目录查询复用这套已知文本别名，不启用 GPT/Claude 跨客户端映射，其它内置别名及历史协议 ID 兼容规则由 `internal/pkg/xai/models.go` 维护。模型列表默认展示当前目录，并结合账号模型映射/范围和 API Key 别名；未知模型保持透传，以支持管理员配置的 xAI 兼容上游。未知 Grok 文本族在没有显式定价时按现有 `grok-4.6` 静态价回退，该计费回退不代表继承能力；图片、视频、Voice 和搜索等非文本族不会误用该价格。
 
 ## 环境变量
 

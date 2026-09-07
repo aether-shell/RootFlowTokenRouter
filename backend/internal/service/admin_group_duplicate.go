@@ -109,7 +109,6 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		IsExclusive:                     source.IsExclusive,
 		Status:                          duplicateGroupInactiveStatus,
 		DuplicateOperationID:            operationID,
-		DataSharingEnabled:              source.DataSharingEnabled,
 		SessionIsolationEnabled:         source.SessionIsolationEnabled,
 		AllowImageGeneration:            source.AllowImageGeneration,
 		AllowBatchImageGeneration:       source.AllowBatchImageGeneration,

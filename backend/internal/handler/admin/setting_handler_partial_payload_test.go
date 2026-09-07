@@ -67,7 +67,7 @@ func TestUpdateSettingsSMTPFromAliasIsWritable(t *testing.T) {
 	require.Equal(t, "new@example.com", repo.values[service.SettingKeySMTPFrom])
 }
 
-// 创作台开关与 team/data_sharing 同款部分更新语义：显式发送时写入，省略时保留存储值。
+// 创作台开关与 team 同款部分更新语义：显式发送时写入，省略时保留存储值。
 func TestUpdateSettingsCreativeEnabledPartialSemantics(t *testing.T) {
 	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
 		service.SettingKeyCreativeEnabled: "true",

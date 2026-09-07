@@ -176,7 +176,7 @@ security:
     # 默认 CSP 策略（如果静态资源托管在其他域名，请自行覆盖）
     # Note: __CSP_NONCE__ will be replaced with 'nonce-xxx' at request time for inline script security
     # 注意：__CSP_NONCE__ 会在请求时被替换为 'nonce-xxx'，用于内联脚本安全
-    policy: "default-src 'self'; worker-src 'self' blob:; script-src 'self' __CSP_NONCE__ https://accounts.google.com/gsi/client https://challenges.cloudflare.com https://*.alicdn.com https://static.cloudflareinsights.com https://turing.captcha.qcloud.com https://turing.captcha.gtimg.com https://ca.turing.captcha.qcloud.com https://global.turing.captcha.gtimg.com https://www.tycaptcha.com https://cloudcache.tencentcs.com https://*.stripe.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; style-src 'self' 'unsafe-inline' https://*.captcha.gtimg.com https://accounts.google.com/gsi/style https://fonts.googleapis.com https://*.alicdn.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://accounts.google.com/gsi/ https://turing.captcha.qcloud.com https://www.tycaptcha.com https://rce.tencentrio.com https:; frame-src https://accounts.google.com/gsi/ https://challenges.cloudflare.com https://turing.captcha.qcloud.com https://ca.turing.captcha.qcloud.com https://www.tycaptcha.com https://*.stripe.com https://checkout.airwallex.com https://checkout-demo.airwallex.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    policy: "default-src 'self'; worker-src 'self' blob:; script-src 'self' __CSP_NONCE__ https://accounts.google.com/gsi/client https://challenges.cloudflare.com https://*.alicdn.com https://static.cloudflareinsights.com https://turing.captcha.qcloud.com https://turing.captcha.gtimg.com https://ca.turing.captcha.qcloud.com https://global.turing.captcha.gtimg.com https://www.tycaptcha.com https://cloudcache.tencentcs.com https://*.stripe.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; style-src 'self' 'unsafe-inline' https://*.captcha.gtimg.com https://accounts.google.com/gsi/style https://fonts.googleapis.com https://*.alicdn.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:43110 http://127.0.0.1:43111 http://127.0.0.1:43112 http://127.0.0.1:43113 http://127.0.0.1:43114 http://127.0.0.1:43115 http://127.0.0.1:43116 http://127.0.0.1:43117 http://127.0.0.1:43118 http://127.0.0.1:43119 https://accounts.google.com/gsi/ https://turing.captcha.qcloud.com https://www.tycaptcha.com https://rce.tencentrio.com https:; frame-src https://accounts.google.com/gsi/ https://challenges.cloudflare.com https://turing.captcha.qcloud.com https://ca.turing.captcha.qcloud.com https://www.tycaptcha.com https://*.stripe.com https://checkout.airwallex.com https://checkout-demo.airwallex.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
   proxy_probe:
     # Allow skipping TLS verification for proxy probe (debug only)
     # 允许代理探测时跳过 TLS 证书验证（仅用于调试）
@@ -481,28 +481,6 @@ gateway:
     # Max image requests waiting in this process when overflow_mode=wait, 0=unlimited
     # wait 模式当前进程允许排队等待的图片请求数，0=不限制
     max_waiting_requests: 100
-  # 数据共享采集队列（进程级、有界队列；队列满时丢弃并在管理端统计中可见）
-  data_sharing_capture:
-    # 固定采集 worker 数量
-    worker_count: 32
-    # 最大待写入采集任务数，超过后直接丢弃
-    queue_size: 32768
-    # 单个采集写入任务超时（秒）
-    task_timeout_seconds: 15
-    # payload 压缩等级：fastest/default/better/best，可在管理端在线覆盖
-    compression_level: "fastest"
-    # 是否启用进程内热点 session 缓冲池，可在管理端在线覆盖
-    buffer_enabled: true
-    # 热点 session 空闲多久后合并落库（秒），可在管理端在线覆盖
-    buffer_idle_flush_seconds: 30
-    # 最大缓冲 session 数量，超过后优先触发 flush
-    buffer_max_sessions: 4096
-    # 最大待落库增量事件数，超过后优先触发 flush
-    buffer_max_pending_events: 65536
-  # 数据共享预生成导出文件
-  data_sharing_export:
-    # 本地导出文件保存目录；留空时使用 DATA_DIR/data-sharing-exports
-    storage_dir: ""
   # SSE max line size in bytes (default: 40MB)
   # SSE 单行最大字节数（默认 40MB）
   max_line_size: 41943040

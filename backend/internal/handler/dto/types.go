@@ -80,10 +80,6 @@ type APIKey struct {
 	ExpiresAt               *time.Time             `json:"expires_at"`   // Expiration time (nil = never expires)
 	CreatedAt               time.Time              `json:"created_at"`
 	UpdatedAt               time.Time              `json:"updated_at"`
-	// 数据共享确认记录，用于前端判断切换分组时是否需要重新弹窗。
-	DataSharingNoticeVersion    int        `json:"data_sharing_notice_version"`
-	DataSharingConfirmedGroupID *int64     `json:"data_sharing_confirmed_group_id"`
-	DataSharingConfirmedAt      *time.Time `json:"data_sharing_confirmed_at"`
 	// 绑定分组不可用时是否自动回退到同平台默认分组。
 	FallbackToDefaultGroupWhenUnavailable bool `json:"fallback_to_default_group_when_unavailable"`
 	// CurrentConcurrency 表示当前 API Key 的实时活跃请求数。
@@ -125,8 +121,6 @@ type Group struct {
 	IsExclusive    bool           `json:"is_exclusive"`
 	IsDefault      bool           `json:"is_default"`
 	Status         string         `json:"status"`
-	// 数据共享分组会采集符合规则的 Agent session，用户切换前必须确认须知。
-	DataSharingEnabled bool `json:"data_sharing_enabled"`
 	// 会话隔离开启后，目标分组会拒绝其它分组已归属的显式会话切入。
 	SessionIsolationEnabled   bool `json:"session_isolation_enabled"`
 	LongContextPricingEnabled bool `json:"long_context_pricing_enabled"`

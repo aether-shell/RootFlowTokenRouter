@@ -40,12 +40,10 @@ type ModelMarketplaceGroup struct {
 	ImageRateMultiplier        float64
 	OfficialPriceRatio         *float64
 	OfficialPriceRMBEquivalent *float64
-	// DataSharingEnabled 标记公开分组是否会采集数据共享会话，供模型广场展示提示。
-	DataSharingEnabled bool
-	Capacity           *GroupCapacitySummary
-	Availability       *GroupAvailabilitySummary
-	ModelCount         int
-	Models             []ModelMarketplaceModel
+	Capacity                   *GroupCapacitySummary
+	Availability               *GroupAvailabilitySummary
+	ModelCount                 int
+	Models                     []ModelMarketplaceModel
 }
 
 type ModelMarketplaceModel struct {
@@ -134,7 +132,6 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 			ImageRateMultiplier:        group.ImageRateMultiplier,
 			OfficialPriceRatio:         officialPriceRatio,
 			OfficialPriceRMBEquivalent: officialPriceRMBEquivalent,
-			DataSharingEnabled:         group.DataSharingEnabled,
 			Capacity:                   marketplaceGroupCapacity(capacityMap, group.ID),
 			Availability:               marketplaceGroupAvailability(availabilityMap, group.ID),
 			ModelCount:                 len(models),

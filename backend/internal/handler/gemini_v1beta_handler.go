@@ -657,7 +657,6 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
 				RequestBody:        body,
-				SessionID:          sessionKey,
 				ForceCacheBilling:  forceCacheBilling,
 				APIKeyService:      h.apiKeyService,
 				ClientSessionID:    clientSessionID,

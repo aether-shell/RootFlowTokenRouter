@@ -325,7 +325,6 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 
 	var usage *ClaudeUsage
 	var firstTokenMs *int
-	var responseBody []byte
 	if clientStream {
 		streamRes, err := s.handleOpenAICompatStreamingResponseFromGemini(c, resp, startTime, originalModel, account.Type == AccountTypeOAuth, includeUsage, protocol, clientToolMapping)
 		if err != nil {
@@ -333,7 +332,6 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 		}
 		usage = streamRes.usage
 		firstTokenMs = streamRes.firstTokenMs
-		responseBody = streamRes.responseBody
 	} else if useUpstreamStream {
 		collected, usageObj, err := collectGeminiSSE(resp.Body, account.Type == AccountTypeOAuth)
 		if err != nil {
@@ -345,8 +343,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 			if convertErr != nil {
 				return nil, s.writeGeminiOpenAICompatError(c, protocol, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 			}
-			responseBody, err = s.writeGeminiResponsesResponse(c, resp, responsesResp, clientToolMapping)
-			if err != nil {
+			if err = s.writeGeminiResponsesResponse(c, resp, responsesResp, clientToolMapping); err != nil {
 				return nil, err
 			}
 			usage = usageObj2
@@ -356,7 +353,6 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 				return nil, s.writeGeminiOpenAICompatError(c, protocol, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 			}
 			if responseBytes, marshalErr := json.Marshal(chatResp); marshalErr == nil {
-				responseBody = cloneDataSharingRequestBody(responseBytes)
 				c.Data(http.StatusOK, "application/json; charset=utf-8", responseBytes)
 			} else {
 				c.JSON(http.StatusOK, chatResp)
@@ -365,17 +361,15 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 		}
 	} else {
 		var usageResp *ClaudeUsage
-		var body []byte
 		if protocol == geminiOpenAICompatResponses {
-			usageResp, body, err = s.handleResponsesNonStreamingResponseFromGemini(c, resp, originalModel, account.Type == AccountTypeOAuth, clientToolMapping)
+			usageResp, err = s.handleResponsesNonStreamingResponseFromGemini(c, resp, originalModel, account.Type == AccountTypeOAuth, clientToolMapping)
 		} else {
-			usageResp, body, err = s.handleChatCompletionsNonStreamingResponseFromGemini(c, resp, originalModel, account.Type == AccountTypeOAuth)
+			usageResp, err = s.handleChatCompletionsNonStreamingResponseFromGemini(c, resp, originalModel, account.Type == AccountTypeOAuth)
 		}
 		if err != nil {
 			return nil, err
 		}
 		usage = usageResp
-		responseBody = body
 	}
 
 	if usage == nil {
@@ -398,7 +392,6 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 		Duration:         time.Since(startTime),
 		FirstTokenMs:     firstTokenMs,
 		ReasoningEffort:  reasoningEffort,
-		ResponseBody:     cloneDataSharingRequestBody(responseBody),
 		ImageCount:       imageCount,
 		ImageSize:        imageSize,
 		ImageInputSize:   imageInputSize,
@@ -554,10 +547,10 @@ func (s *GeminiMessagesCompatService) handleChatCompletionsNonStreamingResponseF
 	resp *http.Response,
 	originalModel string,
 	isOAuth bool,
-) (*ClaudeUsage, []byte, error) {
+) (*ClaudeUsage, error) {
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if isOAuth {
 		if unwrappedBody, uwErr := unwrapGeminiResponse(respBody); uwErr == nil {
@@ -567,21 +560,21 @@ func (s *GeminiMessagesCompatService) handleChatCompletionsNonStreamingResponseF
 
 	var geminiResp map[string]any
 	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
-		return nil, nil, s.writeChatCompletionsError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
+		return nil, s.writeChatCompletionsError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 
 	chatResp, usage, err := geminiResponseToChatCompletions(geminiResp, originalModel, respBody, nil)
 	if err != nil {
-		return nil, nil, s.writeChatCompletionsError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
+		return nil, s.writeChatCompletionsError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	body, err := json.Marshal(chatResp)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
-	return usage, cloneDataSharingRequestBody(body), nil
+	return usage, nil
 }
 
 func geminiResponseToChatCompletions(
@@ -633,10 +626,10 @@ func (s *GeminiMessagesCompatService) handleResponsesNonStreamingResponseFromGem
 	originalModel string,
 	isOAuth bool,
 	clientToolMapping apicompat.ResponsesClientToolMapping,
-) (*ClaudeUsage, []byte, error) {
+) (*ClaudeUsage, error) {
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if isOAuth {
 		if unwrappedBody, unwrapErr := unwrapGeminiResponse(respBody); unwrapErr == nil {
@@ -646,14 +639,16 @@ func (s *GeminiMessagesCompatService) handleResponsesNonStreamingResponseFromGem
 
 	var geminiResp map[string]any
 	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
-		return nil, nil, s.writeGeminiOpenAICompatError(c, geminiOpenAICompatResponses, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
+		return nil, s.writeGeminiOpenAICompatError(c, geminiOpenAICompatResponses, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
 	responsesResp, usage, err := geminiResponseToResponses(geminiResp, originalModel, respBody, nil)
 	if err != nil {
-		return nil, nil, s.writeGeminiOpenAICompatError(c, geminiOpenAICompatResponses, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
+		return nil, s.writeGeminiOpenAICompatError(c, geminiOpenAICompatResponses, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
-	body, err := s.writeGeminiResponsesResponse(c, resp, responsesResp, clientToolMapping)
-	return usage, body, err
+	if err := s.writeGeminiResponsesResponse(c, resp, responsesResp, clientToolMapping); err != nil {
+		return nil, err
+	}
+	return usage, nil
 }
 
 func (s *GeminiMessagesCompatService) writeGeminiResponsesResponse(
@@ -661,22 +656,22 @@ func (s *GeminiMessagesCompatService) writeGeminiResponsesResponse(
 	resp *http.Response,
 	responsesResp *apicompat.ResponsesResponse,
 	clientToolMapping apicompat.ResponsesClientToolMapping,
-) ([]byte, error) {
+) error {
 	if resp != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	body, err := json.Marshal(responsesResp)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	body = reverseToolNamesIfPresent(c, body)
 	body, _, err = apicompat.RestoreResponsesClientToolPayload(body, clientToolMapping)
 	if err != nil {
-		return nil, fmt.Errorf("restore responses client tools: %w", err)
+		return fmt.Errorf("restore responses client tools: %w", err)
 	}
 	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
-	return cloneDataSharingRequestBody(body), nil
+	return nil
 }
 
 func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGemini(
@@ -713,14 +708,12 @@ func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGem
 	var usage ClaudeUsage
 	var firstTokenMs *int
 	firstChunk := true
-	streamAccumulator := newOpenAIChatCompletionsStreamAccumulator(originalModel)
 
 	writeChatChunk := func(chunk apicompat.ChatCompletionsChunk) bool {
 		payload, err := json.Marshal(chunk)
 		if err != nil {
 			return false
 		}
-		observeOpenAIChatStreamPayload(streamAccumulator, payload, openAIUsageFromClaudeUsage(usage))
 		if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", payload); err != nil {
 			return true
 		}
@@ -746,14 +739,9 @@ func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGem
 	}
 
 	resultSnapshot := func() *geminiStreamResult {
-		var responseBody []byte
-		if protocol == geminiOpenAICompatChatCompletions {
-			responseBody = streamAccumulator.ResponseBody(openAIUsageFromClaudeUsage(usage))
-		}
 		return &geminiStreamResult{
 			usage:        &usage,
 			firstTokenMs: firstTokenMs,
-			responseBody: responseBody,
 		}
 	}
 

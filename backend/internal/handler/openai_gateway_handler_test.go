@@ -2052,7 +2052,7 @@ func TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups(t *testing.
 	cache := &cyberSessionBlockHandlerCacheStub{blocked: true}
 	gatewaySvc := service.NewOpenAIGatewayService(
 		nil, nil, nil, nil, nil, nil, cache, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, service.NewSettingService(settingRepo, nil), nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, service.NewSettingService(settingRepo, nil), nil,
 	)
 	moderationSvc := service.NewContentModerationService(settingRepo, nil, nil, nil, nil, nil, nil)
 	h := &OpenAIGatewayHandler{
@@ -2573,7 +2573,6 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 		nil,
 		nil,
 		nil,
-		nil,
 	)
 	h := NewOpenAIGatewayHandler(
 		gatewaySvc,
@@ -2677,7 +2676,6 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 				nil,
 				nil,
 				nil,
-				nil,
 			)
 			h := NewOpenAIGatewayHandler(
 				gatewaySvc,
@@ -2754,7 +2752,6 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 		upstream,
 		nil,
 		&service.DeferredService{},
-		nil,
 		nil,
 		nil,
 		nil,
@@ -2924,7 +2921,6 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		nil,
 		nil,
 		nil,
-		nil, // 数据共享服务
 	)
 
 	cache := &concurrencyCacheMock{
@@ -3113,7 +3109,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), rateLimitSvc, billingCacheSvc,
-		nil, nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil,
 	)
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
@@ -3319,7 +3315,6 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		nil,
 		nil,
 		nil, // 用户平台配额仓库
-		nil, // 数据共享服务
 	)
 
 	cache := &concurrencyCacheMock{

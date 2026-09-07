@@ -153,6 +153,7 @@ function mountView() {
   return mount(GroupsView, {
     global: {
       stubs: {
+        Teleport: true,
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,
         DataTable: DataTableStub,
@@ -219,6 +220,8 @@ describe('GroupsView duplicate action', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    expect(wrapper.find('[data-testid="group-duplicate"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="group-more"]').trigger('click')
     await wrapper.get('[data-testid="group-duplicate"]').trigger('click')
     await flushPromises()
 
@@ -226,6 +229,7 @@ describe('GroupsView duplicate action', () => {
     expect(duplicateGroup).toHaveBeenCalledWith(42)
     expect(showSuccess).toHaveBeenCalledWith('admin.groups.duplicateSuccess')
     expect(listGroups).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[role="menu"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -237,14 +241,18 @@ describe('GroupsView duplicate action', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    await wrapper.get('[data-testid="group-more"]').trigger('click')
     const button = wrapper.get('[data-testid="group-duplicate"]')
     void button.trigger('click')
     void button.trigger('click')
     await wrapper.vm.$nextTick()
 
     expect(duplicateGroup).toHaveBeenCalledTimes(1)
-    expect(button.attributes('disabled')).toBeDefined()
-    expect(button.attributes('title')).toBe('admin.groups.duplicating')
+    // 请求期间重新打开菜单仍禁用复制，避免重复提交。
+    await wrapper.get('[data-testid="group-more"]').trigger('click')
+    const pendingButton = wrapper.get('[data-testid="group-duplicate"]')
+    expect(pendingButton.attributes('disabled')).toBeDefined()
+    expect(pendingButton.attributes('title')).toBe('admin.groups.duplicating')
 
     resolveDuplicate({ ...sourceGroup, id: 43, name: 'Primary (Copy)', status: 'inactive' })
     await flushPromises()
@@ -257,10 +265,12 @@ describe('GroupsView duplicate action', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    await wrapper.get('[data-testid="group-more"]').trigger('click')
     await wrapper.get('[data-testid="group-duplicate"]').trigger('click')
     await flushPromises()
 
     expect(showError).toHaveBeenCalledWith('duplicate failed')
+    await wrapper.get('[data-testid="group-more"]').trigger('click')
     expect(wrapper.get('[data-testid="group-duplicate"]').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
@@ -278,6 +288,7 @@ describe('GroupsView duplicate action', () => {
     const wrapper = mountView()
     await flushPromises()
 
+    await wrapper.get('[data-testid="group-more"]').trigger('click')
     await wrapper.get('[data-testid="group-duplicate"]').trigger('click')
     await flushPromises()
 

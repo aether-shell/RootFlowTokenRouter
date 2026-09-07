@@ -120,10 +120,6 @@ backup: {
           title: 'Runtime Jobs and Temporary Data',
           description: 'Includes idempotency cache, scheduler outbox, pending auth sessions, cleanup tasks, and scheduled test results.'
         },
-        dataShareSessions: {
-          title: 'Data Sharing Sessions',
-          description: 'Includes full Agent conversations and compressed payloads captured for data-sharing groups. This can grow quickly with request volume.'
-        }
       },
       s3: {
         title: 'S3 Storage Configuration',
@@ -812,6 +808,22 @@ affiliates: {
     },
 // Groups
     groups: {
+      accountFilters: {
+        title: 'Account filters',
+        oauthOnly: 'Only allow OAuth accounts',
+        privacyRequired: 'Only allow accounts with privacy protection configured'
+      },
+      tabs: {
+        label: 'Group settings',
+        general: 'General',
+        platform: 'Platform settings',
+        pricing: 'Billing & pricing',
+        protocol: 'Protocol controls',
+        identity: 'Basic information',
+        scheduling: 'Scheduling & access',
+        imageCapabilities: 'Image capabilities',
+        batchPricing: 'Batch image billing'
+      },
       title: 'Group Management',
       description: 'Manage API key groups and rate multipliers',
       searchGroups: 'Search groups...',
@@ -841,7 +853,6 @@ affiliates: {
         displayBrand: 'Brand Type',
         schedulerType: 'Scheduler',
         rateMultiplier: 'Rate Multiplier',
-        dataSharing: 'Data Sharing',
         sessionIsolation: 'Session Isolation',
         rpmOverride: 'RPM Override',
         rpmOverrideHint: 'Per-user RPM cap in this group; empty = group default; 0 = unlimited',
@@ -959,14 +970,6 @@ affiliates: {
         title: 'Specific fallback group',
         noFallback: 'Not specified (use default group)',
         hint: 'When this group is disabled, API keys bound to it prefer this group as fallback. Leave empty to keep falling back to the platform default group.'
-      },
-      dataSharing: {
-        title: 'Data Sharing Group',
-        enabled: 'Enabled',
-        disabled: 'Disabled',
-        enabledText: 'Collect conversation data',
-        disabledText: 'Do not collect conversation data',
-        hint: 'When enabled, users must confirm the data sharing notice before switching an API key to this group.'
       },
       sessionIsolation: {
         title: 'Enable Session Isolation',
@@ -1108,7 +1111,6 @@ affiliates: {
         batchHoldMultiplier: 'Batch hold price ratio',
         batchSectionHint: 'Batch image settings only apply to batch jobs: settlement applies the batch discount, and the upfront hold is normal image price × batch hold price ratio. Reference images also create upstream input-token usage, so a batch image discount above 0.5 is recommended.',
         batchDisabledHint: 'Enable image generation for this group before enabling batch image generation.',
-        batchGeminiOnlyHint: 'Batch image generation is currently available only for Gemini groups.',
         modeHint: 'By default, image billing uses image price × current effective group multiplier. Independent mode uses image price × image multiplier.',
         finalPricePreview: 'Final per-image price preview',
         notConfigured: 'Not configured'
@@ -1234,7 +1236,7 @@ affiliates: {
       openaiFast: {
         title: 'OpenAI Fast',
         force: 'Force Fast priority',
-        hint: 'When enabled, requests in this OpenAI or Composite group use service_tier=priority. Global Fast/Flex policy and API-key overrides still apply.',
+        hint: 'When enabled, requests in this OpenAI group use service_tier=priority. Global Fast/Flex policy and API-key overrides still apply.',
         free: 'Free Fast',
         freeHint: 'Fast requests still use the priority tier, but customers are charged the equivalent Standard price.'
       },

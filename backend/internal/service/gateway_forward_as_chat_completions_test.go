@@ -133,8 +133,8 @@ func TestHandleCCBufferedFromAnthropic_PreservesMessageStartCacheUsageAndReasoni
 	require.Equal(t, 3, result.Usage.CacheCreationInputTokens)
 	require.NotNil(t, result.ReasoningEffort)
 	require.Equal(t, "high", *result.ReasoningEffort)
-	require.Equal(t, "hello world", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
-	require.Equal(t, "stop", gjson.GetBytes(result.ResponseBody, "choices.0.finish_reason").String())
+	require.Equal(t, "hello world", gjson.GetBytes(rec.Body.Bytes(), "choices.0.message.content").String())
+	require.Equal(t, "stop", gjson.GetBytes(rec.Body.Bytes(), "choices.0.finish_reason").String())
 }
 
 // Anthropic 兼容上游可能返回冒号后无空格的紧凑 SSE，缓冲路径必须完整解析。
@@ -246,11 +246,10 @@ func TestHandleCCStreamingFromAnthropic_PreservesMessageStartCacheUsageAndReason
 	require.Equal(t, 4, result.Usage.CacheCreationInputTokens)
 	require.NotNil(t, result.ReasoningEffort)
 	require.Equal(t, "medium", *result.ReasoningEffort)
-	require.Equal(t, "hello", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
 	require.Contains(t, rec.Body.String(), `[DONE]`)
 }
 
-func TestHandleCCBufferedFromAnthropic_ResponseBodyCapturesToolCall(t *testing.T) {
+func TestHandleCCBufferedFromAnthropic_WritesToolCall(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)
 
@@ -279,16 +278,6 @@ func TestHandleCCBufferedFromAnthropic_ResponseBodyCapturesToolCall(t *testing.T
 	result, err := svc.handleCCBufferedFromAnthropic(resp, c, "gpt-5", "claude-sonnet-4.5", nil, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotEmpty(t, result.ResponseBody)
-	require.Equal(t, "lookup", gjson.GetBytes(result.ResponseBody, "choices.0.message.tool_calls.0.function.name").String())
-	require.JSONEq(t, `{"q":"hi"}`, gjson.GetBytes(result.ResponseBody, "choices.0.message.tool_calls.0.function.arguments").String())
-}
-
-func TestOpenAIUsageFromClaudeUsage(t *testing.T) {
-	t.Parallel()
-
-	usage := openAIUsageFromClaudeUsage(ClaudeUsage{InputTokens: 3, OutputTokens: 4, CacheReadInputTokens: 2})
-	require.Equal(t, 3, usage.InputTokens)
-	require.Equal(t, 4, usage.OutputTokens)
-	require.Equal(t, 2, usage.CacheReadInputTokens)
+	require.Equal(t, "lookup", gjson.GetBytes(rec.Body.Bytes(), "choices.0.message.tool_calls.0.function.name").String())
+	require.JSONEq(t, `{"q":"hi"}`, gjson.GetBytes(rec.Body.Bytes(), "choices.0.message.tool_calls.0.function.arguments").String())
 }

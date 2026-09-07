@@ -2,14 +2,12 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
@@ -286,7 +284,6 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	clientOutputStarted := false
 	pendingLines := make([]string, 0, 8)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
-	streamAccumulator := newOpenAIChatCompletionsStreamAccumulator(originalModel)
 	var terminal openAIRawStreamTerminalState
 
 	writeLine := func(line string) {
@@ -333,7 +330,6 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				if u := extractCCStreamUsage(payload); u != nil {
 					usage = *u
 				}
-				streamAccumulator.ObservePayload(payload)
 				if firstTokenMs == nil && !usageOnlyChunk {
 					elapsed := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &elapsed
@@ -368,7 +364,6 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 			Stream:                      true,
 			Duration:                    time.Since(startTime),
 			FirstTokenMs:                firstTokenMs,
-			ResponseBody:                streamAccumulator.ResponseBody(&usage),
 		}
 	}
 
@@ -474,192 +469,6 @@ func extractCCStreamUsage(payload string) *OpenAIUsage {
 	return &u
 }
 
-type openAIChatCompletionsStreamAccumulator struct {
-	id             string
-	model          string
-	created        int64
-	role           string
-	content        strings.Builder
-	reasoning      strings.Builder
-	toolCalls      map[int]*apicompat.ChatToolCall
-	finishReason   string
-	systemFP       string
-	serviceTier    string
-	observedChunks bool
-}
-
-// newOpenAIChatCompletionsStreamAccumulator 聚合 Chat Completions 流式 chunk 供数据共享落盘。
-func newOpenAIChatCompletionsStreamAccumulator(model string) *openAIChatCompletionsStreamAccumulator {
-	return &openAIChatCompletionsStreamAccumulator{
-		model:     model,
-		toolCalls: make(map[int]*apicompat.ChatToolCall),
-	}
-}
-
-// ObservePayload 读取一个 SSE payload，并累积 assistant 文本、reasoning 和工具调用。
-func (a *openAIChatCompletionsStreamAccumulator) ObservePayload(payload string) {
-	var chunk apicompat.ChatCompletionsChunk
-	if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
-		return
-	}
-	if len(chunk.Choices) == 0 {
-		return
-	}
-	a.observedChunks = true
-	if chunk.ID != "" {
-		a.id = chunk.ID
-	}
-	if chunk.Model != "" {
-		a.model = chunk.Model
-	}
-	if chunk.Created > 0 {
-		a.created = chunk.Created
-	}
-	if chunk.SystemFingerprint != "" {
-		a.systemFP = chunk.SystemFingerprint
-	}
-	if chunk.ServiceTier != "" {
-		a.serviceTier = chunk.ServiceTier
-	}
-	for _, choice := range chunk.Choices {
-		if choice.FinishReason != nil && *choice.FinishReason != "" {
-			a.finishReason = *choice.FinishReason
-		}
-		if choice.Delta.Role != "" {
-			a.role = choice.Delta.Role
-		}
-		if choice.Delta.Content != nil {
-			_, _ = a.content.WriteString(*choice.Delta.Content)
-		}
-		if reasoning := choice.Delta.ReasoningText(); reasoning != nil {
-			_, _ = a.reasoning.WriteString(*reasoning)
-		}
-		for _, deltaCall := range choice.Delta.ToolCalls {
-			idx := len(a.toolCalls)
-			if deltaCall.Index != nil {
-				idx = *deltaCall.Index
-			}
-			stored := a.toolCalls[idx]
-			if stored == nil {
-				copyCall := apicompat.ChatToolCall{Type: "function"}
-				a.toolCalls[idx] = &copyCall
-				stored = &copyCall
-			}
-			if deltaCall.ID != "" {
-				stored.ID = deltaCall.ID
-			}
-			if deltaCall.Type != "" {
-				stored.Type = deltaCall.Type
-			}
-			if deltaCall.Function.Name != "" {
-				stored.Function.Name = deltaCall.Function.Name
-			}
-			if deltaCall.Function.Arguments != "" {
-				stored.Function.Arguments += deltaCall.Function.Arguments
-			}
-		}
-	}
-}
-
-// ResponseBody 将已累积的流式结果还原为非流式 Chat Completions 响应体。
-func (a *openAIChatCompletionsStreamAccumulator) ResponseBody(usage *OpenAIUsage) []byte {
-	if a == nil || !a.observedChunks {
-		return nil
-	}
-	id := a.id
-	if id == "" {
-		id = "chatcmpl-data-share"
-	}
-	created := a.created
-	if created == 0 {
-		created = time.Now().Unix()
-	}
-	role := a.role
-	if role == "" {
-		role = "assistant"
-	}
-	msg := apicompat.ChatMessage{Role: role}
-	if a.content.Len() > 0 {
-		raw, _ := json.Marshal(a.content.String())
-		msg.Content = raw
-	}
-	if a.reasoning.Len() > 0 {
-		msg.ReasoningContent = a.reasoning.String()
-	}
-	if len(a.toolCalls) > 0 {
-		for i := 0; i < len(a.toolCalls); i++ {
-			call := a.toolCalls[i]
-			if call == nil {
-				continue
-			}
-			copied := *call
-			copied.Index = nil
-			if copied.Type == "" {
-				copied.Type = "function"
-			}
-			msg.ToolCalls = append(msg.ToolCalls, copied)
-		}
-	}
-	finishReason := a.finishReason
-	if finishReason == "" {
-		if len(msg.ToolCalls) > 0 {
-			finishReason = "tool_calls"
-		} else {
-			finishReason = "stop"
-		}
-	}
-	resp := apicompat.ChatCompletionsResponse{
-		ID:                id,
-		Object:            "chat.completion",
-		Created:           created,
-		Model:             a.model,
-		SystemFingerprint: a.systemFP,
-		ServiceTier:       a.serviceTier,
-		Choices: []apicompat.ChatChoice{{
-			Index:        0,
-			Message:      msg,
-			FinishReason: finishReason,
-		}},
-	}
-	if usage != nil {
-		resp.Usage = &apicompat.ChatUsage{
-			PromptTokens:     usage.InputTokens,
-			CompletionTokens: usage.OutputTokens,
-			TotalTokens:      usage.InputTokens + usage.OutputTokens,
-		}
-		if usage.CacheReadInputTokens > 0 {
-			resp.Usage.PromptTokensDetails = &apicompat.ChatTokenDetails{CachedTokens: usage.CacheReadInputTokens}
-		}
-	}
-	body, err := json.Marshal(resp)
-	if err != nil {
-		return nil
-	}
-	return cloneDataSharingRequestBody(body)
-}
-
-// observeOpenAIChatStreamChunk 聚合单个 Chat Completions chunk，并返回当前可用于数据共享的快照。
-func observeOpenAIChatStreamChunk(a *openAIChatCompletionsStreamAccumulator, chunk apicompat.ChatCompletionsChunk, usage *OpenAIUsage) []byte {
-	if a == nil {
-		return nil
-	}
-	payload, err := json.Marshal(chunk)
-	if err != nil {
-		return nil
-	}
-	a.ObservePayload(string(payload))
-	return a.ResponseBody(usage)
-}
-
-// observeOpenAIChatStreamPayload 聚合已经序列化的 Chat Completions chunk payload。
-func observeOpenAIChatStreamPayload(a *openAIChatCompletionsStreamAccumulator, payload []byte, usage *OpenAIUsage) []byte {
-	if a == nil || len(payload) == 0 {
-		return nil
-	}
-	a.ObservePayload(string(payload))
-	return a.ResponseBody(usage)
-}
-
 // bufferRawChatCompletions 透传上游 CC 非流式 JSON 响应。
 func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	c *gin.Context,
@@ -731,7 +540,6 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
 		Stream:                      false,
 		Duration:                    time.Since(startTime),
-		ResponseBody:                cloneDataSharingRequestBody(respBody),
 	}, nil
 }
 

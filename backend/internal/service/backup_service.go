@@ -102,10 +102,6 @@ var backupContentTableDataGroups = map[string][]string{
 		"public.usage_cleanup_tasks",
 		"public.scheduled_test_results",
 	},
-	// 数据共享会话包含完整对话载荷，必须允许独立控制是否导出数据。
-	"data_share_sessions": {
-		"public.data_share_sessions",
-	},
 }
 
 // ─── 接口定义 ───
@@ -155,13 +151,11 @@ type BackupStorageConfig struct {
 
 // BackupContentConfig 控制备份文件中包含哪些非核心历史数据。
 type BackupContentConfig struct {
-	IncludeUsageRecords bool `json:"include_usage_records"`
-	IncludeOpsLogs      bool `json:"include_ops_logs"`
-	IncludeAuditLogs    bool `json:"include_audit_logs"`
-	IncludeRuntimeData  bool `json:"include_runtime_data"`
-	// IncludeDataShareSessions 控制是否导出数据共享会话的完整载荷。
-	IncludeDataShareSessions bool     `json:"include_data_share_sessions"`
-	ExcludedTableData        []string `json:"excluded_table_data,omitempty"`
+	IncludeUsageRecords bool     `json:"include_usage_records"`
+	IncludeOpsLogs      bool     `json:"include_ops_logs"`
+	IncludeAuditLogs    bool     `json:"include_audit_logs"`
+	IncludeRuntimeData  bool     `json:"include_runtime_data"`
+	ExcludedTableData   []string `json:"excluded_table_data,omitempty"`
 }
 
 // BackupS3Config S3 兼容存储配置（支持 Cloudflare R2）
@@ -1487,9 +1481,6 @@ func (s *BackupService) buildExcludedTableData(cfg *BackupContentConfig) []strin
 	if !cfg.IncludeRuntimeData {
 		excluded = append(excluded, backupContentTableDataGroups["runtime_data"]...)
 	}
-	if !cfg.IncludeDataShareSessions {
-		excluded = append(excluded, backupContentTableDataGroups["data_share_sessions"]...)
-	}
 	return uniqueSortedStrings(excluded)
 }
 
@@ -1835,11 +1826,10 @@ func defaultBackupContentConfig() BackupContentConfig {
 
 func normalizeBackupContentConfig(cfg BackupContentConfig) BackupContentConfig {
 	return BackupContentConfig{
-		IncludeUsageRecords:      cfg.IncludeUsageRecords,
-		IncludeOpsLogs:           cfg.IncludeOpsLogs,
-		IncludeAuditLogs:         cfg.IncludeAuditLogs,
-		IncludeRuntimeData:       cfg.IncludeRuntimeData,
-		IncludeDataShareSessions: cfg.IncludeDataShareSessions,
+		IncludeUsageRecords: cfg.IncludeUsageRecords,
+		IncludeOpsLogs:      cfg.IncludeOpsLogs,
+		IncludeAuditLogs:    cfg.IncludeAuditLogs,
+		IncludeRuntimeData:  cfg.IncludeRuntimeData,
 	}
 }
 

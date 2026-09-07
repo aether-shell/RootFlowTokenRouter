@@ -211,7 +211,6 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 		Usage:         recordUsage,
 		Stream:        clientStream,
 		Duration:      time.Since(start),
-		ResponseBody:  responseBody,
 	}, nil
 }
 
@@ -301,7 +300,6 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 		Usage:         recordUsage,
 		Stream:        clientStream,
 		Duration:      time.Since(start),
-		ResponseBody:  responseBody,
 	}, nil
 }
 
@@ -377,7 +375,6 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 		Usage:         recordUsage,
 		Stream:        clientStream,
 		Duration:      time.Since(start),
-		ResponseBody:  responseBody,
 	}, nil
 }
 

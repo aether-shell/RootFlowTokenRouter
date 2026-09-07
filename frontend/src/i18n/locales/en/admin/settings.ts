@@ -1,24 +1,4 @@
 export default {
-dataSharing: {
-      qualityErrorDistribution: 'Error Reason Distribution',
-      noQualityErrorData: 'No error reason data',
-      sessions: 'Sessions',
-      qualityErrors: {
-        missing_system_prompt: 'Missing system prompt',
-        effective_turns_lt_2: 'Not enough effective turns',
-        missing_tool_definitions: 'Missing tool definitions',
-        invalid_tool_definition: 'Incomplete tool definition',
-        missing_structured_tool_call: 'Missing structured tool call',
-        invalid_tool_call: 'Incomplete tool call',
-        tool_definition_missing: 'Tool call has no matching tool definition',
-        tool_call_result_unpaired: 'Tool call and result are not paired',
-        tool_result_unpaired: 'Tool result has no matching call',
-        missing_final_assistant: 'Missing final assistant response',
-        model_not_allowed: 'Model is outside delivery scope',
-        missing_usage_tokens: 'Missing usage tokens',
-        unknown: 'Unknown error reason'
-      }
-    },
 // Settings
     settings: {
       title: 'System Settings',
@@ -115,12 +95,6 @@ dataSharing: {
           title: 'Team Features',
           description: 'Control whether team pages are available to users and administrators.',
           enabled: 'Enable Team Features',
-          enabledHint: 'When off, related page entries are hidden and direct URL access is blocked.'
-        },
-        dataSharing: {
-          title: 'Data Sharing',
-          description: 'Control whether data sharing pages are available to users and administrators.',
-          enabled: 'Enable Data Sharing',
           enabledHint: 'When off, related page entries are hidden and direct URL access is blocked.'
         },
         creative: {

@@ -313,7 +313,7 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 			RequestPayloadHash: requestPayloadHash,
 			APIKeyService:      h.apiKeyService,
 			QuotaPlatform:      quotaPlatform,
-			SessionID:          sessionID,
+			ClientSessionID:    sessionID,
 			ChannelUsageFields: clientRequestedUsageFields(c, service.ChannelMappingResult{}, model, result.UpstreamModel),
 		}); err != nil {
 			logger.L().With(

@@ -253,9 +253,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAdvancedSchedulerWeightSessionSticky:         "",
 
 		// 页面功能开关默认开启，保持升级前已有功能的可见性。
-		SettingKeyTeamEnabled:        "true",
-		SettingKeyDataSharingEnabled: "true",
-		SettingKeyCreativeEnabled:    "true",
+		SettingKeyTeamEnabled:     "true",
+		SettingKeyCreativeEnabled: "true",
 
 		// 风控中心默认关闭，避免升级后未配置审计 Key 时影响现有请求。
 		SettingKeyRiskControlEnabled:          "false",
@@ -389,7 +388,6 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		BalanceIconSVG:                         strings.TrimSpace(settings[SettingKeyBalanceIconSVG]),
 		BackendModeEnabled:                     settings[SettingKeyBackendModeEnabled] == "true",
 		TeamEnabled:                            settings[SettingKeyTeamEnabled] != "false",
-		DataSharingEnabled:                     settings[SettingKeyDataSharingEnabled] != "false",
 		CreativeEnabled:                        settings[SettingKeyCreativeEnabled] != "false",
 		RiskControlEnabled:                     settings[SettingKeyRiskControlEnabled] == "true",
 		CyberSessionBlockEnabled:               settings[SettingKeyCyberSessionBlockEnabled] == "true",

@@ -1,5 +1,6 @@
 <template>
-  <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-800">
+  <!-- 跨页校验定位价格字段时，先展开条目以便聚焦并显示错误。 -->
+  <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-800" @form-field-reveal="collapsed = false">
     <!-- Collapsed summary header (clickable) -->
     <div
       class="flex cursor-pointer select-none items-center gap-2"

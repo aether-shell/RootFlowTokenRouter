@@ -791,16 +791,16 @@
     @apply text-primary-900 dark:text-dark-100;
     @apply transition-all duration-200;
     @apply hover:bg-primary-100 dark:hover:bg-dark-950;
-    @apply hover:text-primary-900 dark:hover:text-white;
+    @apply hover:text-primary-700 dark:hover:text-primary-400;
     padding-left: 1.0625rem;
     padding-right: 0.875rem;
   }
 
   .sidebar-link-active {
-    @apply bg-primary-100 dark:bg-dark-950;
-    @apply text-primary-700 dark:text-white;
-    @apply ring-1 ring-primary-300/40 dark:ring-dark-700/80;
-    @apply hover:bg-primary-200 dark:hover:bg-dark-950;
+    /* 保留选中及悬停背景的原有层次，只移除选中项描边。 */
+    @apply bg-primary-100 dark:bg-primary-500/10;
+    @apply text-primary-700 dark:text-primary-400;
+    @apply hover:bg-primary-200 dark:hover:bg-primary-500/15;
   }
 
   .sidebar-section {
@@ -986,8 +986,8 @@
 }
 
 @layer utilities {
-  /* 分组页面所有开关的启用态统一使用品牌蓝。 */
-  .group-switch-active {
+  /* 通用开关的启用态统一使用品牌蓝。 */
+  .toggle-active {
     background-color: rgb(18, 167, 232);
   }
 

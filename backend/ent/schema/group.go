@@ -296,10 +296,6 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("OpenAI reasoning effort 自定义映射；可按模型精确名、前缀或后缀限定，先映射再应用上限"),
 
-		// 数据共享开关：开启后该分组产生的 Agent session 会进入数据共享采集流程。
-		field.Bool("data_sharing_enabled").
-			Default(false).
-			Comment("是否为数据共享分组"),
 		// 会话隔离开关：开启后拒绝其它分组已归属的显式会话切入。
 		field.Bool("session_isolation_enabled").
 			Default(false).
@@ -336,7 +332,6 @@ func (Group) Indexes() []ent.Index {
 		index.Fields("is_default"),
 		index.Fields("deleted_at"),
 		index.Fields("sort_order"),
-		index.Fields("data_sharing_enabled"),
 		index.Fields("session_isolation_enabled"),
 		index.Fields("duplicate_operation_id").
 			Unique().

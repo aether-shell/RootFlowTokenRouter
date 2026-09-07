@@ -779,7 +779,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		firstClientMessage = liteFirstMessage
 	}
 	originalFirstClientMessage := firstClientMessage
-	if next, policyErr := applyOpenAIWSReasoningEffortPolicy(firstClientMessage, hooks); policyErr != nil {
+	firstRequestModel := strings.TrimSpace(gjson.GetBytes(firstClientMessage, "model").String())
+	if firstRequestModel == "" && hooks != nil {
+		firstRequestModel = strings.TrimSpace(hooks.InitialRequestModel)
+	}
+	if next, policyErr := applyOpenAIWSReasoningEffortPolicy(firstClientMessage, hooks, firstRequestModel); policyErr != nil {
 		return NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, policyErr.Error(), policyErr)
 	} else {
 		firstClientMessage = next
@@ -1165,7 +1169,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			}
 			originalResponseCreate := payload
 			if isResponseCreate {
-				if next, policyErr := applyOpenAIWSReasoningEffortPolicy(payload, hooks); policyErr != nil {
+				requestModelForPolicy := usageMeta.requestModelForFrame(payload)
+				if next, policyErr := applyOpenAIWSReasoningEffortPolicy(payload, hooks, requestModelForPolicy); policyErr != nil {
 					return payload, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, policyErr.Error(), policyErr)
 				} else {
 					payload = next
@@ -1413,7 +1418,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					OpenAIWSMode:                true,
 					UpstreamTerminalEvent:       normalizeOpenAIWSTerminalEvent(turn.TerminalEventType),
 					ResponseHeaders:             cloneHeader(handshakeHeaders),
-					ResponseBody:                cloneDataSharingRequestBody(turn.TerminalResponseBody),
 					Duration:                    turn.Duration,
 					FirstTokenMs:                turn.FirstTokenMs,
 				}
@@ -1580,7 +1584,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		OpenAIWSMode:                true,
 		UpstreamTerminalEvent:       normalizeOpenAIWSTerminalEvent(relayResult.TerminalEventType),
 		ResponseHeaders:             cloneHeader(handshakeHeaders),
-		ResponseBody:                cloneDataSharingRequestBody(relayResult.TerminalResponseBody),
 		Duration:                    relayResult.Duration,
 		FirstTokenMs:                relayResult.FirstTokenMs,
 	}

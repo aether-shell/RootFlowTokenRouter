@@ -383,7 +383,6 @@ export const useAppStore = defineStore('app', () => {
         payment_enabled: false,
         // 页面功能默认开启，兼容尚未返回新字段的旧后端。
         team_enabled: true,
-        data_sharing_enabled: true,
         creative_enabled: true,
         table_default_page_size: 20,
         table_page_size_options: [10, 20, 50, 100],

@@ -48,9 +48,6 @@ type CreativeRunOutbox func(*sql.Selector)
 // CreativeRunOutput is the predicate function for creativerunoutput builders.
 type CreativeRunOutput func(*sql.Selector)
 
-// DataShareSession is the predicate function for datasharesession builders.
-type DataShareSession func(*sql.Selector)
-
 // ErrorPassthroughRule is the predicate function for errorpassthroughrule builders.
 type ErrorPassthroughRule func(*sql.Selector)
 

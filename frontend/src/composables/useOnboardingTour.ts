@@ -214,6 +214,13 @@ export function useOnboardingTour(options: OnboardingOptions) {
            element = document.querySelector(step.element) as HTMLElement
         }
 
+        // 折叠或分页的表单先展开目标所在区域，再刷新引导定位。
+        if (element) {
+          element.dispatchEvent(new Event('onboarding-reveal', { bubbles: true }))
+          await nextTick()
+          driverInstance?.refresh()
+        }
+
         if (isInteractiveStep(step) && element) {
           const htmlElement = element as HTMLElement
 

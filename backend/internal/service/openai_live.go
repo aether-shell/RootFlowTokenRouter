@@ -1118,7 +1118,7 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 		AccountID:         record.AccountID,
 		RequestID:         record.CallHash,
 		Model:             record.Model,
-		RequestedModel:    firstNonBlank(record.RequestedModel, record.Model),
+		RequestedModel:    firstNonEmpty(record.RequestedModel, record.Model),
 		UpstreamModel:     liveOptionalString(record.UpstreamModel),
 		ModelMappingChain: liveOptionalString(record.ModelMappingChain),
 		GroupID:           liveOptionalID(record.GroupID),

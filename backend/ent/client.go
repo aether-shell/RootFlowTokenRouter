@@ -29,7 +29,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/creativerun"
 	"github.com/TokenFlux/TokenRouter/ent/creativerunoutbox"
 	"github.com/TokenFlux/TokenRouter/ent/creativerunoutput"
-	"github.com/TokenFlux/TokenRouter/ent/datasharesession"
 	"github.com/TokenFlux/TokenRouter/ent/errorpassthroughrule"
 	"github.com/TokenFlux/TokenRouter/ent/group"
 	"github.com/TokenFlux/TokenRouter/ent/idempotencyrecord"
@@ -98,8 +97,6 @@ type Client struct {
 	CreativeRunOutbox *CreativeRunOutboxClient
 	// CreativeRunOutput is the client for interacting with the CreativeRunOutput builders.
 	CreativeRunOutput *CreativeRunOutputClient
-	// DataShareSession is the client for interacting with the DataShareSession builders.
-	DataShareSession *DataShareSessionClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
@@ -187,7 +184,6 @@ func (c *Client) init() {
 	c.CreativeRun = NewCreativeRunClient(c.config)
 	c.CreativeRunOutbox = NewCreativeRunOutboxClient(c.config)
 	c.CreativeRunOutput = NewCreativeRunOutputClient(c.config)
-	c.DataShareSession = NewDataShareSessionClient(c.config)
 	c.ErrorPassthroughRule = NewErrorPassthroughRuleClient(c.config)
 	c.Group = NewGroupClient(c.config)
 	c.IdempotencyRecord = NewIdempotencyRecordClient(c.config)
@@ -325,7 +321,6 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		CreativeRun:              NewCreativeRunClient(cfg),
 		CreativeRunOutbox:        NewCreativeRunOutboxClient(cfg),
 		CreativeRunOutput:        NewCreativeRunOutputClient(cfg),
-		DataShareSession:         NewDataShareSessionClient(cfg),
 		ErrorPassthroughRule:     NewErrorPassthroughRuleClient(cfg),
 		Group:                    NewGroupClient(cfg),
 		IdempotencyRecord:        NewIdempotencyRecordClient(cfg),
@@ -390,7 +385,6 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		CreativeRun:              NewCreativeRunClient(cfg),
 		CreativeRunOutbox:        NewCreativeRunOutboxClient(cfg),
 		CreativeRunOutput:        NewCreativeRunOutputClient(cfg),
-		DataShareSession:         NewDataShareSessionClient(cfg),
 		ErrorPassthroughRule:     NewErrorPassthroughRuleClient(cfg),
 		Group:                    NewGroupClient(cfg),
 		IdempotencyRecord:        NewIdempotencyRecordClient(cfg),
@@ -454,12 +448,12 @@ func (c *Client) Use(hooks ...Hook) {
 		c.APIKey, c.APIKeyCompositeGroup, c.Account, c.AccountGroup, c.Announcement,
 		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
 		c.BatchImageItem, c.BatchImageJob, c.CreativeRun, c.CreativeRunOutbox,
-		c.CreativeRunOutput, c.DataShareSession, c.ErrorPassthroughRule, c.Group,
-		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.RedeemCodeUsage, c.SecuritySecret,
-		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.TLSFingerprintRouter,
-		c.Team, c.TeamInvitation, c.TeamMembership, c.TeamOwnershipTransfer,
+		c.CreativeRunOutput, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
+		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RedeemCode, c.RedeemCodeUsage, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.TLSFingerprintRouter, c.Team,
+		c.TeamInvitation, c.TeamMembership, c.TeamOwnershipTransfer,
 		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
 		c.UserAttributeDefinition, c.UserAttributeValue, c.UserDisabledPublicGroup,
 		c.UserPlatformQuota, c.UserSubscription,
@@ -475,12 +469,12 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.APIKey, c.APIKeyCompositeGroup, c.Account, c.AccountGroup, c.Announcement,
 		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
 		c.BatchImageItem, c.BatchImageJob, c.CreativeRun, c.CreativeRunOutbox,
-		c.CreativeRunOutput, c.DataShareSession, c.ErrorPassthroughRule, c.Group,
-		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.PaymentAuditLog,
-		c.PaymentOrder, c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode,
-		c.PromoCodeUsage, c.Proxy, c.RedeemCode, c.RedeemCodeUsage, c.SecuritySecret,
-		c.Setting, c.SubscriptionPlan, c.TLSFingerprintProfile, c.TLSFingerprintRouter,
-		c.Team, c.TeamInvitation, c.TeamMembership, c.TeamOwnershipTransfer,
+		c.CreativeRunOutput, c.ErrorPassthroughRule, c.Group, c.IdempotencyRecord,
+		c.IdentityAdoptionDecision, c.PaymentAuditLog, c.PaymentOrder,
+		c.PaymentProviderInstance, c.PendingAuthSession, c.PromoCode, c.PromoCodeUsage,
+		c.Proxy, c.RedeemCode, c.RedeemCodeUsage, c.SecuritySecret, c.Setting,
+		c.SubscriptionPlan, c.TLSFingerprintProfile, c.TLSFingerprintRouter, c.Team,
+		c.TeamInvitation, c.TeamMembership, c.TeamOwnershipTransfer,
 		c.UsageCleanupTask, c.UsageLog, c.User, c.UserAllowedGroup,
 		c.UserAttributeDefinition, c.UserAttributeValue, c.UserDisabledPublicGroup,
 		c.UserPlatformQuota, c.UserSubscription,
@@ -520,8 +514,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.CreativeRunOutbox.mutate(ctx, m)
 	case *CreativeRunOutputMutation:
 		return c.CreativeRunOutput.mutate(ctx, m)
-	case *DataShareSessionMutation:
-		return c.DataShareSession.mutate(ctx, m)
 	case *ErrorPassthroughRuleMutation:
 		return c.ErrorPassthroughRule.mutate(ctx, m)
 	case *GroupMutation:
@@ -2755,139 +2747,6 @@ func (c *CreativeRunOutputClient) mutate(ctx context.Context, m *CreativeRunOutp
 		return (&CreativeRunOutputDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown CreativeRunOutput mutation op: %q", m.Op())
-	}
-}
-
-// DataShareSessionClient is a client for the DataShareSession schema.
-type DataShareSessionClient struct {
-	config
-}
-
-// NewDataShareSessionClient returns a client for the DataShareSession from the given config.
-func NewDataShareSessionClient(c config) *DataShareSessionClient {
-	return &DataShareSessionClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `datasharesession.Hooks(f(g(h())))`.
-func (c *DataShareSessionClient) Use(hooks ...Hook) {
-	c.hooks.DataShareSession = append(c.hooks.DataShareSession, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `datasharesession.Intercept(f(g(h())))`.
-func (c *DataShareSessionClient) Intercept(interceptors ...Interceptor) {
-	c.inters.DataShareSession = append(c.inters.DataShareSession, interceptors...)
-}
-
-// Create returns a builder for creating a DataShareSession entity.
-func (c *DataShareSessionClient) Create() *DataShareSessionCreate {
-	mutation := newDataShareSessionMutation(c.config, OpCreate)
-	return &DataShareSessionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of DataShareSession entities.
-func (c *DataShareSessionClient) CreateBulk(builders ...*DataShareSessionCreate) *DataShareSessionCreateBulk {
-	return &DataShareSessionCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *DataShareSessionClient) MapCreateBulk(slice any, setFunc func(*DataShareSessionCreate, int)) *DataShareSessionCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &DataShareSessionCreateBulk{err: fmt.Errorf("calling to DataShareSessionClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*DataShareSessionCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &DataShareSessionCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for DataShareSession.
-func (c *DataShareSessionClient) Update() *DataShareSessionUpdate {
-	mutation := newDataShareSessionMutation(c.config, OpUpdate)
-	return &DataShareSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *DataShareSessionClient) UpdateOne(_m *DataShareSession) *DataShareSessionUpdateOne {
-	mutation := newDataShareSessionMutation(c.config, OpUpdateOne, withDataShareSession(_m))
-	return &DataShareSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *DataShareSessionClient) UpdateOneID(id int64) *DataShareSessionUpdateOne {
-	mutation := newDataShareSessionMutation(c.config, OpUpdateOne, withDataShareSessionID(id))
-	return &DataShareSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for DataShareSession.
-func (c *DataShareSessionClient) Delete() *DataShareSessionDelete {
-	mutation := newDataShareSessionMutation(c.config, OpDelete)
-	return &DataShareSessionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *DataShareSessionClient) DeleteOne(_m *DataShareSession) *DataShareSessionDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *DataShareSessionClient) DeleteOneID(id int64) *DataShareSessionDeleteOne {
-	builder := c.Delete().Where(datasharesession.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &DataShareSessionDeleteOne{builder}
-}
-
-// Query returns a query builder for DataShareSession.
-func (c *DataShareSessionClient) Query() *DataShareSessionQuery {
-	return &DataShareSessionQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeDataShareSession},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a DataShareSession entity by its id.
-func (c *DataShareSessionClient) Get(ctx context.Context, id int64) (*DataShareSession, error) {
-	return c.Query().Where(datasharesession.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *DataShareSessionClient) GetX(ctx context.Context, id int64) *DataShareSession {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// Hooks returns the client hooks.
-func (c *DataShareSessionClient) Hooks() []Hook {
-	return c.hooks.DataShareSession
-}
-
-// Interceptors returns the client interceptors.
-func (c *DataShareSessionClient) Interceptors() []Interceptor {
-	return c.inters.DataShareSession
-}
-
-func (c *DataShareSessionClient) mutate(ctx context.Context, m *DataShareSessionMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&DataShareSessionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&DataShareSessionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&DataShareSessionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&DataShareSessionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown DataShareSession mutation op: %q", m.Op())
 	}
 }
 
@@ -8072,8 +7931,8 @@ type (
 		APIKey, APIKeyCompositeGroup, Account, AccountGroup, Announcement,
 		AnnouncementRead, AuthIdentity, AuthIdentityChannel, BatchImageEvent,
 		BatchImageItem, BatchImageJob, CreativeRun, CreativeRunOutbox,
-		CreativeRunOutput, DataShareSession, ErrorPassthroughRule, Group,
-		IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
+		CreativeRunOutput, ErrorPassthroughRule, Group, IdempotencyRecord,
+		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
 		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
 		RedeemCode, RedeemCodeUsage, SecuritySecret, Setting, SubscriptionPlan,
 		TLSFingerprintProfile, TLSFingerprintRouter, Team, TeamInvitation,
@@ -8085,8 +7944,8 @@ type (
 		APIKey, APIKeyCompositeGroup, Account, AccountGroup, Announcement,
 		AnnouncementRead, AuthIdentity, AuthIdentityChannel, BatchImageEvent,
 		BatchImageItem, BatchImageJob, CreativeRun, CreativeRunOutbox,
-		CreativeRunOutput, DataShareSession, ErrorPassthroughRule, Group,
-		IdempotencyRecord, IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
+		CreativeRunOutput, ErrorPassthroughRule, Group, IdempotencyRecord,
+		IdentityAdoptionDecision, PaymentAuditLog, PaymentOrder,
 		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
 		RedeemCode, RedeemCodeUsage, SecuritySecret, Setting, SubscriptionPlan,
 		TLSFingerprintProfile, TLSFingerprintRouter, Team, TeamInvitation,

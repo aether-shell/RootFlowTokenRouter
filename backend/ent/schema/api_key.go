@@ -142,18 +142,6 @@ func (APIKey) Fields() []ent.Field {
 			Nillable().
 			Comment("Start time of the current 7d rate limit window"),
 
-		// 用户确认过的数据共享须知版本，用于防止未读须知直接切换到数据共享分组。
-		field.Int("data_sharing_notice_version").
-			Default(0).
-			Comment("用户已确认的数据共享须知版本，0 表示未确认"),
-		field.Int64("data_sharing_confirmed_group_id").
-			Optional().
-			Nillable().
-			Comment("最近一次确认的数据共享目标分组 ID"),
-		field.Time("data_sharing_confirmed_at").
-			Optional().
-			Nillable().
-			Comment("最近一次确认数据共享须知的时间"),
 		// 绑定分组停用时是否允许请求级回退到同平台默认分组。
 		field.Bool("fallback_to_default_group_when_unavailable").
 			Default(true).
@@ -200,6 +188,5 @@ func (APIKey) Indexes() []ent.Index {
 		// Index for quota queries
 		index.Fields("quota", "quota_used"),
 		index.Fields("expires_at"),
-		index.Fields("data_sharing_confirmed_group_id"),
 	}
 }

@@ -148,8 +148,6 @@ type Group struct {
 	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit,omitempty"`
 	// OpenAI reasoning effort 自定义映射；可按模型精确名、前缀或后缀限定，先映射再应用上限
 	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings,omitempty"`
-	// 是否为数据共享分组
-	DataSharingEnabled bool `json:"data_sharing_enabled,omitempty"`
 	// 是否开启会话隔离
 	SessionIsolationEnabled bool `json:"session_isolation_enabled,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -271,7 +269,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case group.FieldAdvancedSchedulerOverrides, group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldAllowedClientProtocols, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldAvailabilityProbeConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldIsDefault, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldDataSharingEnabled, group.FieldSessionIsolationEnabled:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldIsDefault, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldSessionIsolationEnabled:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldSearchPricePer1k, group.FieldAudioRealtimePricePerMin, group.FieldAudioTtsPricePerMillionChars, group.FieldAudioSttPricePerHour:
 			values[i] = new(sql.NullFloat64)
@@ -723,12 +721,6 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 					return fmt.Errorf("unmarshal field reasoning_effort_mappings: %w", err)
 				}
 			}
-		case group.FieldDataSharingEnabled:
-			if value, ok := values[i].(*sql.NullBool); !ok {
-				return fmt.Errorf("unexpected type %T for field data_sharing_enabled", values[i])
-			} else if value.Valid {
-				_m.DataSharingEnabled = value.Bool
-			}
 		case group.FieldSessionIsolationEnabled:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field session_isolation_enabled", values[i])
@@ -1041,9 +1033,6 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("reasoning_effort_mappings=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ReasoningEffortMappings))
-	builder.WriteString(", ")
-	builder.WriteString("data_sharing_enabled=")
-	builder.WriteString(fmt.Sprintf("%v", _m.DataSharingEnabled))
 	builder.WriteString(", ")
 	builder.WriteString("session_isolation_enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SessionIsolationEnabled))

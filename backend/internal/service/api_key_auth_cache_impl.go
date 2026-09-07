@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 36 // v36：认证快照包含分组免费 Fast 计费策略
+const apiKeyAuthSnapshotVersion = 37 // v37：认证快照字段结构变更，强制重建旧缓存
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -450,7 +450,6 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			IsExclusive:                     apiKey.Group.IsExclusive,
 			Status:                          apiKey.Group.Status,
 			RateMultiplier:                  apiKey.Group.RateMultiplier,
-			DataSharingEnabled:              apiKey.Group.DataSharingEnabled,
 			SessionIsolationEnabled:         apiKey.Group.SessionIsolationEnabled,
 			AllowImageGeneration:            apiKey.Group.AllowImageGeneration,
 			AllowBatchImageGeneration:       apiKey.Group.AllowBatchImageGeneration,
@@ -501,14 +500,12 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 		snapshot.CompositeGroups = make([]APIKeyAuthCompositeGroupSnapshot, 0, len(apiKey.CompositeGroups))
 		for _, binding := range apiKey.CompositeGroups {
 			bindingSnapshot := APIKeyAuthCompositeGroupSnapshot{
-				ID:                       binding.ID,
-				GroupID:                  binding.GroupID,
-				Prefix:                   binding.Prefix,
-				NormalizedPrefix:         binding.NormalizedPrefix,
-				SortOrder:                binding.SortOrder,
-				DataSharingNoticeVersion: binding.DataSharingNoticeVersion,
-				DataSharingConfirmedAt:   binding.DataSharingConfirmedAt,
-				Group:                    authGroupSnapshotFromGroup(binding.Group),
+				ID:               binding.ID,
+				GroupID:          binding.GroupID,
+				Prefix:           binding.Prefix,
+				NormalizedPrefix: binding.NormalizedPrefix,
+				SortOrder:        binding.SortOrder,
+				Group:            authGroupSnapshotFromGroup(binding.Group),
 			}
 			if binding.Group != nil && binding.Group.IsActive() && s.userGroupRateRepo != nil {
 				override, err := s.userGroupRateRepo.GetRPMOverrideByUserAndGroup(ctx, apiKey.User.ID, binding.GroupID)
@@ -590,7 +587,6 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			Status:                          snapshot.Group.Status,
 			Hydrated:                        true,
 			RateMultiplier:                  snapshot.Group.RateMultiplier,
-			DataSharingEnabled:              snapshot.Group.DataSharingEnabled,
 			SessionIsolationEnabled:         snapshot.Group.SessionIsolationEnabled,
 			AllowImageGeneration:            snapshot.Group.AllowImageGeneration,
 			AllowBatchImageGeneration:       snapshot.Group.AllowBatchImageGeneration,
@@ -641,16 +637,14 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		apiKey.CompositeGroups = make([]APIKeyCompositeGroup, 0, len(snapshot.CompositeGroups))
 		for _, binding := range snapshot.CompositeGroups {
 			apiKey.CompositeGroups = append(apiKey.CompositeGroups, APIKeyCompositeGroup{
-				ID:                       binding.ID,
-				APIKeyID:                 snapshot.APIKeyID,
-				GroupID:                  binding.GroupID,
-				Prefix:                   binding.Prefix,
-				NormalizedPrefix:         binding.NormalizedPrefix,
-				SortOrder:                binding.SortOrder,
-				DataSharingNoticeVersion: binding.DataSharingNoticeVersion,
-				DataSharingConfirmedAt:   binding.DataSharingConfirmedAt,
-				UserGroupRPMOverride:     binding.UserGroupRPMOverride,
-				Group:                    groupFromAuthSnapshot(binding.Group),
+				ID:                   binding.ID,
+				APIKeyID:             snapshot.APIKeyID,
+				GroupID:              binding.GroupID,
+				Prefix:               binding.Prefix,
+				NormalizedPrefix:     binding.NormalizedPrefix,
+				SortOrder:            binding.SortOrder,
+				UserGroupRPMOverride: binding.UserGroupRPMOverride,
+				Group:                groupFromAuthSnapshot(binding.Group),
 			})
 		}
 	}
@@ -666,7 +660,7 @@ func authGroupSnapshotFromGroup(group *Group) *APIKeyAuthGroupSnapshot {
 	return &APIKeyAuthGroupSnapshot{
 		ID: group.ID, Name: group.Name, Platform: group.Platform, SchedulerType: group.SchedulerType,
 		AdvancedSchedulerOverrides: CloneGroupAdvancedSchedulerOverrides(group.AdvancedSchedulerOverrides), IsExclusive: group.IsExclusive,
-		Status: group.Status, RateMultiplier: group.RateMultiplier, DataSharingEnabled: group.DataSharingEnabled,
+		Status: group.Status, RateMultiplier: group.RateMultiplier,
 		SessionIsolationEnabled: group.SessionIsolationEnabled, AllowImageGeneration: group.AllowImageGeneration,
 		AllowBatchImageGeneration: group.AllowBatchImageGeneration, ImageRateIndependent: group.ImageRateIndependent,
 		ImageRateMultiplier: group.ImageRateMultiplier, ImagePrice1K: group.ImagePrice1K, ImagePrice2K: group.ImagePrice2K,
@@ -700,8 +694,8 @@ func groupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
 		ID: snapshot.ID, Name: snapshot.Name, Platform: snapshot.Platform, SchedulerType: snapshot.SchedulerType,
 		AdvancedSchedulerOverrides: CloneGroupAdvancedSchedulerOverrides(snapshot.AdvancedSchedulerOverrides), IsExclusive: snapshot.IsExclusive,
 		Status: snapshot.Status, Hydrated: true, RateMultiplier: snapshot.RateMultiplier,
-		DataSharingEnabled: snapshot.DataSharingEnabled, SessionIsolationEnabled: snapshot.SessionIsolationEnabled,
-		AllowImageGeneration: snapshot.AllowImageGeneration, AllowBatchImageGeneration: snapshot.AllowBatchImageGeneration,
+		SessionIsolationEnabled: snapshot.SessionIsolationEnabled,
+		AllowImageGeneration:    snapshot.AllowImageGeneration, AllowBatchImageGeneration: snapshot.AllowBatchImageGeneration,
 		ImageRateIndependent: snapshot.ImageRateIndependent, ImageRateMultiplier: snapshot.ImageRateMultiplier,
 		ImagePrice1K: snapshot.ImagePrice1K, ImagePrice2K: snapshot.ImagePrice2K, ImagePrice4K: snapshot.ImagePrice4K,
 		VideoRateIndependent: snapshot.VideoRateIndependent, VideoRateMultiplier: snapshot.VideoRateMultiplier,

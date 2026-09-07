@@ -31,15 +31,12 @@ type OpenAIRecordUsageInput struct {
 	IPAddress          string // 请求的客户端 IP 地址
 	ClientSessionID    string // 客户端显式会话标识（session_id / X-Session-Id 等请求头），仅用于用量行会话关联
 	RequestPayloadHash string
-	RequestBody        []byte // 原始请求体，用于数据共享 session 归一化采集
-	SessionID          string // 当前请求的会话标识，用于数据共享聚合
-	Turn               int
+	RequestBody        []byte // 原始请求体，用于解析客户端请求的计费推理档位
 	// PricingAt 是 WS turn 开始时刻；普通 HTTP 调用留空并在记录时取当前时间。
-	PricingAt         time.Time
-	CaptureIncomplete bool
-	APIKeyService     APIKeyQuotaUpdater
-	QuotaPlatform     string // user×platform 配额计量平台，由 handler 在请求 ctx 内算定后传入。
-	CyberBlocked      bool
+	PricingAt     time.Time
+	APIKeyService APIKeyQuotaUpdater
+	QuotaPlatform string // user×platform 配额计量平台，由 handler 在请求 ctx 内算定后传入。
+	CyberBlocked  bool
 	// NativeCompactionV2 表示请求体运行时被识别为原生远程 compaction v2。
 	NativeCompactionV2 bool
 	ChannelUsageFields
@@ -514,39 +511,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
-	s.captureOpenAIDataSharingBestEffort(input, result, requestedModel, actualInputTokens, usageLog.ActualCost)
-
 	return nil
-}
-
-// captureOpenAIDataSharingBestEffort 在 OpenAI 使用记录成功后旁路采集数据共享 session。
-func (s *OpenAIGatewayService) captureOpenAIDataSharingBestEffort(input *OpenAIRecordUsageInput, result *OpenAIForwardResult, requestedModel string, actualInputTokens int, actualCost float64) {
-	if s == nil || s.dataSharingService == nil || input == nil || result == nil || input.APIKey == nil || input.APIKey.Group == nil || !input.APIKey.Group.DataSharingEnabled {
-		return
-	}
-	s.dataSharingService.CaptureOpenAIRequestAsync(DataShareCaptureInput{
-		APIKey:            input.APIKey,
-		User:              input.User,
-		Account:           input.Account,
-		Provider:          PlatformFromAPIKey(input.APIKey),
-		Model:             requestedModel,
-		UpstreamModel:     result.UpstreamModel,
-		SessionID:         firstNonBlank(result.DataShareSessionID, input.SessionID),
-		RequestID:         result.RequestID,
-		RequestBody:       cloneDataSharingRequestBody(input.RequestBody),
-		ResponseBody:      cloneDataSharingRequestBody(result.ResponseBody),
-		InputTokens:       actualInputTokens,
-		OutputTokens:      result.Usage.OutputTokens,
-		CacheReadTokens:   result.Usage.CacheReadInputTokens,
-		CacheCreateTokens: result.Usage.CacheCreationInputTokens,
-		ActualCost:        &actualCost,
-		UserAgent:         input.UserAgent,
-		IPAddress:         input.IPAddress,
-		InboundEndpoint:   input.InboundEndpoint,
-		UpstreamEndpoint:  input.UpstreamEndpoint,
-		Turn:              input.Turn,
-		CaptureIncomplete: input.CaptureIncomplete,
-	})
 }
 
 // calculateOpenAIRecordUsageCost 保留旧 unit 测试的兼容入口。

@@ -88,7 +88,7 @@ func newGatewayModelsHandlerWithChannelForTest(repo service.AccountRepository, c
 		gatewayService: service.NewGatewayService(
 			repo,
 			nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			nil, nil, nil, nil, nil, nil, nil, nil, nil, channelService, nil, nil, nil, nil,
+			nil, nil, nil, nil, nil, nil, nil, nil, nil, channelService, nil, nil, nil,
 		),
 	}
 }

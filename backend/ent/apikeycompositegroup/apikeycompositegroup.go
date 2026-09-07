@@ -28,10 +28,6 @@ const (
 	FieldNormalizedPrefix = "normalized_prefix"
 	// FieldSortOrder holds the string denoting the sort_order field in the database.
 	FieldSortOrder = "sort_order"
-	// FieldDataSharingNoticeVersion holds the string denoting the data_sharing_notice_version field in the database.
-	FieldDataSharingNoticeVersion = "data_sharing_notice_version"
-	// FieldDataSharingConfirmedAt holds the string denoting the data_sharing_confirmed_at field in the database.
-	FieldDataSharingConfirmedAt = "data_sharing_confirmed_at"
 	// EdgeAPIKey holds the string denoting the api_key edge name in mutations.
 	EdgeAPIKey = "api_key"
 	// EdgeGroup holds the string denoting the group edge name in mutations.
@@ -64,8 +60,6 @@ var Columns = []string{
 	FieldPrefix,
 	FieldNormalizedPrefix,
 	FieldSortOrder,
-	FieldDataSharingNoticeVersion,
-	FieldDataSharingConfirmedAt,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -91,8 +85,6 @@ var (
 	NormalizedPrefixValidator func(string) error
 	// DefaultSortOrder holds the default value on creation for the "sort_order" field.
 	DefaultSortOrder int
-	// DefaultDataSharingNoticeVersion holds the default value on creation for the "data_sharing_notice_version" field.
-	DefaultDataSharingNoticeVersion int
 )
 
 // OrderOption defines the ordering options for the APIKeyCompositeGroup queries.
@@ -136,16 +128,6 @@ func ByNormalizedPrefix(opts ...sql.OrderTermOption) OrderOption {
 // BySortOrder orders the results by the sort_order field.
 func BySortOrder(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSortOrder, opts...).ToFunc()
-}
-
-// ByDataSharingNoticeVersion orders the results by the data_sharing_notice_version field.
-func ByDataSharingNoticeVersion(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDataSharingNoticeVersion, opts...).ToFunc()
-}
-
-// ByDataSharingConfirmedAt orders the results by the data_sharing_confirmed_at field.
-func ByDataSharingConfirmedAt(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDataSharingConfirmedAt, opts...).ToFunc()
 }
 
 // ByAPIKeyField orders the results by api_key field.

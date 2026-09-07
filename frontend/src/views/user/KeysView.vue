@@ -234,6 +234,13 @@
                     {{ formatBalanceAmount(usageStats[row.id]?.today_actual_cost ?? 0, { fractionDigits: 4 }) }}
                   </span>
                 </div>
+                <!-- 批量接口的 total_actual_cost 统计近 30 天，使用对应文案标明范围。 -->
+                <div class="flex items-center gap-1.5">
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
+                  <span class="font-medium text-gray-900 dark:text-white">
+                    {{ formatBalanceAmount(usageStats[row.id]?.total_actual_cost ?? 0, { fractionDigits: 4 }) }}
+                  </span>
+                </div>
               </div>
               <!-- Quota progress (if quota is set) -->
               <div v-if="row.quota > 0" class="mt-1.5">
@@ -442,6 +449,9 @@
               <button
                 class="key-action-menu-trigger flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white"
                 :class="{ 'bg-gray-100 text-gray-900 dark:bg-dark-700 dark:text-white': actionMenuKey?.id === row.id }"
+                aria-haspopup="menu"
+                :aria-expanded="actionMenuKey?.id === row.id"
+                :aria-controls="actionMenuKey?.id === row.id ? `key-action-menu-${row.id}` : undefined"
                 @click="openKeyActionMenu(row, $event)"
               >
                 <Icon name="more" size="sm" />
@@ -1224,6 +1234,12 @@
       @close="closeUseKeyModal"
     />
 
+    <TfCliImportDialog
+      :show="showTfCliImportDialog"
+      :api-key="tfImportKey"
+      @close="closeTfCliImportDialog"
+    />
+
     <KeyActionMenu
       :show="Boolean(actionMenuKey)"
       :api-key="actionMenuKey"
@@ -1231,6 +1247,7 @@
       :allow-import="!publicSettings?.hide_ccs_import_button"
       @close="closeKeyActionMenu"
       @use="openUseKeyModal"
+      @import-tf="openTfCliImportDialog"
       @import="importToCcswitch"
       @delete="confirmDelete"
     />
@@ -1277,43 +1294,6 @@
         <div class="flex justify-end">
           <button @click="closeCcsClientSelect" class="btn btn-secondary">
             {{ t('common.cancel') }}
-          </button>
-        </div>
-      </template>
-    </BaseDialog>
-
-    <BaseDialog
-      :show="dataSharingNoticeDialog.show"
-      title="数据共享须知"
-      width="normal"
-      :close-on-click-outside="false"
-      @close="closeDataSharingNotice"
-    >
-      <div class="space-y-4">
-        <div class="max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm leading-6 text-gray-700 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200">
-          {{ dataSharingNoticeDialog.notice?.content || '正在加载数据共享须知...' }}
-        </div>
-        <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-          只有点击确认后，API Key 才会切换到该数据共享分组。
-        </div>
-      </div>
-      <template #footer>
-        <div class="flex justify-end gap-3">
-          <button type="button" class="btn btn-secondary" @click="closeDataSharingNotice">
-            {{ t('common.cancel') }}
-          </button>
-          <button
-            type="button"
-            class="btn btn-primary"
-            :disabled="dataSharingNoticeDialog.loading || dataSharingNoticeDialog.countdown > 0"
-            @click="confirmDataSharingNotice"
-          >
-            <Icon v-if="dataSharingNoticeDialog.countdown <= 0" name="check" size="md" class="mr-2" />
-            {{
-              dataSharingNoticeDialog.countdown > 0
-                ? `请等待 ${dataSharingNoticeDialog.countdown}s`
-                : '我已阅读并确认'
-            }}
           </button>
         </div>
       </template>
@@ -1401,7 +1381,7 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 const { t } = useI18n()
-import { keysAPI, authAPI, usageAPI, userGroupsAPI, dataSharingAPI } from '@/api'
+import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import DataTable from '@/components/common/DataTable.vue'
@@ -1415,6 +1395,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import Icon from '@/components/icons/Icon.vue'
 	import KeyActionMenu from '@/components/keys/KeyActionMenu.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
+	import TfCliImportDialog from '@/components/keys/TfCliImportDialog.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
@@ -1432,7 +1413,6 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	} from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
-import type { DataShareNotice } from '@/api/dataSharing'
 import { formatDateTime } from '@/utils/format'
 import {
   buildCcSwitchImportDeeplink,
@@ -1459,7 +1439,6 @@ interface GroupOption {
   peakEnd: string
   peakRateMultiplier: number
   platform: GroupPlatform
-  dataSharingEnabled?: boolean
 }
 
 const appStore = useAppStore()
@@ -1618,9 +1597,11 @@ const showDeleteDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
+const showTfCliImportDialog = ref(false)
 const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
+const tfImportKey = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const actionMenuKey = ref<ApiKey | null>(null)
 const actionMenuPosition = ref<{ top: number; left: number } | null>(null)
@@ -1633,7 +1614,6 @@ const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
-let dataSharingCountdownTimer: number | null = null
 let compositeBindingSequence = 0
 let modelMappingSequence = 0
 let formGroupsRequestID = 0
@@ -1650,24 +1630,6 @@ const newModelMappingRow = (source = '', target = '') => ({
   local_id: ++modelMappingSequence,
   source,
   target
-})
-
-const dataSharingNoticeDialog = ref<{
-  show: boolean
-  loading: boolean
-  countdown: number
-  notice: DataShareNotice | null
-  key: ApiKey | null
-  targetGroupId: number | null
-  mode: 'row' | 'form' | null
-}>({
-  show: false,
-  loading: false,
-  countdown: 0,
-  notice: null,
-  key: null,
-  targetGroupId: null,
-  mode: null
 })
 
 // 获取当前正在切换分组的 API Key。
@@ -1910,8 +1872,7 @@ const buildGroupOptions = (source: Group[]) =>
     peakStart: group.peak_start,
     peakEnd: group.peak_end,
     peakRateMultiplier: group.peak_rate_multiplier,
-    platform: group.platform,
-    dataSharingEnabled: group.data_sharing_enabled
+    platform: group.platform
   }))
 
 // 指定订阅时仅使用服务端返回的权限与套餐分组交集。
@@ -2205,6 +2166,16 @@ const closeUseKeyModal = () => {
   selectedKey.value = null
 }
 
+const openTfCliImportDialog = (key: ApiKey) => {
+  tfImportKey.value = key
+  showTfCliImportDialog.value = true
+}
+
+const closeTfCliImportDialog = () => {
+  showTfCliImportDialog.value = false
+  tfImportKey.value = null
+}
+
 const handlePageChange = (page: number) => {
   pagination.value.page = page
   loadApiKeys()
@@ -2302,7 +2273,7 @@ const openKeyActionMenu = (key: ApiKey, event: MouseEvent) => {
   if (!target) return
   const rect = target.getBoundingClientRect()
   const width = 192
-  const height = publicSettings.value?.hide_ccs_import_button ? 102 : 142
+  const height = publicSettings.value?.hide_ccs_import_button ? 138 : 178
   const padding = 8
   const left = Math.max(padding, Math.min(rect.right - width, window.innerWidth - width - padding))
   let top = rect.bottom + 4
@@ -2354,105 +2325,11 @@ const openGroupSelector = (key: ApiKey) => {
   }
 }
 
-const getGroupById = (groupId: number | null) => {
-  if (!groupId) return null
-  return groups.value.find(group => group.id === groupId) || null
-}
-
-const groupRequiresDataSharingNotice = (groupId: number | null) => {
-  return getGroupById(groupId)?.data_sharing_enabled === true
-}
-
-const clearDataSharingCountdown = () => {
-  if (dataSharingCountdownTimer) {
-    window.clearInterval(dataSharingCountdownTimer)
-    dataSharingCountdownTimer = null
-  }
-}
-
-const startDataSharingCountdown = () => {
-  clearDataSharingCountdown()
-  dataSharingNoticeDialog.value.countdown = 10
-  dataSharingCountdownTimer = window.setInterval(() => {
-    dataSharingNoticeDialog.value.countdown = Math.max(0, dataSharingNoticeDialog.value.countdown - 1)
-    if (dataSharingNoticeDialog.value.countdown <= 0) {
-      clearDataSharingCountdown()
-    }
-  }, 1000)
-}
-
-const closeDataSharingNotice = () => {
-  clearDataSharingCountdown()
-  dataSharingNoticeDialog.value = {
-    show: false,
-    loading: false,
-    countdown: 0,
-    notice: null,
-    key: null,
-    targetGroupId: null,
-    mode: null
-  }
-}
-
-const openDataSharingNotice = async (
-  targetGroupId: number,
-  mode: 'row' | 'form',
-  key: ApiKey | null = null
-) => {
-  dataSharingNoticeDialog.value = {
-    show: true,
-    loading: true,
-    countdown: 10,
-    notice: null,
-    key,
-    targetGroupId,
-    mode
-  }
-  startDataSharingCountdown()
-  try {
-    const notice = await dataSharingAPI.getNotice(targetGroupId)
-    dataSharingNoticeDialog.value.notice = notice
-  } catch (error) {
-    closeDataSharingNotice()
-    appStore.showError('加载数据共享须知失败')
-  } finally {
-    dataSharingNoticeDialog.value.loading = false
-  }
-}
-
-const confirmDataSharingNotice = async () => {
-  const state = dataSharingNoticeDialog.value
-  if (!state.notice || !state.targetGroupId || state.countdown > 0) return
-
-  state.loading = true
-  try {
-    await dataSharingAPI.confirmNotice(state.targetGroupId, state.notice.version)
-    if (state.mode === 'row' && state.key) {
-      await submitGroupChange(state.key, state.targetGroupId, {
-        data_sharing_confirmed: true,
-        data_sharing_notice_version: state.notice.version
-      })
-    } else if (state.mode === 'form') {
-      await submitKeyForm({
-        data_sharing_confirmed: true,
-        data_sharing_notice_version: state.notice.version
-      })
-    }
-    closeDataSharingNotice()
-  } catch (error: any) {
-    const errorMsg = error?.message || '确认数据共享须知失败'
-    appStore.showError(errorMsg)
-  } finally {
-    state.loading = false
-  }
-}
-
 const submitGroupChange = async (
   key: ApiKey,
-  newGroupId: number | null,
-  consent?: { data_sharing_confirmed: boolean; data_sharing_notice_version: number }
+  newGroupId: number | null
 ) => {
-  await keysAPI.update(key.id, { group_id: newGroupId, ...consent })
+  await keysAPI.update(key.id, { group_id: newGroupId })
   appStore.showSuccess(t('keys.groupChangedSuccess'))
   loadApiKeys()
 }
@@ -2461,10 +2338,6 @@ const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
   if (key.group_id === newGroupId) return
-  if (groupRequiresDataSharingNotice(newGroupId)) {
-    await openDataSharingNotice(newGroupId!, 'row', key)
-    return
-  }
 
   try {
     await submitGroupChange(key, newGroupId)
@@ -2537,9 +2410,7 @@ const buildKeyFormPayload = () => {
   }
 }
 
-const submitKeyForm = async (
-  consent?: { data_sharing_confirmed: boolean; data_sharing_notice_version: number }
-) => {
+const submitKeyForm = async () => {
   const { ipWhitelist, ipBlacklist, quota, expiresInDays, expiresAt, rateLimitData, modelMapping } = buildKeyFormPayload()
   submitting.value = true
   try {
@@ -2563,8 +2434,7 @@ const submitKeyForm = async (
         rate_limit_5h: rateLimitData.rate_limit_5h,
         rate_limit_1d: rateLimitData.rate_limit_1d,
         rate_limit_7d: rateLimitData.rate_limit_7d,
-        fallback_to_default_group_when_unavailable: formData.value.fallback_to_default_group_when_unavailable,
-        ...consent
+        fallback_to_default_group_when_unavailable: formData.value.fallback_to_default_group_when_unavailable
       }
       const originalBillingMode = selectedKey.value.billing_mode ?? 'auto'
       const originalPreferredSubscriptionID = selectedKey.value.preferred_subscription_id ?? null
@@ -2609,8 +2479,7 @@ const submitKeyForm = async (
         rate_limit_5h: rateLimitData.rate_limit_5h,
         rate_limit_1d: rateLimitData.rate_limit_1d,
         rate_limit_7d: rateLimitData.rate_limit_7d,
-        fallback_to_default_group_when_unavailable: formData.value.fallback_to_default_group_when_unavailable,
-        ...consent
+        fallback_to_default_group_when_unavailable: formData.value.fallback_to_default_group_when_unavailable
       }
       await keysAPI.createWithPayload(payload)
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
@@ -2674,26 +2543,6 @@ const handleSubmit = async () => {
       appStore.showError(customKeyError.value)
       return
     }
-  }
-
-	const existingCompositeGroups = new Set(
-		selectedKey.value?.is_composite
-			? (selectedKey.value.composite_groups || []).map((binding) => binding.group_id)
-			: []
-	)
-	const newDataSharingGroup = formData.value.is_composite
-		? formData.value.composite_groups.find(
-			(binding) => !existingCompositeGroups.has(binding.group_id!) && groupRequiresDataSharingNotice(binding.group_id)
-		)
-		: null
-	const changingGroup = !showEditModal.value || selectedKey.value?.group_id !== formData.value.group_id
-  if (newDataSharingGroup?.group_id) {
-		await openDataSharingNotice(newDataSharingGroup.group_id, 'form', selectedKey.value)
-		return
-	}
-	if (!formData.value.is_composite && changingGroup && groupRequiresDataSharingNotice(formData.value.group_id)) {
-		await openDataSharingNotice(formData.value.group_id!, 'form', selectedKey.value)
-    return
   }
 
   await submitKeyForm()
@@ -2896,8 +2745,7 @@ onUnmounted(() => {
   document.removeEventListener('click', closeGroupSelector)
   document.removeEventListener('click', handleFilterClickOutside)
   abortController?.abort()
-  clearDataSharingCountdown()
-  if (resetTimer) clearInterval(resetTimer)
+	if (resetTimer) clearInterval(resetTimer)
 })
 </script>
 

@@ -39,7 +39,6 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesGroupCaptureControls(t *testin
 			},
 			Status:                  StatusActive,
 			RateMultiplier:          1,
-			DataSharingEnabled:      true,
 			SessionIsolationEnabled: true,
 			AllowImageGeneration:    true,
 			ImageRateIndependent:    true,
@@ -62,7 +61,6 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesGroupCaptureControls(t *testin
 	require.False(t, *roundTrip.Group.AdvancedSchedulerOverrides.StickyWeightedEnabled)
 	require.Equal(t, 3, *roundTrip.Group.AdvancedSchedulerOverrides.LBTopK)
 	require.NotSame(t, apiKey.Group.AdvancedSchedulerOverrides.LBTopK, roundTrip.Group.AdvancedSchedulerOverrides.LBTopK)
-	require.True(t, roundTrip.Group.DataSharingEnabled)
 	require.True(t, roundTrip.Group.SessionIsolationEnabled)
 	require.True(t, roundTrip.Group.AllowImageGeneration)
 	require.True(t, roundTrip.Group.ImageRateIndependent)

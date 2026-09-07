@@ -75,12 +75,6 @@ const (
 	FieldWindow1dStart = "window_1d_start"
 	// FieldWindow7dStart holds the string denoting the window_7d_start field in the database.
 	FieldWindow7dStart = "window_7d_start"
-	// FieldDataSharingNoticeVersion holds the string denoting the data_sharing_notice_version field in the database.
-	FieldDataSharingNoticeVersion = "data_sharing_notice_version"
-	// FieldDataSharingConfirmedGroupID holds the string denoting the data_sharing_confirmed_group_id field in the database.
-	FieldDataSharingConfirmedGroupID = "data_sharing_confirmed_group_id"
-	// FieldDataSharingConfirmedAt holds the string denoting the data_sharing_confirmed_at field in the database.
-	FieldDataSharingConfirmedAt = "data_sharing_confirmed_at"
 	// FieldFallbackToDefaultGroupWhenUnavailable holds the string denoting the fallback_to_default_group_when_unavailable field in the database.
 	FieldFallbackToDefaultGroupWhenUnavailable = "fallback_to_default_group_when_unavailable"
 	// FieldManagedBy holds the string denoting the managed_by field in the database.
@@ -167,9 +161,6 @@ var Columns = []string{
 	FieldWindow5hStart,
 	FieldWindow1dStart,
 	FieldWindow7dStart,
-	FieldDataSharingNoticeVersion,
-	FieldDataSharingConfirmedGroupID,
-	FieldDataSharingConfirmedAt,
 	FieldFallbackToDefaultGroupWhenUnavailable,
 	FieldManagedBy,
 }
@@ -236,8 +227,6 @@ var (
 	DefaultUsage1d float64
 	// DefaultUsage7d holds the default value on creation for the "usage_7d" field.
 	DefaultUsage7d float64
-	// DefaultDataSharingNoticeVersion holds the default value on creation for the "data_sharing_notice_version" field.
-	DefaultDataSharingNoticeVersion int
 	// DefaultFallbackToDefaultGroupWhenUnavailable holds the default value on creation for the "fallback_to_default_group_when_unavailable" field.
 	DefaultFallbackToDefaultGroupWhenUnavailable bool
 	// ManagedByValidator is a validator for the "managed_by" field. It is called by the builders before save.
@@ -385,21 +374,6 @@ func ByWindow1dStart(opts ...sql.OrderTermOption) OrderOption {
 // ByWindow7dStart orders the results by the window_7d_start field.
 func ByWindow7dStart(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldWindow7dStart, opts...).ToFunc()
-}
-
-// ByDataSharingNoticeVersion orders the results by the data_sharing_notice_version field.
-func ByDataSharingNoticeVersion(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDataSharingNoticeVersion, opts...).ToFunc()
-}
-
-// ByDataSharingConfirmedGroupID orders the results by the data_sharing_confirmed_group_id field.
-func ByDataSharingConfirmedGroupID(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDataSharingConfirmedGroupID, opts...).ToFunc()
-}
-
-// ByDataSharingConfirmedAt orders the results by the data_sharing_confirmed_at field.
-func ByDataSharingConfirmedAt(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDataSharingConfirmedAt, opts...).ToFunc()
 }
 
 // ByFallbackToDefaultGroupWhenUnavailable orders the results by the fallback_to_default_group_when_unavailable field.

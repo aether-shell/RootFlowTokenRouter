@@ -712,7 +712,6 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	var usage *ClaudeUsage
 	var firstTokenMs *int
 	var clientDisconnect bool
-	var responseBody []byte
 	if reqStream {
 		writerSizeBeforeStream := c.Writer.Size()
 		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, reqModel, shouldMimicClaudeCode)
@@ -799,14 +798,11 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		usage = streamResult.usage
 		firstTokenMs = streamResult.firstTokenMs
 		clientDisconnect = streamResult.clientDisconnect
-		responseBody = streamResult.responseBody
 	} else {
-		var body []byte
-		usage, body, err = s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, reqModel)
+		usage, err = s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, reqModel)
 		if err != nil {
 			return nil, err
 		}
-		responseBody = body
 	}
 	if usage == nil {
 		usage = &ClaudeUsage{}
@@ -825,7 +821,6 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		Duration:                    time.Since(startTime),
 		FirstTokenMs:                firstTokenMs,
 		ClientDisconnect:            clientDisconnect,
-		ResponseBody:                cloneDataSharingRequestBody(responseBody),
 	}, nil
 }
 

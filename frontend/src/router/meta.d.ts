@@ -62,12 +62,6 @@ declare module 'vue-router' {
     requiresTeam?: boolean
 
     /**
-     * 是否要求数据共享功能开关已启用
-     * @default false
-     */
-    requiresDataSharing?: boolean
-
-    /**
      * 是否要求用量排行功能开关已启用
      * @default false
      */

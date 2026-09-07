@@ -35,7 +35,6 @@ function group(overrides: Partial<AdminGroup>): AdminGroup {
     platform: 'openai',
     rate_multiplier: 1,
     is_exclusive: false,
-    data_sharing_enabled: false,
     session_isolation_enabled: false,
     status: 'active',
     allow_image_generation: false,

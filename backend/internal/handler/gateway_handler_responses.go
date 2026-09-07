@@ -333,7 +333,6 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
 				RequestBody:        body,
-				SessionID:          sessionHash,
 				APIKeyService:      h.apiKeyService,
 				ClientSessionID:    clientSessionID,
 				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),

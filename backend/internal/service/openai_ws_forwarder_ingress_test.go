@@ -80,6 +80,23 @@ func TestOpenAIWSIngressPreviousResponseRecoveryEnabled(t *testing.T) {
 	require.True(t, svc.openAIWSIngressPreviousResponseRecoveryEnabled())
 }
 
+// TestApplyOpenAIWSReasoningEffortPolicyUsesSessionModel 验证省略 model 的后续帧仍能命中分组映射。
+func TestApplyOpenAIWSReasoningEffortPolicyUsesSessionModel(t *testing.T) {
+	hooks := &OpenAIWSIngressHooks{
+		ReasoningEffortMappings: []ReasoningEffortMapping{{
+			From:      "none",
+			To:        "low",
+			MatchType: "exact",
+			Model:     "gpt-6-astra",
+		}},
+	}
+	payload := []byte(`{"type":"response.create","reasoning":{"effort":"none"}}`)
+
+	updated, err := applyOpenAIWSReasoningEffortPolicy(payload, hooks, "gpt-6-astra")
+	require.NoError(t, err)
+	require.Equal(t, "low", gjson.GetBytes(updated, "reasoning.effort").String())
+}
+
 func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 	t.Parallel()
 

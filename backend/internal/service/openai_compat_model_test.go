@@ -515,7 +515,6 @@ func TestForwardAsAnthropic_AutoDerivesPromptCacheKeyWhenMessagesDispatchHasNoSe
 	require.NotEmpty(t, cacheKey)
 	require.True(t, strings.HasPrefix(cacheKey, "anthropic-digest-"))
 	require.Equal(t, generateSessionUUID(isolateOpenAISessionID(0, cacheKey)), upstream.lastReq.Header.Get("session_id"))
-	require.Equal(t, dataShareSessionIDFromCompatPromptCacheKey(cacheKey), result.DataShareSessionID)
 }
 
 func TestForwardAsAnthropic_DoesNotAutoDerivePromptCacheKeyForNonCodexModel(t *testing.T) {
@@ -1792,64 +1791,9 @@ func TestForwardAsAnthropic_TerminalUsageWithoutUpstreamCloseReturns(t *testing.
 		require.Equal(t, 15, got.result.Usage.InputTokens)
 		require.Equal(t, 6, got.result.Usage.OutputTokens)
 		require.Equal(t, 5, got.result.Usage.CacheReadInputTokens)
-		require.Equal(t, "ok", gjson.GetBytes(got.result.ResponseBody, "content.0.text").String())
 	case <-time.After(time.Second):
 		require.Fail(t, "ForwardAsAnthropic should return after terminal usage event even if upstream keeps the connection open")
 	}
-}
-
-func TestForwardAsAnthropic_StreamResponseBodyKeepsDeltaSnapshotWhenTerminalOutputEmpty(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	body := []byte(`{"model":"gpt-5.4","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":true}`)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
-
-	upstreamBody := strings.Join([]string{
-		`event: response.created`,
-		`data: {"response":{"id":"resp_empty","model":"gpt-5.4","status":"in_progress","output":[]}}`,
-		``,
-		`event: response.output_text.delta`,
-		`data: {"delta":"hello"}`,
-		``,
-		`event: response.output_text.delta`,
-		`data: {"delta":" world"}`,
-		``,
-		`event: response.completed`,
-		`data: {"response":{"id":"resp_empty","object":"response","model":"gpt-5.4","status":"completed","output":[],"usage":{"input_tokens":15,"output_tokens":6,"total_tokens":21,"input_tokens_details":{"cached_tokens":5}}}}`,
-		``,
-		`data: [DONE]`,
-		``,
-	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_messages_empty_terminal"}},
-		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
-	}}
-
-	svc := &OpenAIGatewayService{httpUpstream: upstream}
-	account := &Account{
-		ID:          1,
-		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"access_token":       "oauth-token",
-			"chatgpt_account_id": "chatgpt-acc",
-		},
-	}
-
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "gpt-5.1")
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Equal(t, 15, result.Usage.InputTokens)
-	require.Equal(t, 6, result.Usage.OutputTokens)
-	require.Equal(t, 5, result.Usage.CacheReadInputTokens)
-	require.Equal(t, "hello world", gjson.GetBytes(result.ResponseBody, "content.0.text").String())
-	require.Equal(t, "end_turn", gjson.GetBytes(result.ResponseBody, "stop_reason").String())
 }
 
 func TestForwardAsAnthropic_EventNamedTerminalWithoutUpstreamCloseReturns(t *testing.T) {
@@ -2031,7 +1975,6 @@ func TestForwardAsAnthropic_BufferedTerminalWithoutUpstreamCloseReturns(t *testi
 		require.Equal(t, 15, got.result.Usage.InputTokens)
 		require.Equal(t, 6, got.result.Usage.OutputTokens)
 		require.Equal(t, 5, got.result.Usage.CacheReadInputTokens)
-		require.Equal(t, "ok", gjson.GetBytes(got.result.ResponseBody, "content.0.text").String())
 		require.Contains(t, rec.Body.String(), `"stop_reason":"end_turn"`)
 	case <-time.After(time.Second):
 		require.Fail(t, "ForwardAsAnthropic buffered response should return after terminal usage event even if upstream keeps the connection open")

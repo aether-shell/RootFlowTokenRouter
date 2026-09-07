@@ -12,6 +12,10 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { initializeTfCliImportSession } from '@/utils/tfCliImport'
+
+// 登录守卫读取 fullPath 前先移除一次性会话 secret，避免它进入重定向参数。
+initializeTfCliImportSession()
 
 /**
  * Route definitions with lazy loading
@@ -276,17 +280,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Usage Records',
       titleKey: 'usage.title',
       descriptionKey: 'usage.description'
-    }
-  },
-  {
-    path: '/data-sharing',
-    name: 'DataSharing',
-    component: () => import('@/views/user/DataSharingView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: '数据共享',
-      requiresDataSharing: true
     }
   },
   {
@@ -650,17 +643,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/data-sharing',
-    name: 'AdminDataSharing',
-    component: () => import('@/views/admin/DataSharingView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: '数据共享',
-      requiresDataSharing: true
-    }
-  },
-  {
     path: '/admin/affiliates',
     redirect: '/admin/affiliates/invites',
     meta: {
@@ -904,7 +886,6 @@ router.beforeEach(async (to, _from, next) => {
   const requiresPublicFeature = to.meta.requiresPayment
     || to.meta.requiresRiskControl
     || to.meta.requiresTeam
-    || to.meta.requiresDataSharing
     || to.meta.requiresUsageRanking
     || to.meta.requiresCreative
   if (requiresPublicFeature && !appStore.publicSettingsLoaded) {
@@ -939,15 +920,6 @@ router.beforeEach(async (to, _from, next) => {
     to.meta.requiresTeam &&
     appStore.publicSettingsLoaded &&
     appStore.cachedPublicSettings?.team_enabled === false
-  ) {
-    next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
-    return
-  }
-
-  if (
-    to.meta.requiresDataSharing &&
-    appStore.publicSettingsLoaded &&
-    appStore.cachedPublicSettings?.data_sharing_enabled === false
   ) {
     next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
     return

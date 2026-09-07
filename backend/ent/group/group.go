@@ -144,8 +144,6 @@ const (
 	FieldMaxReasoningEffortOverLimit = "max_reasoning_effort_over_limit"
 	// FieldReasoningEffortMappings holds the string denoting the reasoning_effort_mappings field in the database.
 	FieldReasoningEffortMappings = "reasoning_effort_mappings"
-	// FieldDataSharingEnabled holds the string denoting the data_sharing_enabled field in the database.
-	FieldDataSharingEnabled = "data_sharing_enabled"
 	// FieldSessionIsolationEnabled holds the string denoting the session_isolation_enabled field in the database.
 	FieldSessionIsolationEnabled = "session_isolation_enabled"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
@@ -294,7 +292,6 @@ var Columns = []string{
 	FieldMaxReasoningEffort,
 	FieldMaxReasoningEffortOverLimit,
 	FieldReasoningEffortMappings,
-	FieldDataSharingEnabled,
 	FieldSessionIsolationEnabled,
 }
 
@@ -446,8 +443,6 @@ var (
 	MaxReasoningEffortOverLimitValidator func(string) error
 	// DefaultReasoningEffortMappings holds the default value on creation for the "reasoning_effort_mappings" field.
 	DefaultReasoningEffortMappings []domain.ReasoningEffortMapping
-	// DefaultDataSharingEnabled holds the default value on creation for the "data_sharing_enabled" field.
-	DefaultDataSharingEnabled bool
 	// DefaultSessionIsolationEnabled holds the default value on creation for the "session_isolation_enabled" field.
 	DefaultSessionIsolationEnabled bool
 )
@@ -728,11 +723,6 @@ func ByMaxReasoningEffort(opts ...sql.OrderTermOption) OrderOption {
 // ByMaxReasoningEffortOverLimit orders the results by the max_reasoning_effort_over_limit field.
 func ByMaxReasoningEffortOverLimit(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMaxReasoningEffortOverLimit, opts...).ToFunc()
-}
-
-// ByDataSharingEnabled orders the results by the data_sharing_enabled field.
-func ByDataSharingEnabled(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldDataSharingEnabled, opts...).ToFunc()
 }
 
 // BySessionIsolationEnabled orders the results by the session_isolation_enabled field.

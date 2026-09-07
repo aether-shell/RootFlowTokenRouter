@@ -1126,64 +1126,7 @@ func TestForwardAsChatCompletions_EventTypeDoesNotLeakAcrossFrames(t *testing.T)
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), `"content":"ok"`)
 	require.Contains(t, rec.Body.String(), `data: [DONE]`)
-	require.Equal(t, "resp_1", gjson.GetBytes(result.ResponseBody, "id").String())
-	require.Equal(t, "ok", gjson.GetBytes(result.ResponseBody, "output.0.content.0.text").String())
 }
-
-func TestForwardAsChatCompletions_StreamResponseBodyUsesDeltasWhenTerminalOutputEmpty(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":true}`)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
-
-	upstreamBody := strings.Join([]string{
-		`event: response.created`,
-		`data: {"response":{"id":"resp_empty","model":"gpt-5.4","status":"in_progress","output":[]}}`,
-		``,
-		`event: response.output_text.delta`,
-		`data: {"delta":"hello"}`,
-		``,
-		`event: response.output_text.delta`,
-		`data: {"delta":" world"}`,
-		``,
-		`event: response.completed`,
-		`data: {"response":{"id":"resp_empty","object":"response","model":"gpt-5.4","status":"completed","output":[],"usage":{"input_tokens":17,"output_tokens":8,"total_tokens":25,"input_tokens_details":{"cached_tokens":6}}}}`,
-		``,
-		`data: [DONE]`,
-		``,
-	}, "\n")
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_chat_empty_terminal"}},
-		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
-	}}
-
-	svc := &OpenAIGatewayService{httpUpstream: upstream}
-	account := &Account{
-		ID:          1,
-		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Concurrency: 1,
-		Credentials: map[string]any{
-			"access_token":       "oauth-token",
-			"chatgpt_account_id": "chatgpt-acc",
-		},
-	}
-
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.1")
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Equal(t, 17, result.Usage.InputTokens)
-	require.Equal(t, 8, result.Usage.OutputTokens)
-	require.Equal(t, 6, result.Usage.CacheReadInputTokens)
-	require.Equal(t, "hello world", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
-	require.Equal(t, "stop", gjson.GetBytes(result.ResponseBody, "choices.0.finish_reason").String())
-}
-
 func TestForwardAsChatCompletions_BufferedTerminalWithoutUpstreamCloseReturns(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1234,7 +1177,6 @@ func TestForwardAsChatCompletions_BufferedTerminalWithoutUpstreamCloseReturns(t 
 		require.Equal(t, 17, got.result.Usage.InputTokens)
 		require.Equal(t, 8, got.result.Usage.OutputTokens)
 		require.Equal(t, 6, got.result.Usage.CacheReadInputTokens)
-		require.Equal(t, "ok", gjson.GetBytes(got.result.ResponseBody, "choices.0.message.content").String())
 		require.Contains(t, rec.Body.String(), `"finish_reason":"stop"`)
 	case <-time.After(time.Second):
 		require.Fail(t, "ForwardAsChatCompletions buffered response should return after terminal usage event even if upstream keeps the connection open")

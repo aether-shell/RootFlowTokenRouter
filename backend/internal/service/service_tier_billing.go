@@ -76,7 +76,7 @@ func ApplyOpenAIServiceTierBillingResolution(account *Account, result *OpenAIFor
 	if result == nil {
 		return ServiceTierBillingResolution{}
 	}
-	resolution := ResolveOpenAIServiceTierBilling(account, optionalStringValue(result.ServiceTier), result.UpstreamResponseServiceTier)
+	resolution := ResolveOpenAIServiceTierBilling(account, stringValueOrEmpty(result.ServiceTier), result.UpstreamResponseServiceTier)
 	if resolution.Downgraded {
 		billing := resolution.Billing
 		result.ServiceTier = &billing
@@ -89,7 +89,7 @@ func ApplyForwardServiceTierBillingResolution(result *ForwardResult) ServiceTier
 	if result == nil {
 		return ServiceTierBillingResolution{}
 	}
-	requested := optionalStringValue(result.ServiceTier)
+	requested := stringValueOrEmpty(result.ServiceTier)
 	if requested == "" {
 		requested = strings.TrimSpace(result.Usage.Speed)
 	}

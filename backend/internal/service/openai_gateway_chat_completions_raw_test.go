@@ -18,7 +18,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 func TestBuildOpenAIChatCompletionsURL(t *testing.T) {
@@ -116,7 +115,6 @@ func TestForwardAsRawChatCompletions_ForcesStreamUsageUpstreamAndPassesUsageDown
 	require.Equal(t, 9, result.Usage.InputTokens)
 	require.Equal(t, 4, result.Usage.OutputTokens)
 	require.Equal(t, 3, result.Usage.CacheReadInputTokens)
-	require.JSONEq(t, `{"id":"chatcmpl_1","object":"chat.completion","created":1,"model":"gpt-5.4","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":4,"total_tokens":13,"prompt_tokens_details":{"cached_tokens":3}}}`, normalizeChatCompletionResponseBodyForTest(result.ResponseBody))
 	require.NotNil(t, upstream.lastReq)
 	require.NoError(t, upstream.lastReq.Context().Err())
 	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.lastReq.Context()))
@@ -393,7 +391,7 @@ func TestForwardAsRawChatCompletions_PreservesDeepSeekReasoningContentNonStreami
 	require.Equal(t, 5, result.Usage.OutputTokens)
 	require.Equal(t, "think first", gjson.Get(rec.Body.String(), "choices.0.message.reasoning_content").String())
 	require.Equal(t, "final answer", gjson.Get(rec.Body.String(), "choices.0.message.content").String())
-	require.JSONEq(t, upstreamJSON, string(result.ResponseBody))
+	require.JSONEq(t, upstreamJSON, rec.Body.String())
 }
 
 func TestForwardAsRawChatCompletions_PreservesDeepSeekReasoningContentStreaming(t *testing.T) {
@@ -434,8 +432,6 @@ func TestForwardAsRawChatCompletions_PreservesDeepSeekReasoningContentStreaming(
 	require.NotNil(t, result)
 	require.Equal(t, 3, result.Usage.InputTokens)
 	require.Equal(t, 5, result.Usage.OutputTokens)
-	require.Equal(t, "think first", gjson.GetBytes(result.ResponseBody, "choices.0.message.reasoning_content").String())
-	require.Equal(t, "final answer", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
 	require.Contains(t, rec.Body.String(), `"reasoning_content":"think first"`)
 	require.Contains(t, rec.Body.String(), `"content":"final answer"`)
 	require.Contains(t, rec.Body.String(), "data: [DONE]")
@@ -571,8 +567,6 @@ func TestForwardAsRawChatCompletions_SilentRefusalToolCallsExempt(t *testing.T) 
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), `"tool_calls"`)
 	require.Contains(t, rec.Body.String(), `"finish_reason":"tool_calls"`)
-	require.Equal(t, "lookup", gjson.GetBytes(result.ResponseBody, "choices.0.message.tool_calls.0.function.name").String())
-	require.Equal(t, "tool_calls", gjson.GetBytes(result.ResponseBody, "choices.0.finish_reason").String())
 }
 
 func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *testing.T) {
@@ -609,8 +603,6 @@ func TestHandleChatStreamingResponse_SilentRefusalReasoningSummaryExempt(t *test
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotEmpty(t, result.ResponseBody)
-	require.Equal(t, "resp_reasoning", gjson.GetBytes(result.ResponseBody, "id").String())
 	require.Contains(t, rec.Body.String(), `"reasoning_content":"thinking only"`)
 	require.Contains(t, rec.Body.String(), "data: [DONE]")
 }
@@ -650,7 +642,6 @@ func TestForwardAsRawChatCompletions_SilentRefusalNormalContentExempt(t *testing
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), `"content":"ok"`)
 	require.Contains(t, rec.Body.String(), "data: [DONE]")
-	require.Equal(t, "ok", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
 }
 
 // TestForwardAsRawChatCompletions_StripsEmptyToolCallIdentity 端到端验证 raw
@@ -1089,7 +1080,6 @@ func TestForwardAsRawChatCompletions_ClientDisconnectDrainsUsage(t *testing.T) {
 	require.Equal(t, 17, result.Usage.InputTokens)
 	require.Equal(t, 8, result.Usage.OutputTokens)
 	require.Equal(t, 6, result.Usage.CacheReadInputTokens)
-	require.Equal(t, "ok", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Bool())
 }
 
@@ -1197,7 +1187,7 @@ func TestForwardAsChatCompletions_PreserveClientProtocolUsesVersionedChatURL(t *
 	require.NotNil(t, result)
 	require.Equal(t, 1, result.Usage.InputTokens)
 	require.Equal(t, 2, result.Usage.OutputTokens)
-	require.Equal(t, "ok", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
+	require.Equal(t, "ok", gjson.GetBytes(rec.Body.Bytes(), "choices.0.message.content").String())
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "https://open.bigmodel.cn/api/paas/v4/chat/completions", upstream.requests[0].URL.String())
 	require.True(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
@@ -1205,14 +1195,6 @@ func TestForwardAsChatCompletions_PreserveClientProtocolUsesVersionedChatURL(t *
 	require.Equal(t, "router-agent", upstream.requests[0].Header.Get("User-Agent"))
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"content":"ok"`)
-}
-
-func normalizeChatCompletionResponseBodyForTest(body []byte) string {
-	normalized, err := sjson.SetBytes(body, "created", 1)
-	if err != nil {
-		return string(body)
-	}
-	return string(normalized)
 }
 
 func TestIsOpenAIChatUsageOnlyStreamChunk(t *testing.T) {

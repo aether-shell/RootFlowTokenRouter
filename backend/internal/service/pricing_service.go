@@ -19,13 +19,22 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
 	"go.uber.org/zap"
 )
 
 var (
-	openAIModelDatePattern = regexp.MustCompile(`-\d{8}$`)
+	openAIModelDatePattern = regexp.MustCompile(`-(?:\d{8}|\d{4}-\d{2}-\d{2})$`)
 	openAIModelBasePattern = regexp.MustCompile(`^(gpt-\d+(?:\.\d+)?)(?:-|$)`)
+	// 只移除已知档位，保留版本和产品名；Spark 的价格重定向仍由专用回退处理。
+	geminiThinkingTierPattern = regexp.MustCompile(`^(gemini-\d+(?:\.\d+)?-(?:pro|flash))-(?:high|low|medium|tiered)$`)
+	openAIThinkingTierPattern = regexp.MustCompile(`^(gpt-\d+(?:\.\d+)?(?:-(?:mini|nano|pro|sol|terra|luna|astra|codex))?)-(none|minimal|low|medium|high|xhigh|max)$`)
+	// 次版本最多两位，避免把八位日期误认为版本号。
+	claudeVersionPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`^(claude-(?:opus|sonnet|haiku|fable)-\d+)([.-])(\d{1,2})(-.*)?$`),
+		regexp.MustCompile(`^(claude-\d+)([.-])(\d{1,2})(-(?:opus|sonnet|haiku|fable)(?:-.*)?)$`),
+	}
 	// aboveTierPricePattern 匹配目录中的长上下文绝对价字段。
 	// 服务档后缀和 cache 侧字段不参与阈值及倍率折算。
 	aboveTierPricePattern = regexp.MustCompile(`^(input|output)_cost_per_token_above_(\d+)k_tokens$`)
@@ -56,6 +65,17 @@ var (
 		LiteLLMProvider:                 "openai",
 		Mode:                            "chat",
 		SupportsPromptCaching:           true,
+	}
+	// GPT-6 Astra 静态回退只固化官方标准价，避免目录缺失时误落到旧型号。
+	openAIGPT6AstraPricing = &LiteLLMModelPricing{
+		InputCostPerToken:           10e-6,   // 每百万 token $10
+		OutputCostPerToken:          50e-6,   // 每百万 token $50
+		CacheCreationInputTokenCost: 12.5e-6, // 每百万 token $12.50
+		CacheReadInputTokenCost:     1e-6,    // 每百万 token $1
+		SupportsServiceTier:         true,
+		LiteLLMProvider:             "openai",
+		Mode:                        "chat",
+		SupportsPromptCaching:       true,
 	}
 	openAIGPT56SolPricing = &LiteLLMModelPricing{
 		InputCostPerToken:                   5e-06,   // $5 per MTok
@@ -167,6 +187,7 @@ type LiteLLMModelPricing struct {
 	SupportsVision            bool     `json:"supports_vision"`
 	SupportsAudioInput        bool     `json:"supports_audio_input"`
 	SupportsAudioOutput       bool     `json:"supports_audio_output"`
+	SupportsVideoInput        bool     `json:"supports_video_input"`
 
 	// TokenPricingAbsent 表示源数据中 input/output token 价格均缺失（仅有图片价）。
 	// 此类条目只可用于图片计费，token 计费必须回退到 fallback 或 fail-closed，
@@ -202,10 +223,12 @@ type LiteLLMRawEntry struct {
 	OutputCostPerImageToken             *float64 `json:"output_cost_per_image_token"`
 	InputCostPerImageToken              *float64 `json:"input_cost_per_image_token"`
 	SupportedModalities                 []string `json:"supported_modalities"`
+	SupportedInputModalities            []string `json:"supported_input_modalities"`
 	SupportedOutputModalities           []string `json:"supported_output_modalities"`
 	SupportsVision                      bool     `json:"supports_vision"`
 	SupportsAudioInput                  bool     `json:"supports_audio_input"`
 	SupportsAudioOutput                 bool     `json:"supports_audio_output"`
+	SupportsVideoInput                  bool     `json:"supports_video_input"`
 }
 
 // PricingService 动态价格服务
@@ -506,7 +529,12 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 			SupportsVision:            entry.SupportsVision,
 			SupportsAudioInput:        entry.SupportsAudioInput,
 			SupportsAudioOutput:       entry.SupportsAudioOutput,
+			SupportsVideoInput:        entry.SupportsVideoInput,
 			TokenPricingAbsent:        entry.InputCostPerToken == nil && entry.OutputCostPerToken == nil,
+		}
+		// 保持原字段优先，兼容部分厂商使用的输入模态字段名。
+		if len(pricing.SupportedModalities) == 0 {
+			pricing.SupportedModalities = entry.SupportedInputModalities
 		}
 
 		if entry.InputCostPerToken != nil {
@@ -982,41 +1010,26 @@ func (s *PricingService) validatePricingURL(raw string) (string, error) {
 	return normalized, nil
 }
 
-// GetModelPricing 获取模型价格（带模糊匹配）
+// GetModelPricing 按目录、日期变体和厂商回退策略查询模型价格。
 func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if modelName == "" {
+	modelLower := strings.ToLower(strings.TrimSpace(modelName))
+	if modelLower == "" {
 		return nil
 	}
 
-	// 标准化模型名称（同时兼容 "models/xxx"、VertexAI 资源名等前缀）
-	modelLower := strings.ToLower(strings.TrimSpace(modelName))
-	lookupCandidates := s.buildModelLookupCandidates(modelLower)
-
-	// 1. 精确匹配
-	for _, candidate := range lookupCandidates {
-		if candidate == "" {
-			continue
-		}
-		if pricing, ok := s.pricingData[candidate]; ok {
-			return pricing
-		}
+	// 1. 查询目录：完整 ID、等价名称写法和明确别名，兼容模型资源路径。
+	lookupCandidates := buildModelLookupCandidates(modelLower)
+	if pricing := s.lookupModelCatalogEntryLocked(lookupCandidates); pricing != nil {
+		return pricing
 	}
+	fallbackModel := normalizeModelNameForPricing(lastSegment(modelLower))
 
-	// 2. 处理常见的模型名称变体
-	// claude-opus-4-5-20251101 -> claude-opus-4.5-20251101
-	for _, candidate := range lookupCandidates {
-		normalized := strings.ReplaceAll(candidate, "-4-5-", "-4.5-")
-		if pricing, ok := s.pricingData[normalized]; ok {
-			return pricing
-		}
-	}
-
-	// 3. 尝试模糊匹配（去掉版本号后缀）
-	// claude-opus-4-5-20251101 -> claude-opus-4.5
-	baseName := s.extractBaseName(lookupCandidates[0])
+	// 2. 去除日期和部署版本段后，按基础名称模糊匹配。
+	// claude-opus-4-5-20251101 -> claude-opus-4-5
+	baseName := s.extractBaseName(fallbackModel)
 	for key, pricing := range s.pricingData {
 		keyBase := s.extractBaseName(strings.ToLower(key))
 		if keyBase == baseName {
@@ -1024,8 +1037,7 @@ func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing 
 		}
 	}
 
-	// Claude Opus 4.8 刚发布时 LiteLLM 价格文件可能尚未同步；这里用代码级兜底，
-	// 避免继续落入泛化的 Opus 4 系列模糊匹配而拿到旧价格。
+	// 3. Claude Opus 4.8 专属静态兜底，避免误用旧 Opus 系列价格。
 	for _, candidate := range lookupCandidates {
 		if isClaudeOpus48Model(candidate) {
 			return claudeOpus48FallbackPricing
@@ -1033,13 +1045,13 @@ func (s *PricingService) GetModelPricing(modelName string) *LiteLLMModelPricing 
 	}
 
 	// 4. 基于模型系列匹配（Claude）
-	if pricing := s.matchByModelFamily(lookupCandidates[0]); pricing != nil {
+	if pricing := s.matchByModelFamily(fallbackModel); pricing != nil {
 		return pricing
 	}
 
 	// 5. OpenAI 模型回退策略
-	if strings.HasPrefix(lookupCandidates[0], "gpt-") {
-		return s.matchOpenAIModel(lookupCandidates[0])
+	if strings.HasPrefix(fallbackModel, "gpt-") {
+		return s.matchOpenAIModel(fallbackModel)
 	}
 
 	return nil
@@ -1061,25 +1073,18 @@ func (s *PricingService) GetModelModalities(modelName string) ([]string, []strin
 		return nil, nil
 	}
 
-	lookupCandidates := s.buildModelLookupCandidates(modelLower)
-	for _, candidate := range lookupCandidates {
-		if candidate == "" {
-			continue
-		}
-		if pricing, ok := s.pricingData[candidate]; ok {
-			return deriveModalities(pricing)
+	lookupCandidates := buildModelLookupCandidates(modelLower)
+	return deriveModalities(s.lookupModelCatalogEntryLocked(lookupCandidates))
+}
+
+// lookupModelCatalogEntryLocked 按候选优先级查询条目，调用方必须持有读锁。
+func (s *PricingService) lookupModelCatalogEntryLocked(candidates []string) *LiteLLMModelPricing {
+	for _, candidate := range candidates {
+		if pricing := s.pricingData[candidate]; pricing != nil {
+			return pricing
 		}
 	}
-
-	// 版本写法变体：claude-opus-4-5-20251101 -> claude-opus-4.5-20251101
-	for _, candidate := range lookupCandidates {
-		normalized := strings.ReplaceAll(candidate, "-4-5-", "-4.5-")
-		if pricing, ok := s.pricingData[normalized]; ok {
-			return deriveModalities(pricing)
-		}
-	}
-
-	return nil, nil
+	return nil
 }
 
 // 模型广场可下发的模态取值白名单与固定输出顺序。
@@ -1128,6 +1133,9 @@ func deriveModalities(p *LiteLLMModelPricing) ([]string, []string) {
 	if p.SupportsAudioOutput {
 		output = append(output, "audio")
 	}
+	if p.SupportsVideoInput {
+		input = append(input, "video")
+	}
 	if p.InputCostPerImageToken > 0 {
 		input = append(input, "image")
 	}
@@ -1165,24 +1173,63 @@ func isClaudeOpus48Model(model string) bool {
 	return strings.Contains(model, "4.8") || strings.Contains(model, "4-8")
 }
 
-func (s *PricingService) buildModelLookupCandidates(modelLower string) []string {
-	rawCandidates := []string{
+// buildModelLookupCandidates 为目录与渠道查价提供同一组明确身份候选，不依赖目录是否有价格。
+// @project-doc docs/interfaces/model_catalog_and_marketplace.md#model_catalog_metadata_lookup
+func buildModelLookupCandidates(model string) []string {
+	candidates := buildModelIdentityCandidates(model)
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		seen[candidate] = struct{}{}
+	}
+	grokOptions := xai.RuntimeModelMappingOptions()
+	// 别名目标再次走名称规范化；已访问集合同时阻止默认模型形成自引用或循环。
+	for i := 0; i < len(candidates); i++ {
+		model := normalizeModelNameForPricing(lastSegment(candidates[i]))
+		alias := normalizeGeminiThinkingTierAlias(model)
+		if alias == model {
+			alias = normalizeOpenAIThinkingTierAlias(model)
+		}
+		if xai.IsGrokTextResponsesModelID(model) {
+			alias = xai.ResolveGrokTextResponsesModelID(model, grokOptions.DefaultText)
+		}
+		if alias == model {
+			continue
+		}
+		for _, target := range buildModelIdentityCandidates(alias) {
+			if _, ok := seen[target]; ok {
+				continue
+			}
+			seen[target] = struct{}{}
+			candidates = append(candidates, target)
+		}
+	}
+	return candidates
+}
+
+// buildModelIdentityCandidates 只生成完整 ID 的资源路径及等价写法，不展开模型别名。
+func buildModelIdentityCandidates(model string) []string {
+	modelLower := strings.ToLower(strings.TrimSpace(model))
+	if modelLower == "" {
+		return nil
+	}
+	candidates := []string{
 		modelLower,
 		strings.TrimPrefix(modelLower, "models/"),
 		lastSegment(modelLower),
 		lastSegment(strings.TrimPrefix(modelLower, "models/")),
+		normalizeModelNameForPricing(modelLower),
 	}
-	normalized := normalizeModelNameForPricing(modelLower)
-
-	// 未来定价目录出现 tier 专属条目时必须优先使用该条目。目前 Antigravity 的
-	// Gemini 3.6 Flash 各 tier 共用基础价格，因此标准化后的基础名称作为精确别名
-	// 未命中时的 fallback。
-	candidates := rawCandidates
-	if normalizeGeminiThinkingTierAlias(lastSegment(modelLower)) != lastSegment(modelLower) {
-		candidates = append(candidates, normalized)
-	} else {
-		// 其他别名（包括 models/xxx）仍优先使用规范模型名。
-		candidates = append([]string{normalized}, candidates...)
+	// 所有完整 ID 优先于等价版本写法，后者只改变版本分隔符。
+	for _, candidate := range candidates {
+		for _, pattern := range claudeVersionPatterns {
+			if parts := pattern.FindStringSubmatch(candidate); len(parts) > 0 {
+				separator := "."
+				if parts[2] == "." {
+					separator = "-"
+				}
+				candidates = append(candidates, parts[1]+separator+parts[3]+parts[4])
+			}
+		}
 	}
 
 	seen := make(map[string]struct{}, len(candidates))
@@ -1198,17 +1245,11 @@ func (s *PricingService) buildModelLookupCandidates(modelLower string) []string 
 		seen[c] = struct{}{}
 		out = append(out, c)
 	}
-	if len(out) == 0 {
-		return []string{modelLower}
-	}
 	return out
 }
 
 func normalizeModelNameForPricing(model string) string {
-	// Common Gemini/VertexAI forms:
-	// - models/gemini-2.0-flash-exp
-	// - publishers/google/models/gemini-2.5-pro
-	// - projects/.../locations/.../publishers/google/models/gemini-2.5-pro
+	// 这里只清理资源路径和名称写法，不移除档位或改成其它产品。
 	model = strings.TrimSpace(model)
 	model = strings.TrimLeft(model, "/")
 	model = strings.TrimPrefix(model, "models/")
@@ -1223,27 +1264,23 @@ func normalizeModelNameForPricing(model string) string {
 
 	model = strings.TrimLeft(model, "/")
 	if canonical := canonicalizeOpenAIModelAliasSpelling(model); canonical != "" {
-		if canonical == "gpt-5.6" {
-			return "gpt-5.6-sol"
-		}
-		if suffix, ok := strings.CutPrefix(canonical, "gpt-5.6-"); ok && (suffix == "max" || isKnownCodexModelSuffix(suffix)) {
-			return "gpt-5.6-sol"
-		}
 		return canonical
 	}
-	return normalizeGeminiThinkingTierAlias(model)
+	return model
 }
 
-// normalizeGeminiThinkingTierAlias 将 Antigravity 的 Gemini Flash 思考 tier
-// 模型 ID 映射到公开基础模型。tier 只控制推理行为，不改变公布的 token 价格，
-// 因此 -high/-low/-medium/-tiered 请求共用对应 3.5/3.6 Flash 基础价格卡。
+// normalizeGeminiThinkingTierAlias 生成同版本 Pro/Flash 基名，不接受重复或未知后缀。
 func normalizeGeminiThinkingTierAlias(model string) string {
-	for _, baseModel := range [...]string{"gemini-3.5-flash", "gemini-3.6-flash"} {
-		for _, tier := range [...]string{"-high", "-low", "-medium", "-tiered"} {
-			if model == baseModel+tier {
-				return baseModel
-			}
-		}
+	if parts := geminiThinkingTierPattern.FindStringSubmatch(model); len(parts) > 0 {
+		return parts[1]
+	}
+	return model
+}
+
+// normalizeOpenAIThinkingTierAlias 只剥离已知推理档位，保留产品名且不解析日期快照。
+func normalizeOpenAIThinkingTierAlias(model string) string {
+	if parts := openAIThinkingTierPattern.FindStringSubmatch(model); len(parts) > 0 && parts[1] != "gpt-5.6" && openAIModelSupportsReasoningEffort(parts[1], parts[2]) {
+		return parts[1]
 	}
 	return model
 }
@@ -1380,11 +1417,9 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 // matchOpenAIModel OpenAI 模型回退匹配策略
 // 回退顺序：
 // 1. gpt-5.3-codex-spark* -> gpt-5.1-codex（按业务要求固定计费）
-// 2. gpt-5.5-pro* -> 独立静态兜底价（避免被错误降级到 gpt-5.5）
-// 3. 通用变体回退（去掉日期、去掉通用后缀）
-// 4. gpt-5.3-codex -> gpt-5.2-codex
-// 5. gpt-5.5 / gpt-5.4* -> 业务静态兜底价
-// 6. 最终回退到 DefaultTestModel (gpt-5.1-codex)
+// 2. 同产品日期变体及已有专属静态价格；未注册的裸 GPT-5.6 不借用其它型号
+// 3. 通用变体及既有跨型号回退
+// 4. 最终回退到 DefaultTestModel (gpt-5.1-codex)
 func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 	if strings.HasPrefix(model, "gpt-5.3-codex-spark") {
 		if pricing, ok := s.pricingData["gpt-5.1-codex"]; ok {
@@ -1395,75 +1430,79 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		}
 	}
 
-	// GPT-5.5 Pro 不能先参与通用变体回退，否则会被基础版本提取逻辑
-	// 误降级成 gpt-5.5，进而错误命中普通版价格。
-	// 走到这里前，精确匹配和基础名模糊匹配已经有机会命中显式的 Pro 动态价格；
-	// 因此这里应直接进入 Pro 的静态兜底价。
-	if strings.HasPrefix(model, "gpt-5.5-pro") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.5-pro(static)"))
-		return openAIGPT55ProFallbackPricing
+	// 日期快照只在价格路径回退到同产品，不给能力查询提供推断依据。
+	withoutDate := openAIModelDatePattern.ReplaceAllString(model, "")
+	if withoutDate != model {
+		if pricing := s.lookupModelCatalogEntryLocked(buildModelLookupCandidates(withoutDate)); pricing != nil {
+			return pricing
+		}
+	}
+	// 普通 GPT 的协议/推理后缀不能绕过同产品动态价；Spark 保留原有独立策略。
+	sameModel := withoutDate
+	if !strings.HasPrefix(model, "gpt-5.3-codex-spark") {
+		sameModel = normalizeOpenAIThinkingTierAlias(strings.TrimSuffix(withoutDate, "-openai-compact"))
+		if sameModel != model {
+			if pricing := s.pricingData[sameModel]; pricing != nil {
+				return pricing
+			}
+		}
+	}
+	// 裸 GPT-5.6 不注册为内置型号，缺少显式目录时不得借用 Sol 或默认 GPT 价格。
+	if sameModel == "gpt-5.6" {
+		return nil
+	}
+	if parts := openAIThinkingTierPattern.FindStringSubmatch(sameModel); len(parts) > 0 && parts[1] == "gpt-5.6" {
+		return nil
 	}
 
-	// 尝试的回退变体
-	variants := s.generateOpenAIModelVariants(model, openAIModelDatePattern)
+	// 保留专属产品的识别顺序，先查该产品动态价，再用它自己的静态价。
+	var product string
+	var fallback *LiteLLMModelPricing
+	switch {
+	case strings.HasPrefix(model, "gpt-5.5-pro"):
+		product, fallback = "gpt-5.5-pro", openAIGPT55ProFallbackPricing
+	case isOpenAIGPT6AstraModel(model):
+		product, fallback = "gpt-6-astra", openAIGPT6AstraPricing
+	case strings.HasPrefix(model, "gpt-5.6-sol"):
+		product, fallback = "gpt-5.6-sol", openAIGPT56SolPricing
+	case strings.HasPrefix(model, "gpt-5.6-terra"):
+		product, fallback = "gpt-5.6-terra", openAIGPT56TerraPricing
+	case strings.HasPrefix(model, "gpt-5.6-luna"):
+		product, fallback = "gpt-5.6-luna", openAIGPT56LunaPricing
+	case strings.HasPrefix(model, "gpt-5.5"):
+		product, fallback = "gpt-5.5", openAIGPT55FallbackPricing
+	case strings.HasPrefix(model, "gpt-5.4-mini"):
+		product, fallback = "gpt-5.4-mini", openAIGPT54MiniFallbackPricing
+	case strings.HasPrefix(model, "gpt-5.4-nano"):
+		product, fallback = "gpt-5.4-nano", openAIGPT54NanoFallbackPricing
+	case strings.HasPrefix(model, "gpt-5.4"):
+		product, fallback = "gpt-5.4", openAIGPT54FallbackPricing
+	}
+	if fallback != nil {
+		if pricing := s.pricingData[product]; pricing != nil {
+			logger.With(zap.String("component", "service.pricing")).
+				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, product))
+			return pricing
+		}
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s(static)", model, product))
+		return fallback
+	}
 
-	for _, variant := range variants {
+	// 专属价均未命中后，才继续原有通用变体与跨型号回退。
+	for _, variant := range s.generateOpenAIModelVariants(model, openAIModelDatePattern) {
 		if pricing, ok := s.pricingData[variant]; ok {
 			logger.With(zap.String("component", "service.pricing")).
 				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, variant))
 			return pricing
 		}
 	}
-
 	if strings.HasPrefix(model, "gpt-5.3-codex") {
 		if pricing, ok := s.pricingData["gpt-5.2-codex"]; ok {
 			logger.With(zap.String("component", "service.pricing")).
 				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.2-codex"))
 			return pricing
 		}
-	}
-
-	// GPT-5.6 使用官方公开价格静态兜底，避免动态价格缺失时错误降级。
-	if strings.HasPrefix(model, "gpt-5.6-sol") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.6-sol(static)"))
-		return openAIGPT56SolPricing
-	}
-	if strings.HasPrefix(model, "gpt-5.6-terra") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.6-terra(static)"))
-		return openAIGPT56TerraPricing
-	}
-	if strings.HasPrefix(model, "gpt-5.6-luna") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.6-luna(static)"))
-		return openAIGPT56LunaPricing
-	}
-
-	// GPT-5.5 使用独立静态兜底价
-	if strings.HasPrefix(model, "gpt-5.5") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.5(static)"))
-		return openAIGPT55FallbackPricing
-	}
-
-	if strings.HasPrefix(model, "gpt-5.4-mini") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4-mini(static)"))
-		return openAIGPT54MiniFallbackPricing
-	}
-
-	if strings.HasPrefix(model, "gpt-5.4-nano") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4-nano(static)"))
-		return openAIGPT54NanoFallbackPricing
-	}
-
-	if strings.HasPrefix(model, "gpt-5.4") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.4(static)"))
-		return openAIGPT54FallbackPricing
 	}
 
 	if isOpenAIImageGenerationModel(model) {

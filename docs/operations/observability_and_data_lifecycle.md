@@ -1,18 +1,17 @@
 # 可观测性与数据生命周期
 
-本文总览 TokenRouter 的进程日志、Ops 数据、用量记录、计费事实、审计、聚合、清理、备份和数据共享如何产生、保存和失效。具体监控告警、预聚合和数据共享机制由独立专题拥有；修改采集队列、运维查询、保留策略、备份范围或导出流程前应先由本文路由。
+本文总览 TokenRouter 的进程日志、Ops 数据、用量记录、计费事实、审计、聚合、清理和备份如何产生、保存和失效。具体监控告警和预聚合机制由独立专题拥有；修改采集队列、运维查询、保留策略或备份范围前应先由本文路由。
 
 ## 章节导航
 
 - [数据面的职责](#数据面的职责)：判断一条记录是否可以丢弃或清理时读取。
-- [专题路由](#专题路由)：进入监控、聚合、账号维护或数据共享详细文档。
+- [专题路由](#专题路由)：进入监控、聚合或账号维护详细文档。
 - [关联与脱敏](#关联与脱敏)：修改日志字段、错误透传或查询筛选时读取。
 - [后台运行时](#后台运行时)：修改队列、worker、leader lock 或心跳时读取。
 - [聚合与查询](#聚合与查询)：修改仪表盘和 Ops 读取路径时读取。
 - [清理与留存](#清理与留存)：删除历史数据或修改 retention 时读取。
 - [创作台数据生命周期](#创作台数据生命周期)：判断创作台素材与任务元数据何时失效时读取。
 - [备份与恢复范围](#备份与恢复范围)：修改 dump 内容或恢复流程时读取。
-- [数据共享](#数据共享)：修改请求内容采集或导出时读取。
 
 ## 数据面的职责
 
@@ -24,7 +23,6 @@
 | 用量日志 | `usage_logs` 及分区/聚合表 | 用户查询、成本分析、模型/端点/时延统计 | 分析记录可异步写入并受清理策略影响 |
 | 计费事实 | `billing_usage_entries`、`usage_billing_dedup`、余额/订阅/额度相关表 | 幂等扣费、配额和资金效果 | 事务性领域事实；不能通过删除用量日志撤销 |
 | 操作审计 | `audit_logs`、支付/迁移专项审计表 | 记录管理员或敏感业务动作 | 与普通系统日志的保留和访问范围分开 |
-| 数据共享会话 | `data_share_sessions` 与导出产物元数据 | 经明确开关采集的请求/响应轨迹与数据集导出 | 可能包含用户内容，权限和生命周期最严格 |
 
 用量日志不是扣费账本，Ops 事件也不是请求成功的唯一证据。结算失败时保留的用量日志仍包含计算成本，但以 `actual_cost=0` 标识未成功扣费；这类记录必须与结算表对账，不能作为扣费成功的证据。排查金额时以结算事务和账单分配为准，再用 `request_id`、用户、Key、账号和时间窗口关联用量/Ops 数据。清理分析记录不会退款，也不能修复一笔错误结算。
 
@@ -35,7 +33,6 @@
 | Ops 指标、实时流量、错误、告警和邮件报告 | [运维监控与告警](ops_monitoring_and_alerting.md) |
 | Usage/Ops 小时日聚合、水位、回填和查询降级 | [使用记录与运维预聚合](pre_aggregation.md) |
 | 上游账号刷新、测试、配额探测和自动恢复 | [账号维护](account_maintenance.md) |
-| 分组内容轨迹采集、质量、导出和对象存储 | [数据共享](data_sharing.md) |
 | 内容审核日志、风险命中和自动处置 | [内容审核与风险处置](../domains/content_moderation.md) |
 | 用户九平台额度的 Redis/DB 同步 | [用户平台额度](../domains/platform_quotas.md) |
 
@@ -57,7 +54,7 @@
 - Ops system log sink 只索引选定等级/组件，按批写 PostgreSQL；队列满时不阻塞主请求，而是增加 dropped counter。落库连续失败后从 2 秒开始指数退避，最长 60 秒；退避期间直接丢弃观测批次并计入 dropped，避免日志链路持续占用数据库连接，任意一次成功会立即恢复正常写入。停止时会尽力排空。
 - 运维指标采集器、小时/日聚合器、告警评估器、计划报告和清理任务各自维护周期、开关、leader lock 与 job heartbeat。
 - Usage cleanup 任务持久化为 pending/running/succeeded/failed/canceled，分批删除；进程中断后 stale running 任务可以重新抢占继续执行。
-- Audit、data-sharing capture、scheduler snapshot outbox、幂等记录和批量图片清理有各自 worker。不能用某一 worker 健康推断整个后台体系健康。
+- Audit、scheduler snapshot outbox、幂等记录和批量图片清理有各自 worker。不能用某一 worker 健康推断整个后台体系健康。
 
 需要全局唯一执行的任务优先使用 Redis leader lock，部分服务在 Redis 不可用时回退 PostgreSQL advisory lock。锁失败通常应跳过本轮而非并发执行；管理恢复时应先确认 heartbeat、锁 TTL 和数据库维护状态，不能直接启动第二套清理任务。
 
@@ -96,7 +93,7 @@ Usage cleanup 是管理员显式创建的持久任务，必须提供时间范围
 
 ## 备份与恢复范围
 
-BackupService 使用 PostgreSQL dump，并把产物流式写入本地或 S3 兼容存储；配置、记录、定时调度和恢复受维护锁保护。默认内容策略会排除 `backupContentTableDataGroups` 归类的 usage records、Ops logs、专项 audit history、runtime data 和 data-share sessions，五类都必须显式选择。备份显示 completed 只证明已写出所选内容，不代表这些类别全部存在于文件中。
+BackupService 使用 PostgreSQL dump，并把产物流式写入本地或 S3 兼容存储；配置、记录、定时调度和恢复受维护锁保护。默认内容策略会排除 `backupContentTableDataGroups` 归类的 usage records、Ops logs、专项 audit history 和 runtime data，四类都必须显式选择。备份显示 completed 只证明已写出所选内容，不代表这些类别全部存在于文件中。
 
 S3 的 `multipart` 上传模式把 gzip 流作为一个对象低内存上传，适合兼容标准 multipart 签名的存储；`spooled_put` 面向只能可靠接受已知长度 `PutObject` 的兼容服务。后者超过 4 GiB 时边压缩边封装独立分卷，临时磁盘只保留当前一卷；备份记录保存每卷顺序、对象键、大小和 SHA-256。任一卷上传失败、服务重启或删除失败时，必须尝试清理全部已登记对象，并在清理不完整时保留可诊断记录。
 
@@ -106,14 +103,4 @@ S3 的 `multipart` 上传模式把 gzip 流作为一个对象低内存上传，�
 
 敏感 S3 配置入库前依赖稳定的加密密钥；临时生成的密钥不能用于保存新 secret。备份保留清理必须同时删除产物和记录，并在删除失败时保留可诊断状态。
 
-## 数据共享
-
-详细采集、质量、票据、产物和隐私边界由[数据共享](data_sharing.md)拥有；本节只记录它与其它数据面的生命周期关系。
-
-数据共享只对 `DataSharingEnabled` 的分组采集成功请求。采集支持 Claude/Gemini 兼容和 OpenAI 协议，通过有界 worker 与按 trajectory 聚合的进程内 buffer 降低热 session 写放大；容量不足可以丢弃采集，但不能影响主请求和计费。
-
-共享会话包含经过规范化、压缩和质量评估的请求/响应轨迹，并受用户/管理员权限、存储上限和查询范围约束。它与普通 usage log 不同，可能保存内容正文；新增协议字段时必须检查敏感内容过滤、payload 大小、合并语义和导出前复核。
-
-导出产物有独立元数据和本地/远端存储生命周期。导出前再次验证 payload，失败或过期产物不能作为成功数据集交付。关闭分组采集只阻止新数据，不自动删除已有会话；删除、导出和备份选择必须作为独立合规动作。
-
-相关文档：[运维监控与告警](ops_monitoring_and_alerting.md)、[数据共享](data_sharing.md)、[路由与计费](../domains/routing_and_billing.md)、[部署与数据库迁移](deployment_and_migrations.md)、[配置边界](../interfaces/configuration.md)、[运维目录](index.md)。
+相关文档：[运维监控与告警](ops_monitoring_and_alerting.md)、[路由与计费](../domains/routing_and_billing.md)、[部署与数据库迁移](deployment_and_migrations.md)、[配置边界](../interfaces/configuration.md)、[运维目录](index.md)。

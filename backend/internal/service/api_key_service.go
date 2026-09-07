@@ -43,7 +43,6 @@ var (
 	ErrPreferredSubscriptionInvalid      = infraerrors.Forbidden("PREFERRED_SUBSCRIPTION_INVALID", "preferred subscription is unavailable")
 	ErrPreferredSubscriptionGroup        = infraerrors.Forbidden("PREFERRED_SUBSCRIPTION_GROUP_NOT_ALLOWED", "preferred subscription does not allow this group")
 	ErrPreferredSubscriptionInsufficient = infraerrors.TooManyRequests("PREFERRED_SUBSCRIPTION_EXHAUSTED", "preferred subscription has insufficient remaining quota")
-	ErrDataSharingConsentRequired        = infraerrors.Forbidden("DATA_SHARING_CONSENT_REQUIRED", "switching to a data sharing group requires confirmation")
 	ErrCompositeKeyGroupsRequired        = infraerrors.BadRequest("COMPOSITE_KEY_GROUPS_REQUIRED", "composite api key requires at least one group")
 	ErrCompositeKeyTooManyGroups         = infraerrors.BadRequest("COMPOSITE_KEY_TOO_MANY_GROUPS", "composite api key supports at most 20 groups")
 	ErrCompositeKeyPrefixInvalid         = infraerrors.BadRequest("COMPOSITE_KEY_PREFIX_INVALID", "composite api key prefix is invalid")
@@ -110,8 +109,6 @@ type APIKeyUpdateFields struct {
 	ModelMapping bool
 	// FallbackToDefaultGroupWhenUnavailable 覆盖绑定分组不可用时的回退策略。
 	FallbackToDefaultGroupWhenUnavailable bool
-	// DataSharingConfirmation 覆盖数据共享须知版本、确认分组与确认时间。
-	DataSharingConfirmation bool
 	// QuotaUsed 仅供"重置配额用量"路径声明；常规计费走 IncrementQuotaUsed。
 	QuotaUsed bool
 	// RateLimits 覆盖 rate_limit_5h / _1d / _7d 三个阈值。
@@ -282,10 +279,6 @@ type CreateAPIKeyRequest struct {
 
 	// FallbackToDefaultGroupWhenUnavailable 表示绑定分组停用时是否允许回退到同平台默认分组，nil 时默认开启。
 	FallbackToDefaultGroupWhenUnavailable *bool `json:"fallback_to_default_group_when_unavailable"`
-
-	// 数据共享确认字段：创建时直接选择数据共享分组也必须确认。
-	DataSharingConfirmed     bool `json:"data_sharing_confirmed"`
-	DataSharingNoticeVersion int  `json:"data_sharing_notice_version"`
 }
 
 // APIKeyBillingSubscriptionOption 是配置 API Key 时可选择的有效订阅。
@@ -331,10 +324,6 @@ type UpdateAPIKeyRequest struct {
 
 	// FallbackToDefaultGroupWhenUnavailable 为 nil 时保持原值。
 	FallbackToDefaultGroupWhenUnavailable *bool `json:"fallback_to_default_group_when_unavailable"`
-
-	// 数据共享确认字段：用户切换到数据共享分组时必须由弹窗确认后提交。
-	DataSharingConfirmed     bool `json:"data_sharing_confirmed"`
-	DataSharingNoticeVersion int  `json:"data_sharing_notice_version"`
 }
 
 // ValidateAPIKeyLimit 校验可写入 DECIMAL(20,8) 的 API Key 配额或滚动限额。
@@ -404,11 +393,6 @@ type RateLimitCacheInvalidator interface {
 	InvalidateAPIKeyRateLimit(ctx context.Context, keyID int64) error
 }
 
-// DataSharingNoticeReader 提供当前数据共享须知版本，用于 API Key 切组校验。
-type DataSharingNoticeReader interface {
-	GetNotice(ctx context.Context) (*DataShareNotice, error)
-}
-
 type APIKeyService struct {
 	apiKeyRepo                APIKeyRepository
 	userRepo                  UserRepository
@@ -437,7 +421,6 @@ type APIKeyService struct {
 	authInvalidationFailures  atomic.Uint64
 	lastUsedTouchL1           sync.Map // keyID -> nextAllowedAt(time.Time)
 	lastUsedTouchSF           singleflight.Group
-	dataSharingNotice         DataSharingNoticeReader
 }
 
 type APIKeyAuthLookupMetrics struct {
@@ -492,11 +475,6 @@ func NewAPIKeyService(
 // Called after construction (e.g. in wire) to avoid circular dependencies.
 func (s *APIKeyService) SetRateLimitCacheInvalidator(inv RateLimitCacheInvalidator) {
 	s.rateLimitCacheInvalid = inv
-}
-
-// SetDataSharingNoticeReader 注入数据共享须知读取器，避免 API Key 服务直接耦合 settings 存储细节。
-func (s *APIKeyService) SetDataSharingNoticeReader(reader DataSharingNoticeReader) {
-	s.dataSharingNotice = reader
 }
 
 // SetConcurrencyService 注入 API Key 实时并发统计服务。
@@ -789,26 +767,15 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 	}
 
 	// 验证普通分组或复合分组权限。
-	var dataSharingNoticeVersion int
-	var dataSharingConfirmedGroupID *int64
-	var dataSharingConfirmedAt *time.Time
 	var compositeGroups []APIKeyCompositeGroup
 	if req.IsComposite {
 		if req.GroupID != nil {
 			return nil, ErrCompositeKeyGroupConflict
 		}
-		compositeGroups, err = s.prepareCompositeGroups(
-			ctx,
-			user,
-			req.CompositeGroups,
-			nil,
-			req.DataSharingConfirmed,
-			req.DataSharingNoticeVersion,
-		)
+		compositeGroups, err = s.prepareCompositeGroups(ctx, user, req.CompositeGroups)
 		if err != nil {
 			return nil, err
 		}
-		dataSharingNoticeVersion, dataSharingConfirmedGroupID, dataSharingConfirmedAt = compositeConsentSnapshot(compositeGroups)
 	} else if req.GroupID != nil {
 		group, err := s.groupRepo.GetByID(ctx, *req.GroupID)
 		if err != nil {
@@ -818,15 +785,6 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		// 检查用户是否可以绑定该分组
 		if !s.canUserBindGroup(ctx, user, group) {
 			return nil, ErrGroupNotAllowed
-		}
-		if group.DataSharingEnabled {
-			version, confirmedAt, err := s.validateCurrentDataSharingConsent(ctx, group, req.DataSharingConfirmed, req.DataSharingNoticeVersion)
-			if err != nil {
-				return nil, err
-			}
-			dataSharingNoticeVersion = version
-			dataSharingConfirmedGroupID = &group.ID
-			dataSharingConfirmedAt = &confirmedAt
 		}
 	}
 	if billingMode == APIKeyBillingModeSubscription {
@@ -905,9 +863,6 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		RateLimit1d:                           req.RateLimit1d,
 		RateLimit7d:                           req.RateLimit7d,
 		FallbackToDefaultGroupWhenUnavailable: fallbackToDefaultGroupWhenUnavailable,
-		DataSharingNoticeVersion:              dataSharingNoticeVersion,
-		DataSharingConfirmedGroupID:           dataSharingConfirmedGroupID,
-		DataSharingConfirmedAt:                dataSharingConfirmedAt,
 	}
 	apiKey.ActorUser = actor
 	apiKey.User = user
@@ -1457,22 +1412,13 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 			if err != nil {
 				return nil, fmt.Errorf("get user: %w", err)
 			}
-			bindings, err := s.prepareCompositeGroups(
-				ctx,
-				user,
-				*req.CompositeGroups,
-				apiKey.CompositeGroups,
-				req.DataSharingConfirmed,
-				req.DataSharingNoticeVersion,
-			)
+			bindings, err := s.prepareCompositeGroups(ctx, user, *req.CompositeGroups)
 			if err != nil {
 				return nil, err
 			}
 			apiKey.CompositeGroups = bindings
 			apiKey.User = user
-			apiKey.DataSharingNoticeVersion, apiKey.DataSharingConfirmedGroupID, apiKey.DataSharingConfirmedAt = compositeConsentSnapshot(bindings)
 			fields.CompositeConfiguration = true
-			fields.DataSharingConfirmation = true
 		}
 		apiKey.IsComposite = true
 		apiKey.GroupID = nil
@@ -1516,17 +1462,10 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 			return nil, ErrGroupNotAllowed
 		}
 
-		changingGroup := apiKey.GroupID == nil || *apiKey.GroupID != group.ID
-		if err := s.validateDataSharingConsent(ctx, apiKey, group, req, changingGroup); err != nil {
-			return nil, err
-		}
 		apiKey.GroupID = req.GroupID
 		apiKey.Group = group
 		apiKey.User = user
 		fields.GroupID = true
-		if changingGroup && group.DataSharingEnabled {
-			fields.DataSharingConfirmation = true
-		}
 	}
 	if !apiKey.IsComposite && !s.canUserUseBoundGroup(ctx, apiKey) {
 		return nil, ErrGroupDisabledForUser
@@ -1657,40 +1596,6 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	}
 
 	return apiKey, nil
-}
-
-// validateDataSharingConsent 校验用户是否已在当前切组请求中确认数据共享须知。
-func (s *APIKeyService) validateDataSharingConsent(ctx context.Context, apiKey *APIKey, group *Group, req UpdateAPIKeyRequest, changingGroup bool) error {
-	if group == nil || !group.DataSharingEnabled || !changingGroup {
-		return nil
-	}
-	version, confirmedAt, err := s.validateCurrentDataSharingConsent(ctx, group, req.DataSharingConfirmed, req.DataSharingNoticeVersion)
-	if err != nil {
-		return err
-	}
-	gid := group.ID
-	apiKey.DataSharingNoticeVersion = version
-	apiKey.DataSharingConfirmedGroupID = &gid
-	apiKey.DataSharingConfirmedAt = &confirmedAt
-	return nil
-}
-
-// validateCurrentDataSharingConsent 要求确认信息必须随当前请求提交，防止复用历史确认绕过弹窗。
-func (s *APIKeyService) validateCurrentDataSharingConsent(ctx context.Context, group *Group, confirmed bool, version int) (int, time.Time, error) {
-	if group == nil || !group.DataSharingEnabled {
-		return 0, time.Time{}, nil
-	}
-	if !confirmed || s.dataSharingNotice == nil {
-		return 0, time.Time{}, ErrDataSharingConsentRequired
-	}
-	notice, err := s.dataSharingNotice.GetNotice(ctx)
-	if err != nil {
-		return 0, time.Time{}, fmt.Errorf("get data sharing notice: %w", err)
-	}
-	if version <= 0 || version != notice.Version {
-		return 0, time.Time{}, ErrDataSharingConsentRequired
-	}
-	return version, time.Now(), nil
 }
 
 // Delete 删除API Key

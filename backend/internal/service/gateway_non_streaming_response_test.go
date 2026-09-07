@@ -60,10 +60,9 @@ func TestHandleNonStreamingResponse_NonJSON2xxTriggersFailover(t *testing.T) {
 		rateLimitService: &RateLimitService{},
 	}
 
-	usage, responseBody, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, "claude-sonnet-4-6", "claude-sonnet-4-6")
+	usage, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, "claude-sonnet-4-6", "claude-sonnet-4-6")
 
 	require.Nil(t, usage)
-	require.Nil(t, responseBody)
 	var failoverErr *UpstreamFailoverError
 	require.True(t, errors.As(err, &failoverErr))
 	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
@@ -89,14 +88,13 @@ func TestHandleNonStreamingResponse_ValidJSONUnchanged(t *testing.T) {
 		rateLimitService: &RateLimitService{},
 	}
 
-	usage, responseBody, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, "claude-sonnet-4-6", "claude-sonnet-4-6")
+	usage, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, "claude-sonnet-4-6", "claude-sonnet-4-6")
 
 	require.NoError(t, err)
 	require.NotNil(t, usage)
 	require.Equal(t, 12, usage.InputTokens)
 	require.Equal(t, 7, usage.OutputTokens)
 	require.JSONEq(t, string(body), rec.Body.String())
-	require.JSONEq(t, string(body), string(responseBody))
 }
 
 func TestHandleNonStreamingResponseAnthropicAPIKeyPassthrough_NonJSON2xxTriggersFailover(t *testing.T) {
@@ -113,10 +111,9 @@ func TestHandleNonStreamingResponseAnthropicAPIKeyPassthrough_NonJSON2xxTriggers
 	}
 	svc := &GatewayService{cfg: &config.Config{}}
 
-	usage, responseBody, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 2})
+	usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 2})
 
 	require.Nil(t, usage)
-	require.Nil(t, responseBody)
 	var failoverErr *UpstreamFailoverError
 	require.True(t, errors.As(err, &failoverErr))
 	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
@@ -138,14 +135,13 @@ func TestHandleNonStreamingResponseAnthropicAPIKeyPassthrough_ValidJSONUnchanged
 	}
 	svc := &GatewayService{cfg: &config.Config{}}
 
-	usage, responseBody, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 2})
+	usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 2})
 
 	require.NoError(t, err)
 	require.NotNil(t, usage)
 	require.Equal(t, 5, usage.InputTokens)
 	require.Equal(t, 3, usage.OutputTokens)
 	require.JSONEq(t, string(body), rec.Body.String())
-	require.JSONEq(t, string(body), string(responseBody))
 }
 
 func TestHandleNonStreamingResponseAnthropicAPIKeyPassthrough_ForceCacheBillingResponse(t *testing.T) {
@@ -184,13 +180,12 @@ func TestHandleNonStreamingResponseAnthropicAPIKeyPassthrough_ForceCacheBillingR
 			}
 			svc := &GatewayService{cfg: &config.Config{}}
 
-			usage, responseBody, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(WithForceCacheBilling(context.Background()), resp, c, &Account{ID: 2})
+			usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(WithForceCacheBilling(context.Background()), resp, c, &Account{ID: 2})
 
 			require.NoError(t, err)
 			require.Equal(t, int(gjson.Get(tt.body, "usage.input_tokens").Int()), usage.InputTokens, "本地计费必须保留未归类的输入 token")
 			require.Equal(t, int(gjson.Get(tt.body, "usage.cache_read_input_tokens").Int()), usage.CacheReadInputTokens, "本地计费只能在 RecordUsage 中换算一次")
 			require.JSONEq(t, tt.want, rec.Body.String())
-			require.JSONEq(t, tt.want, string(responseBody))
 		})
 	}
 }
@@ -229,7 +224,7 @@ func TestHandleNonStreamingResponse_NonJSON2xxMatchesModelScopedTempUnschedulabl
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
 
-	_, _, err := svc.handleNonStreamingResponse(context.Background(), resp, c, account, "claude-sonnet-4-6", "claude-sonnet-4-6")
+	_, err := svc.handleNonStreamingResponse(context.Background(), resp, c, account, "claude-sonnet-4-6", "claude-sonnet-4-6")
 
 	var failoverErr *UpstreamFailoverError
 	require.True(t, errors.As(err, &failoverErr))

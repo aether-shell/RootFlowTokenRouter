@@ -1360,7 +1360,7 @@ func extractOpenAIReasoningEffortFromBody(body []byte, modelCandidates ...string
 }
 
 // CanonicalRequestedReasoningEffort 提取策略改写前客户端请求的推理档位。
-// 显式字段优先；缺失显式字段时再从模型名末尾的档位后缀推导。
+// 显式字段优先（包括 none）；缺失显式字段时再从模型名末尾的档位后缀推导。
 func CanonicalRequestedReasoningEffort(body []byte, modelCandidates ...string) *string {
 	raw := strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String())
 	if raw == "" {
@@ -1370,7 +1370,7 @@ func CanonicalRequestedReasoningEffort(body []byte, modelCandidates ...string) *
 		raw = strings.TrimSpace(gjson.GetBytes(body, "output_config.effort").String())
 	}
 	if raw != "" {
-		canonical := NormalizeMaxReasoningEffort(raw)
+		canonical := normalizeRequestedOpenAIReasoningEffort(raw)
 		if canonical == "" {
 			return nil
 		}
@@ -2151,7 +2151,7 @@ func CanonicalRequestedReasoningEffortFromReqBody(reqBody map[string]any, modelC
 		}
 	}
 	if raw != "" {
-		canonical := NormalizeMaxReasoningEffort(raw)
+		canonical := normalizeRequestedOpenAIReasoningEffort(raw)
 		if canonical == "" {
 			return nil
 		}

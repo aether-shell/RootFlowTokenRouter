@@ -13,6 +13,13 @@ const openAIReasoningEffortValues = [
   "max",
 ] as const;
 
+// none 不属于可排序的分组上限，但可作为映射规则的输入或输出，
+// 由分组管理员按实际上游模型的协议能力决定是否改写。
+const openAIReasoningEffortMappingValues = [
+  "none",
+  ...openAIReasoningEffortValues,
+] as const;
+
 export const reasoningEffortOverLimitDowngrade = "downgrade";
 export const reasoningEffortOverLimitDeny = "deny";
 
@@ -27,8 +34,20 @@ const reasoningEffortValuesForPlatform = (
 ): readonly string[] =>
   platform === "openai" ? openAIReasoningEffortValues : [];
 
+const reasoningEffortMappingValuesForPlatform = (
+  platform: GroupPlatform,
+): readonly string[] =>
+  platform === "openai" ? openAIReasoningEffortMappingValues : [];
+
 export function reasoningEffortOptionsForPlatform(platform: GroupPlatform) {
   return reasoningEffortValuesForPlatform(platform).map((value) => ({
+    value,
+    label: value,
+  }));
+}
+
+export function reasoningEffortMappingOptionsForPlatform(platform: GroupPlatform) {
+  return reasoningEffortMappingValuesForPlatform(platform).map((value) => ({
     value,
     label: value,
   }));
@@ -40,6 +59,18 @@ export function normalizeReasoningEffortForPlatform(
 ): string {
   const normalized = value?.trim().toLowerCase() ?? "";
   return reasoningEffortValuesForPlatform(platform).some(
+    (allowed) => allowed === normalized,
+  )
+    ? normalized
+    : "";
+}
+
+export function normalizeReasoningEffortMappingForPlatform(
+  platform: GroupPlatform,
+  value: string | null | undefined,
+): string {
+  const normalized = value?.trim().toLowerCase() ?? "";
+  return reasoningEffortMappingValuesForPlatform(platform).some(
     (allowed) => allowed === normalized,
   )
     ? normalized
@@ -146,8 +177,8 @@ export function reasoningEffortMappingsToRows(
   const indexByScope = new Map<string, number>();
 
   (mappings ?? []).forEach((mapping) => {
-    const from = normalizeReasoningEffortForPlatform(platform, mapping.from);
-    const to = normalizeReasoningEffortForPlatform(platform, mapping.to);
+    const from = normalizeReasoningEffortMappingForPlatform(platform, mapping.from);
+    const to = normalizeReasoningEffortMappingForPlatform(platform, mapping.to);
     if (!from || !to) return;
 
     const matchType = normalizeReasoningEffortMatchType(mapping.match_type);
@@ -217,7 +248,7 @@ export function validateReasoningEffortMappings(
       const to = pair.to.trim();
       if (!from) {
         errors[pair.id] = { ...errors[pair.id], from: "fromRequired" };
-      } else if (!normalizeReasoningEffortForPlatform(platform, from)) {
+      } else if (!normalizeReasoningEffortMappingForPlatform(platform, from)) {
         errors[pair.id] = { ...errors[pair.id], from: "unsupportedFrom" };
       } else {
         const key = `${scope}\0${from.toLowerCase()}`;
@@ -225,7 +256,7 @@ export function validateReasoningEffortMappings(
       }
       if (!to) {
         errors[pair.id] = { ...errors[pair.id], to: "toRequired" };
-      } else if (!normalizeReasoningEffortForPlatform(platform, to)) {
+      } else if (!normalizeReasoningEffortMappingForPlatform(platform, to)) {
         errors[pair.id] = { ...errors[pair.id], to: "unsupportedTo" };
       }
     });

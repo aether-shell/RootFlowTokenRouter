@@ -420,7 +420,7 @@ func TestResolveRequestableModels_OpenAIUsesActualForwardedModel(t *testing.T) {
 		{
 			name:         "OAuth 别名归一化",
 			groupID:      4118,
-			channelModel: "gpt-5.6",
+			channelModel: "gpt-5.6-sol-high",
 			pricingModel: "gpt-5.6-sol",
 			account: Account{
 				ID:       78,

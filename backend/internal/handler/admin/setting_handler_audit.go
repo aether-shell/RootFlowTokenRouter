@@ -63,9 +63,6 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.TeamEnabled != after.TeamEnabled {
 		changed = append(changed, "team_enabled")
 	}
-	if before.DataSharingEnabled != after.DataSharingEnabled {
-		changed = append(changed, "data_sharing_enabled")
-	}
 	if before.CreativeEnabled != after.CreativeEnabled {
 		changed = append(changed, "creative_enabled")
 	}

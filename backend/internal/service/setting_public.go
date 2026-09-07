@@ -251,7 +251,6 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyBalanceLowNotifyRechargeURL,
 		SettingKeyAccountQuotaNotifyEnabled,
 		SettingKeyTeamEnabled,
-		SettingKeyDataSharingEnabled,
 		SettingKeyCreativeEnabled,
 		SettingKeyRiskControlEnabled,
 		SettingKeyAllowUserViewErrorRequests,
@@ -340,7 +339,6 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		InvitationCodeEnabled:               settings[SettingKeyInvitationCodeEnabled] == "true",
 		TeamEnabled:                         settings[SettingKeyTeamEnabled] != "false" && (s.cfg == nil || s.cfg.Team.Enabled),
 		TeamSelfServiceEnabled:              s.cfg == nil || s.cfg.Team.SelfServiceEnabled,
-		DataSharingEnabled:                  settings[SettingKeyDataSharingEnabled] != "false",
 		CreativeEnabled:                     settings[SettingKeyCreativeEnabled] != "false",
 		AffiliateEnabled:                    settings[SettingKeyAffiliateEnabled] == "true",
 		TotpEnabled:                         settings[SettingKeyTotpEnabled] == "true",
@@ -499,7 +497,6 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		PaymentEnabled                      bool                     `json:"payment_enabled"`
 		TeamEnabled                         bool                     `json:"team_enabled"`
 		TeamSelfServiceEnabled              bool                     `json:"team_self_service_enabled"`
-		DataSharingEnabled                  bool                     `json:"data_sharing_enabled"`
 		CreativeEnabled                     bool                     `json:"creative_enabled"`
 		OIDCOAuthEnabled                    bool                     `json:"oidc_oauth_enabled"`
 		OIDCOAuthProviderName               string                   `json:"oidc_oauth_provider_name"`
@@ -586,7 +583,6 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		PaymentEnabled:                      settings.PaymentEnabled,
 		TeamEnabled:                         settings.TeamEnabled,
 		TeamSelfServiceEnabled:              settings.TeamSelfServiceEnabled,
-		DataSharingEnabled:                  settings.DataSharingEnabled,
 		CreativeEnabled:                     settings.CreativeEnabled,
 		OIDCOAuthEnabled:                    settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:               settings.OIDCOAuthProviderName,

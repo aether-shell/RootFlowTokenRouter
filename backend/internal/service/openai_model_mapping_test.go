@@ -303,10 +303,10 @@ func TestCanonicalOpenAIAccountSchedulingModelMatchesForwardSemantics(t *testing
 		want    string
 	}{
 		{
-			name:    "OpenAI OAuth applies Codex alias normalization",
+			name:    "OpenAI OAuth preserves bare GPT-5.6 identity",
 			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
 			model:   "gpt-5.6",
-			want:    "gpt-5.6-sol",
+			want:    "gpt-5.6",
 		},
 		{
 			name: "OpenAI passthrough ignores ordinary account mapping",
@@ -376,16 +376,16 @@ func TestNormalizeOpenAIModelForUpstream(t *testing.T) {
 			want:    "gpt-5.6",
 		},
 		{
-			name:    "oauth routes bare GPT-5.6 alias to Sol",
+			name:    "oauth preserves bare GPT-5.6",
 			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
 			model:   "gpt-5.6",
-			want:    "gpt-5.6-sol",
+			want:    "gpt-5.6",
 		},
 		{
-			name:    "oauth routes provider-prefixed GPT-5.6 alias to Sol",
+			name:    "oauth preserves unregistered provider-prefixed GPT-5.6",
 			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
 			model:   "openai/gpt-5.6",
-			want:    "gpt-5.6-sol",
+			want:    "openai/gpt-5.6",
 		},
 		{
 			name:    "oauth preserves unknown non codex model",

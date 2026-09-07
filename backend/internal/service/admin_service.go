@@ -222,8 +222,6 @@ type CreateGroupInput struct {
 	RateMultiplier             float64
 	IsExclusive                bool
 	IsDefault                  bool
-	// DataSharingEnabled 将新建分组标记为数据共享分组。
-	DataSharingEnabled bool
 	// SessionIsolationEnabled 开启后拒绝其它分组已归属的显式会话切入。
 	SessionIsolationEnabled bool
 	// LongContextPricingEnabled 为 nil 时默认开启，以兼容未发送新字段的客户端。
@@ -312,8 +310,6 @@ type UpdateGroupInput struct {
 	RateMultiplier             *float64 // 使用指针以支持设置为0
 	IsExclusive                *bool
 	IsDefault                  *bool
-	// DataSharingEnabled 控制分组是否进入数据共享采集流程。
-	DataSharingEnabled *bool
 	// SessionIsolationEnabled 控制目标分组是否开启会话隔离。
 	SessionIsolationEnabled   *bool
 	Status                    string

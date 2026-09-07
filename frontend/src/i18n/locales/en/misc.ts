@@ -25,7 +25,6 @@ marketplace: {
     platformsStat: 'Brands',
     groupsStat: 'groups',
     modelsStat: 'models',
-    dataSharingTag: 'Data Sharing',
     capacity: 'Capacity',
     capacityHint: 'Aggregated group load: concurrency / sessions / RPM',
     availabilityWindow: '{days}d availability',

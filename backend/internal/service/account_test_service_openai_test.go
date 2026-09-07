@@ -143,7 +143,8 @@ func TestAccountTestService_OpenAISuccessPersistsSnapshotFromHeaders(t *testing.
 	require.Contains(t, recorder.Body.String(), "test_complete")
 }
 
-func TestAccountTestService_OpenAIOAuthTestNormalizesGPT56Alias(t *testing.T) {
+// 管理员显式测试未知名称时保持透传，不再自动改成 Sol。
+func TestAccountTestService_OpenAIOAuthTestDoesNotRedirectBareGPT56(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := newTestContext()
 
@@ -168,7 +169,7 @@ func TestAccountTestService_OpenAIOAuthTestNormalizesGPT56Alias(t *testing.T) {
 
 	body, err := io.ReadAll(upstream.requests[0].Body)
 	require.NoError(t, err)
-	require.Equal(t, "gpt-5.6-sol", gjson.GetBytes(body, "model").String())
+	require.Equal(t, "gpt-5.6", gjson.GetBytes(body, "model").String())
 	require.Equal(t, "connection probe", gjson.GetBytes(body, "input.0.content.0.text").String())
 }
 

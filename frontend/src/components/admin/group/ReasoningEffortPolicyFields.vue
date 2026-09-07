@@ -136,7 +136,7 @@
               <Select
                 :id="`${idPrefix}-${pair.id}-from`"
                 :model-value="pair.from"
-                :options="reasoningEffortOptions"
+                :options="reasoningEffortMappingOptions"
                 :placeholder="t('admin.groups.form.reasoningEffortFromPlaceholder')"
                 :error="showValidation && !!pairErrors(pair.id).from"
                 :aria-label="t('admin.groups.form.reasoningEffortFrom')"
@@ -164,7 +164,7 @@
               <Select
                 :id="`${idPrefix}-${pair.id}-to`"
                 :model-value="pair.to"
-                :options="reasoningEffortOptions"
+                :options="reasoningEffortMappingOptions"
                 :placeholder="t('admin.groups.form.reasoningEffortToPlaceholder')"
                 :error="showValidation && !!pairErrors(pair.id).to"
                 :aria-label="t('admin.groups.form.reasoningEffortTo')"
@@ -217,6 +217,7 @@ import {
   createReasoningEffortMappingRow,
   normalizeReasoningEffortOverLimit,
   normalizeReasoningEffortMatchType,
+  reasoningEffortMappingOptionsForPlatform,
   reasoningEffortOptionsForPlatform,
   reasoningEffortOverLimitDeny,
   reasoningEffortOverLimitDowngrade,
@@ -243,6 +244,9 @@ const { t } = useI18n();
 const showValidation = ref(false);
 const reasoningEffortOptions = computed(() =>
   reasoningEffortOptionsForPlatform(props.platform),
+);
+const reasoningEffortMappingOptions = computed(() =>
+  reasoningEffortMappingOptionsForPlatform(props.platform),
 );
 const overLimitOptions = computed(() => [
   {

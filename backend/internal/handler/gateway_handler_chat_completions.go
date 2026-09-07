@@ -352,7 +352,6 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
 				RequestBody:        body,
-				SessionID:          selectionSessionHash,
 				APIKeyService:      h.apiKeyService,
 				ClientSessionID:    clientSessionID,
 				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),

@@ -49,6 +49,22 @@ const getBodyText = () => document.body.textContent ?? ''
 const getBodyButtons = () => Array.from(document.body.querySelectorAll('button'))
 
 describe('AccountActionMenu — spark shadow 按钮可见性', () => {
+  it('删除位于菜单末尾，传递当前账号并关闭菜单', async () => {
+    const account = makeAccount({ type: 'apikey' })
+    const wrapper = mount(AccountActionMenu, {
+      props: { show: true, account, position },
+      attachTo: document.body,
+    })
+    const deleteButton = getBodyButtons().at(-1)!
+    expect(deleteButton.textContent).toContain('common.delete')
+    deleteButton.click()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('delete')?.[0]).toEqual([account])
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('点击高级调度评分入口会携带账号触发事件', async () => {
     const account = makeAccount({ platform: 'gemini', type: 'oauth', parent_account_id: null })
     const wrapper = mount(AccountActionMenu, {

@@ -26,7 +26,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/creativerun"
 	"github.com/TokenFlux/TokenRouter/ent/creativerunoutbox"
 	"github.com/TokenFlux/TokenRouter/ent/creativerunoutput"
-	"github.com/TokenFlux/TokenRouter/ent/datasharesession"
 	"github.com/TokenFlux/TokenRouter/ent/errorpassthroughrule"
 	"github.com/TokenFlux/TokenRouter/ent/group"
 	"github.com/TokenFlux/TokenRouter/ent/idempotencyrecord"
@@ -132,7 +131,6 @@ func checkColumn(t, c string) error {
 			creativerun.Table:              creativerun.ValidColumn,
 			creativerunoutbox.Table:        creativerunoutbox.ValidColumn,
 			creativerunoutput.Table:        creativerunoutput.ValidColumn,
-			datasharesession.Table:         datasharesession.ValidColumn,
 			errorpassthroughrule.Table:     errorpassthroughrule.ValidColumn,
 			group.Table:                    group.ValidColumn,
 			idempotencyrecord.Table:        idempotencyrecord.ValidColumn,

@@ -275,8 +275,6 @@ type OpenAIForwardResult struct {
 	// 空值保持旧调用方和非 WebSocket 请求的成功语义。
 	UpstreamTerminalEvent string
 	ResponseHeaders       http.Header
-	ResponseBody          []byte // 成功响应体，用于数据共享提取 assistant 输出。
-	DataShareSessionID    string // 数据共享聚合使用的稳定会话标识。
 	Duration              time.Duration
 	FirstTokenMs          *int
 	ClientDisconnect      bool
@@ -482,7 +480,6 @@ type OpenAIGatewayService struct {
 	balanceNotifyService  *BalanceNotifyService
 	settingService        *SettingService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
-	dataSharingService    *DataSharingService
 	liveAttestation       liveattestation.Provider
 	liveAttestationCipher SecretEncryptor
 
@@ -547,7 +544,6 @@ func NewOpenAIGatewayService(
 	balanceNotifyService *BalanceNotifyService,
 	settingService *SettingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
-	dataSharingService *DataSharingService,
 	tlsFPRouterServices ...*TLSFingerprintRouterService,
 ) *OpenAIGatewayService {
 	var tlsFPRouterService *TLSFingerprintRouterService
@@ -588,7 +584,6 @@ func NewOpenAIGatewayService(
 		balanceNotifyService:  balanceNotifyService,
 		settingService:        settingService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
-		dataSharingService:    dataSharingService,
 		liveAttestation:       liveattestation.NewProvider(),
 		liveAttestationCipher: newLiveAttestationCipher(cfg),
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),

@@ -866,3 +866,24 @@ func TestModelMarketplacePublicModelsIncludeModalities(t *testing.T) {
 	require.Nil(t, models[1].InputModalities)
 	require.Nil(t, models[1].OutputModalities)
 }
+
+// 市场使用解析后的 PricingModel 查询能力，保留公开 ID 和完整音视频输入标记。
+func TestModelMarketplaceGeminiTierModalitiesPreservePublicIDs(t *testing.T) {
+	pricing := catalogLookupTestPricing(2e-6, "text", "image", "audio", "video")
+	pricingSvc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"gemini-3.7-flash": pricing, "gemini-3.8-flash": pricing,
+	}}
+	svc := NewModelMarketplaceService(nil, nil, nil, NewBillingService(nil, pricingSvc), nil, nil, nil)
+	defs := []marketplaceModelDef{
+		{ID: "gemini-3.7-flash-tiered"},
+		{ID: "gemini-3.8-flash-tiered"},
+		{ID: "public-google", PricingModel: "gemini-3.8-flash-tiered"},
+	}
+	models := svc.buildPublicModelsForGroup(context.Background(), &Group{ID: 1, Platform: PlatformGemini, RateMultiplier: 1}, defs)
+	require.Len(t, models, len(defs))
+	for i, model := range models {
+		require.Equal(t, defs[i].ID, model.ID)
+		require.Equal(t, []string{"text", "image", "audio", "video"}, model.InputModalities)
+		require.Equal(t, []string{"text"}, model.OutputModalities)
+	}
+}

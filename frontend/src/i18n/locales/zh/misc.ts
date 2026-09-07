@@ -25,7 +25,6 @@ marketplace: {
     platformsStat: '个品牌',
     groupsStat: '个分组',
     modelsStat: '个模型',
-    dataSharingTag: '数据共享',
     capacity: '容量',
     capacityHint: '当前分组聚合负载：并发 / 会话 / RPM',
     availabilityWindow: '{days}d 可用率',

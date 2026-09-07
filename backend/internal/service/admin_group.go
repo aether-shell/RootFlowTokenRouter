@@ -327,7 +327,6 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		RateMultiplier:                  input.RateMultiplier,
 		IsExclusive:                     input.IsExclusive,
 		IsDefault:                       input.IsDefault,
-		DataSharingEnabled:              input.DataSharingEnabled,
 		SessionIsolationEnabled:         input.SessionIsolationEnabled,
 		Status:                          StatusActive,
 		LongContextPricingEnabled:       longContextPricingEnabled,
@@ -611,9 +610,6 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.IsDefault != nil {
 		group.IsDefault = *input.IsDefault
-	}
-	if input.DataSharingEnabled != nil {
-		group.DataSharingEnabled = *input.DataSharingEnabled
 	}
 	if input.SessionIsolationEnabled != nil {
 		group.SessionIsolationEnabled = *input.SessionIsolationEnabled

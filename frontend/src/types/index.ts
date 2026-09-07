@@ -261,8 +261,6 @@ export interface PublicSettings {
   payment_enabled: boolean
   team_enabled?: boolean
   team_self_service_enabled?: boolean
-  // 旧版公开设置可能缺少该字段，调用方应仅在明确为 false 时关闭入口。
-  data_sharing_enabled?: boolean
   // 旧版公开设置可能缺少该字段，调用方应仅在明确为 false 时关闭创作台入口。
   creative_enabled?: boolean
   table_default_page_size: number
@@ -692,8 +690,6 @@ export interface MarketplaceGroup {
   image_rate_multiplier: number
   official_price_ratio?: number
   official_price_rmb_equivalent?: number
-  // 数据共享分组需要在模型广场展示醒目标记，提醒用户该分组会进入采集流程。
-  data_sharing_enabled: boolean
   capacity?: MarketplaceGroupCapacity
   availability?: MarketplaceGroupAvailability
   model_count: number
@@ -746,7 +742,6 @@ export interface Group {
   reasoning_effort_mappings?: ReasoningEffortMapping[]
   is_exclusive: boolean
   is_default?: boolean
-  data_sharing_enabled: boolean
   session_isolation_enabled: boolean
   status: 'active' | 'inactive'
   long_context_pricing_enabled: boolean
@@ -900,9 +895,6 @@ export interface ApiKey {
   reset_5h_at: string | null
   reset_1d_at: string | null
   reset_7d_at: string | null
-  data_sharing_notice_version?: number
-  data_sharing_confirmed_group_id?: number | null
-  data_sharing_confirmed_at?: string | null
   fallback_to_default_group_when_unavailable?: boolean
 }
 
@@ -925,8 +917,6 @@ export interface CreateApiKeyRequest {
   rate_limit_1d?: number
   rate_limit_7d?: number
   fallback_to_default_group_when_unavailable?: boolean
-  data_sharing_confirmed?: boolean
-  data_sharing_notice_version?: number
 }
 
 export interface UpdateApiKeyRequest {
@@ -949,8 +939,6 @@ export interface UpdateApiKeyRequest {
   rate_limit_7d?: number
   reset_rate_limit_usage?: boolean
   fallback_to_default_group_when_unavailable?: boolean
-  data_sharing_confirmed?: boolean
-  data_sharing_notice_version?: number
 }
 
 export interface CreateGroupRequest {
@@ -964,7 +952,6 @@ export interface CreateGroupRequest {
   rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean
-  data_sharing_enabled?: boolean
   session_isolation_enabled?: boolean
   long_context_pricing_enabled?: boolean
   force_openai_fast?: boolean
@@ -1030,7 +1017,6 @@ export interface UpdateGroupRequest {
   rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean
-  data_sharing_enabled?: boolean
   session_isolation_enabled?: boolean
   status?: 'active' | 'inactive'
   long_context_pricing_enabled?: boolean

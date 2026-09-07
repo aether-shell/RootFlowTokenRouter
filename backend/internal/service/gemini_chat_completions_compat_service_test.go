@@ -60,11 +60,11 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 	require.Equal(t, "gemini-response-1", result.RequestID)
 	require.Equal(t, 7, result.Usage.InputTokens)
 	require.Equal(t, 8, result.Usage.OutputTokens)
-	require.Equal(t, "response", gjson.GetBytes(result.ResponseBody, "object").String())
-	require.Equal(t, "channel-model", gjson.GetBytes(result.ResponseBody, "model").String())
-	require.Equal(t, "inspect inputs", gjson.GetBytes(result.ResponseBody, `output.#(type=="reasoning").summary.0.text`).String())
-	require.Equal(t, "get_weather", gjson.GetBytes(result.ResponseBody, `output.#(type=="function_call").name`).String())
-	require.Equal(t, "calling tool", gjson.GetBytes(result.ResponseBody, `output.#(type=="message").content.0.text`).String())
+	require.Equal(t, "response", gjson.GetBytes(recorder.Body.Bytes(), "object").String())
+	require.Equal(t, "channel-model", gjson.GetBytes(recorder.Body.Bytes(), "model").String())
+	require.Equal(t, "inspect inputs", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="reasoning").summary.0.text`).String())
+	require.Equal(t, "get_weather", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="function_call").name`).String())
+	require.Equal(t, "calling tool", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="message").content.0.text`).String())
 	require.Contains(t, httpStub.lastReq.URL.String(), "/models/gemini-2.5-pro:generateContent")
 }
 
@@ -110,9 +110,9 @@ func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T
 	require.False(t, result.Stream)
 	require.Equal(t, 5, result.Usage.InputTokens)
 	require.Equal(t, 4, result.Usage.OutputTokens)
-	require.Equal(t, "plan carefully", gjson.GetBytes(result.ResponseBody, `output.#(type=="reasoning").summary.0.text`).String())
-	require.Equal(t, "answer", gjson.GetBytes(result.ResponseBody, `output.#(type=="message").content.0.text`).String())
-	require.Equal(t, "lookup", gjson.GetBytes(result.ResponseBody, `output.#(type=="function_call").name`).String())
+	require.Equal(t, "plan carefully", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="reasoning").summary.0.text`).String())
+	require.Equal(t, "answer", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="message").content.0.text`).String())
+	require.Equal(t, "lookup", gjson.GetBytes(recorder.Body.Bytes(), `output.#(type=="function_call").name`).String())
 	require.Contains(t, httpStub.lastReq.URL.String(), "/v1internal:streamGenerateContent?alt=sse")
 }
 

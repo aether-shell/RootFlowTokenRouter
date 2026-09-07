@@ -246,13 +246,6 @@
                   >
                     {{ formatImageRateMultiplierLabel(group.image_rate_multiplier) }}
                   </span>
-                  <!-- 数据共享分组需要醒目标记，避免用户在模型广场忽略采集属性。 -->
-                  <span
-                    v-if="group.data_sharing_enabled"
-                    class="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
-                  >
-                    {{ t('marketplace.dataSharingTag') }}
-                  </span>
                 </div>
 
                 <div class="flex items-start gap-3">
@@ -288,12 +281,11 @@
                 class="group rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-black/20 hover:shadow-sm dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
               >
                 <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <h3 class="truncate text-base font-semibold text-gray-950 dark:text-white">{{ model.display_name }}</h3>
-                    <ModelIdLabel :model-id="model.id" class="mt-1" />
-                  </div>
+                  <h3 class="min-w-0 truncate text-base font-semibold text-gray-950 dark:text-white">{{ model.display_name }}</h3>
                   <ModelCapabilityTags :model="model" />
                 </div>
+                <!-- ID 独占整行，避免跟随标题列被右侧能力图标挤窄。 -->
+                <ModelIdLabel :model-id="model.id" class="mt-1" />
 
                 <!-- 价格预览改为无边框列表，避免卡片里再嵌套一层卡片。 -->
                 <div class="mt-4">

@@ -21,7 +21,14 @@ const (
 	ReasoningEffortOverLimitDeny = "deny"
 )
 
-var openAIReasoningEffortValues = []string{"minimal", "low", "medium", "high", "xhigh", "max"}
+var (
+	// openAIReasoningEffortValues 是可用于分组上限的有序档位；none 没有强度排名，
+	// 因此不能作为上限值。
+	openAIReasoningEffortValues = []string{"minimal", "low", "medium", "high", "xhigh", "max"}
+	// openAIReasoningEffortMappingValues 是映射规则允许的显式输入/输出值。
+	// 保留 none 使管理员能为不同上游自行配置兼容策略。
+	openAIReasoningEffortMappingValues = []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+)
 
 type requestedReasoningEffortContextKey struct{}
 
@@ -113,11 +120,35 @@ func NormalizeMaxReasoningEffort(raw string) string {
 	}
 }
 
+// normalizeReasoningEffortMappingValue 标准化映射规则使用的值。none 只表示
+// 上游协议中的关闭推理状态，不能参与分组上限的强度比较。
+func normalizeReasoningEffortMappingValue(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	value = strings.NewReplacer("-", "", "_", "", " ", "").Replace(value)
+	if value == "none" {
+		return "none"
+	}
+	return NormalizeMaxReasoningEffort(value)
+}
+
+// normalizeRequestedOpenAIReasoningEffort 仅用于记录客户端显式请求值。none 没有
+// 可比较的强度排名，不能作为分组上限，但必须保留在请求审计中。
+func normalizeRequestedOpenAIReasoningEffort(raw string) string {
+	return normalizeReasoningEffortMappingValue(raw)
+}
+
 func reasoningEffortValuesForPlatform(platform string) []string {
 	if platform != PlatformOpenAI {
 		return nil
 	}
 	return openAIReasoningEffortValues
+}
+
+func reasoningEffortMappingValuesForPlatform(platform string) []string {
+	if platform != PlatformOpenAI {
+		return nil
+	}
+	return openAIReasoningEffortMappingValues
 }
 
 func normalizeMaxReasoningEffortForPlatform(platform, raw string) (string, error) {
@@ -138,6 +169,30 @@ func normalizeMaxReasoningEffortForPlatform(platform, raw string) (string, error
 	}
 	return "", fmt.Errorf(
 		"reasoning effort %q is not supported for platform %q; allowed values: %s",
+		raw,
+		platform,
+		strings.Join(allowedValues, ", "),
+	)
+}
+
+func normalizeReasoningEffortMappingValueForPlatform(platform, raw string) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return "", nil
+	}
+
+	allowedValues := reasoningEffortMappingValuesForPlatform(platform)
+	if len(allowedValues) == 0 {
+		return "", fmt.Errorf("reasoning effort policy is only supported for platform %q", PlatformOpenAI)
+	}
+
+	value := normalizeReasoningEffortMappingValue(raw)
+	for _, allowed := range allowedValues {
+		if value == allowed {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf(
+		"reasoning effort mapping value %q is not supported for platform %q; allowed values: %s",
 		raw,
 		platform,
 		strings.Join(allowedValues, ", "),
@@ -199,7 +254,7 @@ func reasoningEffortRank(raw string) (int, bool) {
 	}
 }
 
-// NormalizeReasoningEffortMappings 根据 OpenAI 分组支持的固定推理强度值，
+// NormalizeReasoningEffortMappings 根据 OpenAI 分组支持的档位及协议关闭值，
 // 校验并标准化分组映射规则。
 func normalizeReasoningEffortMatchType(matchType, model string) (string, error) {
 	model = strings.TrimSpace(model)
@@ -249,7 +304,7 @@ func selectReasoningEffortMapping(mappings []ReasoningEffortMapping, from, reque
 	}
 	candidates := make([]candidate, 0, len(mappings))
 	for i, mapping := range mappings {
-		if NormalizeMaxReasoningEffort(mapping.From) != from {
+		if normalizeReasoningEffortMappingValue(mapping.From) != from {
 			continue
 		}
 		model := strings.TrimSpace(mapping.Model)
@@ -308,18 +363,18 @@ func NormalizeReasoningEffortMappings(platform string, raw []ReasoningEffortMapp
 	normalized := make([]ReasoningEffortMapping, 0, len(raw))
 	seen := make(map[string]struct{}, len(raw))
 	for i, mapping := range raw {
-		from := NormalizeMaxReasoningEffort(mapping.From)
-		to := NormalizeMaxReasoningEffort(mapping.To)
+		from := normalizeReasoningEffortMappingValue(mapping.From)
+		to := normalizeReasoningEffortMappingValue(mapping.To)
 		if from == "" || to == "" {
 			return nil, fmt.Errorf("reasoning effort mapping %d contains an empty or unknown value", i+1)
 		}
 		if len(from) > maxReasoningEffortValueLen || len(to) > maxReasoningEffortValueLen {
 			return nil, fmt.Errorf("reasoning effort mapping %d values cannot exceed %d characters", i+1, maxReasoningEffortValueLen)
 		}
-		if _, err := normalizeMaxReasoningEffortForPlatform(platform, from); err != nil {
+		if _, err := normalizeReasoningEffortMappingValueForPlatform(platform, from); err != nil {
 			return nil, fmt.Errorf("reasoning effort mapping %d source: %w", i+1, err)
 		}
-		if _, err := normalizeMaxReasoningEffortForPlatform(platform, to); err != nil {
+		if _, err := normalizeReasoningEffortMappingValueForPlatform(platform, to); err != nil {
 			return nil, fmt.Errorf("reasoning effort mapping %d target: %w", i+1, err)
 		}
 		model := strings.TrimSpace(mapping.Model)
@@ -384,7 +439,7 @@ func ApplyOpenAIReasoningEffortPolicyFromContext(ctx context.Context, body []byt
 
 func mapReasoningEffort(raw string, mappings []ReasoningEffortMapping, requestModel string) (string, bool) {
 	value := strings.TrimSpace(raw)
-	canonical := NormalizeMaxReasoningEffort(value)
+	canonical := normalizeReasoningEffortMappingValue(value)
 	if canonical == "" {
 		return value, false
 	}
@@ -470,15 +525,17 @@ func applyOpenAIReasoningEffortPolicy(body []byte, maxEffort string, mappings []
 }
 
 // applyOpenAIWSReasoningEffortPolicy 将同一套分组策略应用到 WS 请求帧。
-func applyOpenAIWSReasoningEffortPolicy(payload []byte, hooks *OpenAIWSIngressHooks) ([]byte, error) {
+// requestModel 由调用方提供客户端模型，支持后续省略 model 的多轮帧。
+func applyOpenAIWSReasoningEffortPolicy(payload []byte, hooks *OpenAIWSIngressHooks, requestModel string) ([]byte, error) {
 	if hooks == nil || (hooks.MaxReasoningEffort == "" && len(hooks.ReasoningEffortMappings) == 0) {
 		return payload, nil
 	}
-	updated, changed, err := ApplyOpenAIReasoningEffortPolicy(
+	updated, changed, err := applyOpenAIReasoningEffortPolicy(
 		payload,
 		hooks.MaxReasoningEffort,
 		hooks.ReasoningEffortMappings,
 		hooks.MaxReasoningEffortOverLimit,
+		strings.TrimSpace(requestModel),
 	)
 	if err != nil {
 		return payload, err

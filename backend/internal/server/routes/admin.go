@@ -19,9 +19,6 @@ func RegisterAdminRoutes(
 	stepUpAuth middleware.StepUpAuthMiddleware,
 	panelRateLimiter *middleware.PanelRateLimiter,
 ) {
-	// 管理端数据共享下载只允许读取已预生成文件，避免下载请求中实时处理大批量数据。
-	v1.GET("/admin/data-sharing/exports/download", h.Admin.DataSharing.DownloadExportArtifact)
-
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
 	// 面板全局按用户限流（默认管理员豁免，可在系统设置中关闭豁免）
@@ -73,9 +70,6 @@ func RegisterAdminRoutes(
 
 		// 数据管理
 		registerDataManagementRoutes(admin, h, stepUpAuth)
-
-		// 数据共享
-		registerDataSharingRoutes(admin, h)
 
 		// 数据库备份恢复
 		registerBackupRoutes(admin, h, stepUpAuth)
@@ -144,39 +138,6 @@ func registerAuditLogRoutes(admin *gin.RouterGroup, h *handler.Handlers, _ middl
 		auditLogs.GET("/:id", h.Admin.AuditLog.Get)
 		// 清空需现场 TOTP 校验（在 handler 内强制），不复用 step-up sudo 窗口
 		auditLogs.POST("/clear", h.Admin.AuditLog.Clear)
-	}
-}
-
-// registerDataSharingRoutes 注册数据共享须知、采集数据管理和统计接口。
-func registerDataSharingRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
-	dataSharing := admin.Group("/data-sharing")
-	{
-		dataSharing.GET("/notice", h.Admin.DataSharing.GetNotice)
-		dataSharing.PUT("/notice", h.Admin.DataSharing.UpdateNotice)
-		dataSharing.GET("/skip-rules", h.Admin.DataSharing.GetSkipRules)
-		dataSharing.PUT("/skip-rules", h.Admin.DataSharing.UpdateSkipRules)
-		dataSharing.GET("/storage-limit", h.Admin.DataSharing.GetStorageLimit)
-		dataSharing.PUT("/storage-limit", h.Admin.DataSharing.UpdateStorageLimit)
-		dataSharing.GET("/runtime-settings", h.Admin.DataSharing.GetCaptureRuntimeSettings)
-		dataSharing.PUT("/runtime-settings", h.Admin.DataSharing.UpdateCaptureRuntimeSettings)
-		dataSharing.GET("/export-remote-config", h.Admin.DataSharing.GetExportRemoteConfig)
-		dataSharing.PUT("/export-remote-config", h.Admin.DataSharing.UpdateExportRemoteConfig)
-		dataSharing.POST("/export-remote-config/test", h.Admin.DataSharing.TestExportRemoteConfig)
-		dataSharing.GET("/filter-options", h.Admin.DataSharing.FilterOptions)
-		dataSharing.GET("/sessions", h.Admin.DataSharing.ListSessions)
-		dataSharing.GET("/sessions/:id", h.Admin.DataSharing.GetSession)
-		dataSharing.DELETE("/sessions/:id", h.Admin.DataSharing.DeleteSession)
-		dataSharing.POST("/sessions/:id/export-artifacts", h.Admin.DataSharing.CreateSessionExportArtifact)
-		dataSharing.POST("/sessions/batch-delete", h.Admin.DataSharing.BatchDeleteSessions)
-		dataSharing.GET("/exports", h.Admin.DataSharing.ListExportArtifacts)
-		dataSharing.POST("/exports", h.Admin.DataSharing.CreateExportArtifact)
-		dataSharing.GET("/exports/:id", h.Admin.DataSharing.GetExportArtifact)
-		dataSharing.POST("/exports/:id/download-ticket", h.Admin.DataSharing.CreateExportArtifactDownloadTicket)
-		dataSharing.POST("/exports/:id/upload", h.Admin.DataSharing.UploadExportArtifact)
-		dataSharing.POST("/exports/:id/upload/cancel", h.Admin.DataSharing.CancelExportArtifactRemoteUpload)
-		dataSharing.GET("/exports/:id/download-url", h.Admin.DataSharing.GetExportArtifactRemoteDownloadURL)
-		dataSharing.DELETE("/exports/:id", h.Admin.DataSharing.DeleteExportArtifact)
-		dataSharing.GET("/stats", h.Admin.DataSharing.Stats)
 	}
 }
 

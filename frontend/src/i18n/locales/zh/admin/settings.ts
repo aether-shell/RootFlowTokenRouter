@@ -1,24 +1,4 @@
 export default {
-dataSharing: {
-      qualityErrorDistribution: '错误原因占比',
-      noQualityErrorData: '暂无错误原因数据',
-      sessions: '个 Session',
-      qualityErrors: {
-        missing_system_prompt: '缺少系统提示词',
-        effective_turns_lt_2: '有效轮次不足',
-        missing_tool_definitions: '缺少工具定义',
-        invalid_tool_definition: '工具定义不完整',
-        missing_structured_tool_call: '缺少结构化工具调用',
-        invalid_tool_call: '工具调用不完整',
-        tool_definition_missing: '工具调用缺少对应工具定义',
-        tool_call_result_unpaired: '工具调用与返回未配对',
-        tool_result_unpaired: '工具返回缺少对应调用',
-        missing_final_assistant: '缺少最终助手回复',
-        model_not_allowed: '模型不在交付范围',
-        missing_usage_tokens: '缺少用量 token',
-        unknown: '未知错误原因'
-      }
-    },
 // Settings
     settings: {
       title: '系统设置',
@@ -113,12 +93,6 @@ dataSharing: {
           title: '团队功能',
           description: '控制用户团队页和管理员团队管理页是否开放。',
           enabled: '启用团队功能',
-          enabledHint: '关闭后隐藏相关页面入口，并阻止通过地址直接访问。'
-        },
-        dataSharing: {
-          title: '数据共享',
-          description: '控制用户和管理员的数据共享页是否开放。',
-          enabled: '启用数据共享',
           enabledHint: '关闭后隐藏相关页面入口，并阻止通过地址直接访问。'
         },
         creative: {

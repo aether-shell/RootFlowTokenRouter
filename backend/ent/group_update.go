@@ -1140,20 +1140,6 @@ func (_u *GroupUpdate) AppendReasoningEffortMappings(v []domain.ReasoningEffortM
 	return _u
 }
 
-// SetDataSharingEnabled sets the "data_sharing_enabled" field.
-func (_u *GroupUpdate) SetDataSharingEnabled(v bool) *GroupUpdate {
-	_u.mutation.SetDataSharingEnabled(v)
-	return _u
-}
-
-// SetNillableDataSharingEnabled sets the "data_sharing_enabled" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableDataSharingEnabled(v *bool) *GroupUpdate {
-	if v != nil {
-		_u.SetDataSharingEnabled(*v)
-	}
-	return _u
-}
-
 // SetSessionIsolationEnabled sets the "session_isolation_enabled" field.
 func (_u *GroupUpdate) SetSessionIsolationEnabled(v bool) *GroupUpdate {
 	_u.mutation.SetSessionIsolationEnabled(v)
@@ -1849,9 +1835,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, group.FieldReasoningEffortMappings, value)
 		})
-	}
-	if value, ok := _u.mutation.DataSharingEnabled(); ok {
-		_spec.SetField(group.FieldDataSharingEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.SessionIsolationEnabled(); ok {
 		_spec.SetField(group.FieldSessionIsolationEnabled, field.TypeBool, value)
@@ -3286,20 +3269,6 @@ func (_u *GroupUpdateOne) AppendReasoningEffortMappings(v []domain.ReasoningEffo
 	return _u
 }
 
-// SetDataSharingEnabled sets the "data_sharing_enabled" field.
-func (_u *GroupUpdateOne) SetDataSharingEnabled(v bool) *GroupUpdateOne {
-	_u.mutation.SetDataSharingEnabled(v)
-	return _u
-}
-
-// SetNillableDataSharingEnabled sets the "data_sharing_enabled" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableDataSharingEnabled(v *bool) *GroupUpdateOne {
-	if v != nil {
-		_u.SetDataSharingEnabled(*v)
-	}
-	return _u
-}
-
 // SetSessionIsolationEnabled sets the "session_isolation_enabled" field.
 func (_u *GroupUpdateOne) SetSessionIsolationEnabled(v bool) *GroupUpdateOne {
 	_u.mutation.SetSessionIsolationEnabled(v)
@@ -4025,9 +3994,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
 			sqljson.Append(u, group.FieldReasoningEffortMappings, value)
 		})
-	}
-	if value, ok := _u.mutation.DataSharingEnabled(); ok {
-		_spec.SetField(group.FieldDataSharingEnabled, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.SessionIsolationEnabled(); ok {
 		_spec.SetField(group.FieldSessionIsolationEnabled, field.TypeBool, value)

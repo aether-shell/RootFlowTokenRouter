@@ -320,7 +320,6 @@ func newOpenAIRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo U
 		nil,
 		nil,
 		nil, // 用户平台配额仓库
-		nil, // 数据共享服务
 	)
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		rateRepo,
@@ -359,7 +358,6 @@ func newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo UsageLogReposit
 		nil,
 		nil,
 		nil,
-		nil, // 数据共享服务
 	)
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		rateRepo,

@@ -81,12 +81,6 @@ type APIKey struct {
 	Window1dStart *time.Time `json:"window_1d_start,omitempty"`
 	// Start time of the current 7d rate limit window
 	Window7dStart *time.Time `json:"window_7d_start,omitempty"`
-	// 用户已确认的数据共享须知版本，0 表示未确认
-	DataSharingNoticeVersion int `json:"data_sharing_notice_version,omitempty"`
-	// 最近一次确认的数据共享目标分组 ID
-	DataSharingConfirmedGroupID *int64 `json:"data_sharing_confirmed_group_id,omitempty"`
-	// 最近一次确认数据共享须知的时间
-	DataSharingConfirmedAt *time.Time `json:"data_sharing_confirmed_at,omitempty"`
 	// 绑定分组不可用时自动回退到同平台默认分组
 	FallbackToDefaultGroupWhenUnavailable bool `json:"fallback_to_default_group_when_unavailable,omitempty"`
 	// 托管来源标识：creative_studio 表示创作台隐藏执行 Key，NULL 表示普通用户 Key
@@ -176,11 +170,11 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
 			values[i] = new(sql.NullFloat64)
-		case apikey.FieldID, apikey.FieldUserID, apikey.FieldTeamID, apikey.FieldGroupID, apikey.FieldPreferredSubscriptionID, apikey.FieldDataSharingNoticeVersion, apikey.FieldDataSharingConfirmedGroupID:
+		case apikey.FieldID, apikey.FieldUserID, apikey.FieldTeamID, apikey.FieldGroupID, apikey.FieldPreferredSubscriptionID:
 			values[i] = new(sql.NullInt64)
 		case apikey.FieldKey, apikey.FieldName, apikey.FieldStatus, apikey.FieldFastModePolicy, apikey.FieldBillingMode, apikey.FieldManagedBy:
 			values[i] = new(sql.NullString)
-		case apikey.FieldCreatedAt, apikey.FieldUpdatedAt, apikey.FieldDeletedAt, apikey.FieldLastUsedAt, apikey.FieldExpiresAt, apikey.FieldWindow5hStart, apikey.FieldWindow1dStart, apikey.FieldWindow7dStart, apikey.FieldDataSharingConfirmedAt:
+		case apikey.FieldCreatedAt, apikey.FieldUpdatedAt, apikey.FieldDeletedAt, apikey.FieldLastUsedAt, apikey.FieldExpiresAt, apikey.FieldWindow5hStart, apikey.FieldWindow1dStart, apikey.FieldWindow7dStart:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -398,26 +392,6 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 				_m.Window7dStart = new(time.Time)
 				*_m.Window7dStart = value.Time
 			}
-		case apikey.FieldDataSharingNoticeVersion:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field data_sharing_notice_version", values[i])
-			} else if value.Valid {
-				_m.DataSharingNoticeVersion = int(value.Int64)
-			}
-		case apikey.FieldDataSharingConfirmedGroupID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field data_sharing_confirmed_group_id", values[i])
-			} else if value.Valid {
-				_m.DataSharingConfirmedGroupID = new(int64)
-				*_m.DataSharingConfirmedGroupID = value.Int64
-			}
-		case apikey.FieldDataSharingConfirmedAt:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field data_sharing_confirmed_at", values[i])
-			} else if value.Valid {
-				_m.DataSharingConfirmedAt = new(time.Time)
-				*_m.DataSharingConfirmedAt = value.Time
-			}
 		case apikey.FieldFallbackToDefaultGroupWhenUnavailable:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field fallback_to_default_group_when_unavailable", values[i])
@@ -597,19 +571,6 @@ func (_m *APIKey) String() string {
 	builder.WriteString(", ")
 	if v := _m.Window7dStart; v != nil {
 		builder.WriteString("window_7d_start=")
-		builder.WriteString(v.Format(time.ANSIC))
-	}
-	builder.WriteString(", ")
-	builder.WriteString("data_sharing_notice_version=")
-	builder.WriteString(fmt.Sprintf("%v", _m.DataSharingNoticeVersion))
-	builder.WriteString(", ")
-	if v := _m.DataSharingConfirmedGroupID; v != nil {
-		builder.WriteString("data_sharing_confirmed_group_id=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	if v := _m.DataSharingConfirmedAt; v != nil {
-		builder.WriteString("data_sharing_confirmed_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
 	builder.WriteString(", ")

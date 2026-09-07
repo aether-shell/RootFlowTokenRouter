@@ -413,7 +413,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
 				RequestBody:        body,
-				SessionID:          parsed.StickySessionSeed(),
 				APIKeyService:      h.apiKeyService,
 				QuotaPlatform:      quotaPlatform,
 				ClientSessionID:    clientSessionID,

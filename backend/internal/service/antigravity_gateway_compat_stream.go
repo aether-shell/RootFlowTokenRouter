@@ -20,14 +20,12 @@ type antigravityCompatStreamAdapter interface {
 	Emit(*apicompat.AnthropicStreamEvent, *antigravityClientWriter)
 	Finalize(*antigravityClientWriter)
 	WriteError(*antigravityClientWriter, string)
-	ResponseBody(*ClaudeUsage) []byte
 }
 
 type antigravityChatStreamAdapter struct {
-	c                 *gin.Context
-	anthropicState    *apicompat.AnthropicEventToResponsesState
-	chatState         *apicompat.ResponsesEventToChatState
-	streamAccumulator *openAIChatCompletionsStreamAccumulator
+	c              *gin.Context
+	anthropicState *apicompat.AnthropicEventToResponsesState
+	chatState      *apicompat.ResponsesEventToChatState
 }
 
 func newAntigravityChatStreamAdapter(c *gin.Context, model string, includeUsage bool) *antigravityChatStreamAdapter {
@@ -37,10 +35,9 @@ func newAntigravityChatStreamAdapter(c *gin.Context, model string, includeUsage 
 	chatState.Model = model
 	chatState.IncludeUsage = includeUsage
 	return &antigravityChatStreamAdapter{
-		c:                 c,
-		anthropicState:    anthropicState,
-		chatState:         chatState,
-		streamAccumulator: newOpenAIChatCompletionsStreamAccumulator(model),
+		c:              c,
+		anthropicState: anthropicState,
+		chatState:      chatState,
 	}
 }
 
@@ -70,7 +67,7 @@ func (a *antigravityChatStreamAdapter) emitResponseEvent(event *apicompat.Respon
 	}
 }
 
-// writeChunk 在输出前恢复工具名，并同步累积用于数据共享的非流式快照。
+// writeChunk 在输出前恢复工具名。
 func (a *antigravityChatStreamAdapter) writeChunk(chunk apicompat.ChatCompletionsChunk, writer *antigravityClientWriter) {
 	payload, err := json.Marshal(chunk)
 	if err != nil {
@@ -78,16 +75,7 @@ func (a *antigravityChatStreamAdapter) writeChunk(chunk apicompat.ChatCompletion
 		return
 	}
 	payload = reverseToolNamesIfPresent(a.c, payload)
-	observeOpenAIChatStreamPayload(a.streamAccumulator, payload, nil)
 	writer.Fprintf("data: %s\n\n", payload)
-}
-
-// ResponseBody 返回已写给客户端的 Chat Completions 聚合快照。
-func (a *antigravityChatStreamAdapter) ResponseBody(usage *ClaudeUsage) []byte {
-	if usage == nil {
-		return a.streamAccumulator.ResponseBody(nil)
-	}
-	return a.streamAccumulator.ResponseBody(openAIUsageFromClaudeUsage(*usage))
 }
 
 type antigravityResponsesStreamAdapter struct {
@@ -150,9 +138,6 @@ func (a *antigravityResponsesStreamAdapter) emitResponseEvent(event apicompat.Re
 	}
 }
 
-// ResponseBody 当前不为 Responses 流生成数据共享快照。
-func (a *antigravityResponsesStreamAdapter) ResponseBody(*ClaudeUsage) []byte { return nil }
-
 type antigravityCompatScanEvent struct {
 	line string
 	err  error
@@ -214,7 +199,6 @@ func (s *antigravityCompatStreamSession) result(clientDisconnect bool) *antigrav
 	return &antigravityStreamResult{
 		usage:            s.usage,
 		firstTokenMs:     s.firstTokenMs,
-		responseBody:     cloneDataSharingRequestBody(s.adapter.ResponseBody(s.usage)),
 		clientDisconnect: clientDisconnect,
 	}
 }

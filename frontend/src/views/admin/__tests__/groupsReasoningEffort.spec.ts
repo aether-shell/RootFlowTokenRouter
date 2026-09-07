@@ -4,8 +4,10 @@ import {
   createReasoningEffortMappingPair,
   createReasoningEffortMappingRow,
   normalizeReasoningEffortForPlatform,
+  normalizeReasoningEffortMappingForPlatform,
   normalizeReasoningEffortMatchType,
   normalizeReasoningEffortOverLimit,
+  reasoningEffortMappingOptionsForPlatform,
   reasoningEffortMappingsToAPI,
   reasoningEffortMappingsToRows,
   reasoningEffortOptionsForPlatform,
@@ -13,7 +15,7 @@ import {
 } from "../groupsReasoningEffort";
 
 describe("groupsReasoningEffort", () => {
-  it("provides fixed OpenAI choices without none", () => {
+  it("keeps none out of the max-effort choices while allowing it in mappings", () => {
     expect(
       reasoningEffortOptionsForPlatform("openai").map((option) => option.value),
     ).toEqual([
@@ -32,6 +34,11 @@ describe("groupsReasoningEffort", () => {
     ] as const) {
       expect(reasoningEffortOptionsForPlatform(platform)).toEqual([]);
     }
+    expect(
+      reasoningEffortMappingOptionsForPlatform("openai").map(
+        (option) => option.value,
+      ),
+    ).toEqual(["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
   });
 
   it("hydrates supported rows and drops stale custom values", () => {
@@ -114,10 +121,12 @@ describe("groupsReasoningEffort", () => {
     ]);
   });
 
-  it("clears values unsupported by OpenAI or used on another platform", () => {
+  it("keeps none limited to mappings and clears unsupported values", () => {
     expect(normalizeReasoningEffortForPlatform("openai", " MAX ")).toBe("max");
     expect(normalizeReasoningEffortForPlatform("grok", "max")).toBe("");
     expect(normalizeReasoningEffortForPlatform("openai", "none")).toBe("");
+    expect(normalizeReasoningEffortMappingForPlatform("openai", " none ")).toBe("none");
+    expect(normalizeReasoningEffortMappingForPlatform("grok", "none")).toBe("");
   });
 
   it("normalizes the over-limit action with downgrade as the default", () => {
@@ -243,5 +252,16 @@ describe("groupsReasoningEffort", () => {
     expect(validateReasoningEffortMappings([row], "openai")).toEqual({
       [row.pairs[0].id]: { from: "unsupportedFrom" },
     });
+  });
+
+  it("hydrates none mapping values", () => {
+    const rows = reasoningEffortMappingsToRows(
+      [{ from: "none", to: "low", match_type: "exact", model: "gpt-6-astra" }],
+      "openai",
+    );
+
+    expect(reasoningEffortMappingsToAPI(rows)).toEqual([
+      { from: "none", to: "low", match_type: "exact", model: "gpt-6-astra" },
+    ]);
   });
 });

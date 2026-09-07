@@ -325,11 +325,6 @@ func MaxReasoningEffortOverLimit(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldMaxReasoningEffortOverLimit, v))
 }
 
-// DataSharingEnabled applies equality check predicate on the "data_sharing_enabled" field. It's identical to DataSharingEnabledEQ.
-func DataSharingEnabled(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldDataSharingEnabled, v))
-}
-
 // SessionIsolationEnabled applies equality check predicate on the "session_isolation_enabled" field. It's identical to SessionIsolationEnabledEQ.
 func SessionIsolationEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldSessionIsolationEnabled, v))
@@ -2483,16 +2478,6 @@ func MaxReasoningEffortOverLimitEqualFold(v string) predicate.Group {
 // MaxReasoningEffortOverLimitContainsFold applies the ContainsFold predicate on the "max_reasoning_effort_over_limit" field.
 func MaxReasoningEffortOverLimitContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldMaxReasoningEffortOverLimit, v))
-}
-
-// DataSharingEnabledEQ applies the EQ predicate on the "data_sharing_enabled" field.
-func DataSharingEnabledEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldEQ(FieldDataSharingEnabled, v))
-}
-
-// DataSharingEnabledNEQ applies the NEQ predicate on the "data_sharing_enabled" field.
-func DataSharingEnabledNEQ(v bool) predicate.Group {
-	return predicate.Group(sql.FieldNEQ(FieldDataSharingEnabled, v))
 }
 
 // SessionIsolationEnabledEQ applies the EQ predicate on the "session_isolation_enabled" field.

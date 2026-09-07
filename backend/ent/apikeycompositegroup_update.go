@@ -113,47 +113,6 @@ func (_u *APIKeyCompositeGroupUpdate) AddSortOrder(v int) *APIKeyCompositeGroupU
 	return _u
 }
 
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (_u *APIKeyCompositeGroupUpdate) SetDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpdate {
-	_u.mutation.ResetDataSharingNoticeVersion()
-	_u.mutation.SetDataSharingNoticeVersion(v)
-	return _u
-}
-
-// SetNillableDataSharingNoticeVersion sets the "data_sharing_notice_version" field if the given value is not nil.
-func (_u *APIKeyCompositeGroupUpdate) SetNillableDataSharingNoticeVersion(v *int) *APIKeyCompositeGroupUpdate {
-	if v != nil {
-		_u.SetDataSharingNoticeVersion(*v)
-	}
-	return _u
-}
-
-// AddDataSharingNoticeVersion adds value to the "data_sharing_notice_version" field.
-func (_u *APIKeyCompositeGroupUpdate) AddDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpdate {
-	_u.mutation.AddDataSharingNoticeVersion(v)
-	return _u
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (_u *APIKeyCompositeGroupUpdate) SetDataSharingConfirmedAt(v time.Time) *APIKeyCompositeGroupUpdate {
-	_u.mutation.SetDataSharingConfirmedAt(v)
-	return _u
-}
-
-// SetNillableDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field if the given value is not nil.
-func (_u *APIKeyCompositeGroupUpdate) SetNillableDataSharingConfirmedAt(v *time.Time) *APIKeyCompositeGroupUpdate {
-	if v != nil {
-		_u.SetDataSharingConfirmedAt(*v)
-	}
-	return _u
-}
-
-// ClearDataSharingConfirmedAt clears the value of the "data_sharing_confirmed_at" field.
-func (_u *APIKeyCompositeGroupUpdate) ClearDataSharingConfirmedAt() *APIKeyCompositeGroupUpdate {
-	_u.mutation.ClearDataSharingConfirmedAt()
-	return _u
-}
-
 // SetAPIKey sets the "api_key" edge to the APIKey entity.
 func (_u *APIKeyCompositeGroupUpdate) SetAPIKey(v *APIKey) *APIKeyCompositeGroupUpdate {
 	return _u.SetAPIKeyID(v.ID)
@@ -264,18 +223,6 @@ func (_u *APIKeyCompositeGroupUpdate) sqlSave(ctx context.Context) (_node int, e
 	}
 	if value, ok := _u.mutation.AddedSortOrder(); ok {
 		_spec.AddField(apikeycompositegroup.FieldSortOrder, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.DataSharingNoticeVersion(); ok {
-		_spec.SetField(apikeycompositegroup.FieldDataSharingNoticeVersion, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedDataSharingNoticeVersion(); ok {
-		_spec.AddField(apikeycompositegroup.FieldDataSharingNoticeVersion, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.DataSharingConfirmedAt(); ok {
-		_spec.SetField(apikeycompositegroup.FieldDataSharingConfirmedAt, field.TypeTime, value)
-	}
-	if _u.mutation.DataSharingConfirmedAtCleared() {
-		_spec.ClearField(apikeycompositegroup.FieldDataSharingConfirmedAt, field.TypeTime)
 	}
 	if _u.mutation.APIKeyCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -438,47 +385,6 @@ func (_u *APIKeyCompositeGroupUpdateOne) AddSortOrder(v int) *APIKeyCompositeGro
 	return _u
 }
 
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (_u *APIKeyCompositeGroupUpdateOne) SetDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpdateOne {
-	_u.mutation.ResetDataSharingNoticeVersion()
-	_u.mutation.SetDataSharingNoticeVersion(v)
-	return _u
-}
-
-// SetNillableDataSharingNoticeVersion sets the "data_sharing_notice_version" field if the given value is not nil.
-func (_u *APIKeyCompositeGroupUpdateOne) SetNillableDataSharingNoticeVersion(v *int) *APIKeyCompositeGroupUpdateOne {
-	if v != nil {
-		_u.SetDataSharingNoticeVersion(*v)
-	}
-	return _u
-}
-
-// AddDataSharingNoticeVersion adds value to the "data_sharing_notice_version" field.
-func (_u *APIKeyCompositeGroupUpdateOne) AddDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpdateOne {
-	_u.mutation.AddDataSharingNoticeVersion(v)
-	return _u
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (_u *APIKeyCompositeGroupUpdateOne) SetDataSharingConfirmedAt(v time.Time) *APIKeyCompositeGroupUpdateOne {
-	_u.mutation.SetDataSharingConfirmedAt(v)
-	return _u
-}
-
-// SetNillableDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field if the given value is not nil.
-func (_u *APIKeyCompositeGroupUpdateOne) SetNillableDataSharingConfirmedAt(v *time.Time) *APIKeyCompositeGroupUpdateOne {
-	if v != nil {
-		_u.SetDataSharingConfirmedAt(*v)
-	}
-	return _u
-}
-
-// ClearDataSharingConfirmedAt clears the value of the "data_sharing_confirmed_at" field.
-func (_u *APIKeyCompositeGroupUpdateOne) ClearDataSharingConfirmedAt() *APIKeyCompositeGroupUpdateOne {
-	_u.mutation.ClearDataSharingConfirmedAt()
-	return _u
-}
-
 // SetAPIKey sets the "api_key" edge to the APIKey entity.
 func (_u *APIKeyCompositeGroupUpdateOne) SetAPIKey(v *APIKey) *APIKeyCompositeGroupUpdateOne {
 	return _u.SetAPIKeyID(v.ID)
@@ -619,18 +525,6 @@ func (_u *APIKeyCompositeGroupUpdateOne) sqlSave(ctx context.Context) (_node *AP
 	}
 	if value, ok := _u.mutation.AddedSortOrder(); ok {
 		_spec.AddField(apikeycompositegroup.FieldSortOrder, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.DataSharingNoticeVersion(); ok {
-		_spec.SetField(apikeycompositegroup.FieldDataSharingNoticeVersion, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedDataSharingNoticeVersion(); ok {
-		_spec.AddField(apikeycompositegroup.FieldDataSharingNoticeVersion, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.DataSharingConfirmedAt(); ok {
-		_spec.SetField(apikeycompositegroup.FieldDataSharingConfirmedAt, field.TypeTime, value)
-	}
-	if _u.mutation.DataSharingConfirmedAtCleared() {
-		_spec.ClearField(apikeycompositegroup.FieldDataSharingConfirmedAt, field.TypeTime)
 	}
 	if _u.mutation.APIKeyCleared() {
 		edge := &sqlgraph.EdgeSpec{

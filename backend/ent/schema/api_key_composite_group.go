@@ -31,8 +31,6 @@ func (APIKeyCompositeGroup) Fields() []ent.Field {
 		field.String("prefix").MaxLen(32).NotEmpty(),
 		field.String("normalized_prefix").MaxLen(32).NotEmpty(),
 		field.Int("sort_order").Default(0),
-		field.Int("data_sharing_notice_version").Default(0),
-		field.Time("data_sharing_confirmed_at").Optional().Nillable(),
 	}
 }
 

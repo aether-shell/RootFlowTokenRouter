@@ -54,8 +54,6 @@ type CreateGroupRequest struct {
 	RateMultiplier             float64                                 `json:"rate_multiplier"`
 	IsExclusive                bool                                    `json:"is_exclusive"`
 	IsDefault                  bool                                    `json:"is_default"`
-	// 数据共享分组会采集符合规则的 Agent session。
-	DataSharingEnabled bool `json:"data_sharing_enabled"`
 	// 会话隔离开启后拒绝其它分组已归属的显式会话切入。
 	SessionIsolationEnabled   bool                          `json:"session_isolation_enabled"`
 	LongContextPricingEnabled *bool                         `json:"long_context_pricing_enabled"`
@@ -135,8 +133,6 @@ type UpdateGroupRequest struct {
 	RateMultiplier             *float64                                 `json:"rate_multiplier"`
 	IsExclusive                *bool                                    `json:"is_exclusive"`
 	IsDefault                  *bool                                    `json:"is_default"`
-	// nil 表示不修改数据共享开关。
-	DataSharingEnabled *bool `json:"data_sharing_enabled"`
 	// nil 表示不修改会话隔离开关。
 	SessionIsolationEnabled   *bool                          `json:"session_isolation_enabled"`
 	Status                    string                         `json:"status" binding:"omitempty,oneof=active inactive"`
@@ -336,7 +332,6 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,
 		IsDefault:                       req.IsDefault,
-		DataSharingEnabled:              req.DataSharingEnabled,
 		SessionIsolationEnabled:         req.SessionIsolationEnabled,
 		LongContextPricingEnabled:       req.LongContextPricingEnabled,
 		ModelPricing:                    req.ModelPricing,
@@ -470,7 +465,6 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,
 		IsDefault:                       req.IsDefault,
-		DataSharingEnabled:              req.DataSharingEnabled,
 		SessionIsolationEnabled:         req.SessionIsolationEnabled,
 		Status:                          req.Status,
 		LongContextPricingEnabled:       req.LongContextPricingEnabled,

@@ -1374,8 +1374,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 		require.Equal(t, "client-turn-1", result.Model)
 		require.Equal(t, "upstream-turn-1", result.UpstreamModel)
 		require.True(t, result.OpenAIWSMode)
-		// 内部 turn 快照保留上游原文；客户端出站帧已在上方断言归一为 completed。
-		require.JSONEq(t, `{"id":"resp_passthrough_turn_1","model":"upstream-turn-1","output":[{"id":"ig_passthrough_1","type":"image_generation_call","status":"generating","result":"final-image"}],"usage":{"input_tokens":2,"output_tokens":3}}`, string(result.ResponseBody))
 		require.Equal(t, 2, result.Usage.InputTokens)
 		require.Equal(t, 3, result.Usage.OutputTokens)
 		require.NotNil(t, result.ServiceTier)
@@ -3978,7 +3976,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 	beforeTurnCalls := make(map[int]int)
 	afterTurnCalls := make(map[int]int)
 	afterTurnRequestBodies := make(map[int][]byte)
-	afterTurnResponseBodies := make(map[int][]byte)
 	hooks := &OpenAIWSIngressHooks{
 		BeforeTurn: func(turn int) error {
 			hooksMu.Lock()
@@ -3990,9 +3987,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 			hooksMu.Lock()
 			afterTurnCalls[capture.Turn]++
 			afterTurnRequestBodies[capture.Turn] = append([]byte(nil), capture.RequestBody...)
-			if capture.Result != nil {
-				afterTurnResponseBodies[capture.Turn] = append([]byte(nil), capture.Result.ResponseBody...)
-			}
 			hooksMu.Unlock()
 		},
 	}
@@ -4078,17 +4072,13 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 	afterTurn2 := afterTurnCalls[2]
 	afterTurnRequestBody1 := append([]byte(nil), afterTurnRequestBodies[1]...)
 	afterTurnRequestBody2 := append([]byte(nil), afterTurnRequestBodies[2]...)
-	afterTurnResponseBody1 := append([]byte(nil), afterTurnResponseBodies[1]...)
-	afterTurnResponseBody2 := append([]byte(nil), afterTurnResponseBodies[2]...)
 	hooksMu.Unlock()
 	require.Equal(t, 1, beforeTurn1, "首轮 turn BeforeTurn 应执行一次")
 	require.Equal(t, 1, beforeTurn2, "同一 turn 重试不应重复触发 BeforeTurn")
 	require.Equal(t, 1, afterTurn1, "首轮 turn AfterTurn 应执行一次")
 	require.Equal(t, 1, afterTurn2, "第二轮 turn AfterTurn 应执行一次")
-	require.JSONEq(t, `{"type":"response.create","model":"gpt-5.1","stream":false}`, string(afterTurnRequestBody1), "首轮采集请求体不能缺失或被后续 turn 覆盖")
-	require.JSONEq(t, `{"type":"response.create","model":"gpt-5.1","stream":false,"previous_response_id":"resp_turn_write_retry_1"}`, string(afterTurnRequestBody2), "第二轮采集请求体必须来自当前 turn")
-	require.Equal(t, "resp_turn_write_retry_1", gjson.GetBytes(afterTurnResponseBody1, "id").String(), "首轮采集响应体应取 terminal event 的 response 对象")
-	require.Equal(t, "resp_turn_write_retry_2", gjson.GetBytes(afterTurnResponseBody2, "id").String(), "第二轮采集响应体应取 terminal event 的 response 对象")
+	require.JSONEq(t, `{"type":"response.create","model":"gpt-5.1","stream":false}`, string(afterTurnRequestBody1), "首轮结算请求体不能缺失或被后续 turn 覆盖")
+	require.JSONEq(t, `{"type":"response.create","model":"gpt-5.1","stream":false,"previous_response_id":"resp_turn_write_retry_1"}`, string(afterTurnRequestBody2), "第二轮结算请求体必须来自当前 turn")
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponseNotFoundRecoversByDroppingPrevID(t *testing.T) {

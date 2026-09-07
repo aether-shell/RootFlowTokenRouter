@@ -163,9 +163,6 @@ func isUserTimingPath(path string) bool {
 		return true
 	case rest == "/keys", strings.HasPrefix(rest, "/keys/"):
 		return true
-	case rest == "/data-sharing", strings.HasPrefix(rest, "/data-sharing/"):
-		// 公开下载仅依赖签名票据，不属于认证用户 API。
-		return rest != "/data-sharing/export/download"
 	case rest == "/groups/available", rest == "/groups/rates":
 		return true
 	case rest == "/channels/available":

@@ -33,11 +33,13 @@ func TestNormalizeReasoningEffortMappings(t *testing.T) {
 		got, err := NormalizeReasoningEffortMappings(PlatformOpenAI, []ReasoningEffortMapping{
 			{From: " MAX ", To: " x-high "},
 			{From: "minimal", To: "high"},
+			{From: "none", To: "low"},
 		})
 		require.NoError(t, err)
 		require.Equal(t, []ReasoningEffortMapping{
 			{From: "max", To: "xhigh"},
 			{From: "minimal", To: "high"},
+			{From: "none", To: "low"},
 		}, got)
 	})
 
@@ -122,10 +124,7 @@ func TestNormalizeReasoningEffortMappings(t *testing.T) {
 			require.ErrorContains(t, err, "only supported for platform \"openai\"")
 		}
 
-		_, err := NormalizeReasoningEffortMappings(PlatformOpenAI, []ReasoningEffortMapping{{From: "none", To: "low"}})
-		require.ErrorContains(t, err, "empty or unknown")
-
-		_, err = NormalizeReasoningEffortMappings(PlatformOpenAI, []ReasoningEffortMapping{{From: "ultra", To: "high"}})
+		_, err := NormalizeReasoningEffortMappings(PlatformOpenAI, []ReasoningEffortMapping{{From: "ultra", To: "high"}})
 		require.ErrorContains(t, err, "empty or unknown")
 	})
 }
@@ -213,6 +212,7 @@ func TestApplyOpenAIReasoningEffortPolicy(t *testing.T) {
 		{name: "ignores stale none ceiling", body: `{"reasoning_effort":"high"}`, max: "none", path: "reasoning_effort", want: "high", changed: false},
 		{name: "caps both shapes", body: `{"reasoning":{"effort":"high"},"reasoning_effort":"xhigh"}`, max: "low", path: "reasoning.effort", want: "low", changed: true},
 		{name: "maps before cap", body: `{"reasoning":{"effort":"MAX"}}`, max: "medium", mappings: []ReasoningEffortMapping{{From: "max", To: "xhigh"}}, path: "reasoning.effort", want: "medium", changed: true},
+		{name: "maps none when configured", body: `{"reasoning":{"effort":"none"}}`, mappings: []ReasoningEffortMapping{{From: "none", To: "low"}}, path: "reasoning.effort", want: "low", changed: true},
 		{name: "does not chain mappings", body: `{"reasoning_effort":"max"}`, mappings: []ReasoningEffortMapping{{From: "max", To: "xhigh"}, {From: "xhigh", To: "low"}}, path: "reasoning_effort", want: "xhigh", changed: true},
 		{name: "keeps unknown without mapping", body: `{"reasoning_effort":"future"}`, max: "low", path: "reasoning_effort", want: "future", changed: false},
 		{name: "keeps non string value", body: `{"reasoning_effort":{"level":"high"}}`, max: "low", path: "reasoning_effort.level", want: "high", changed: false},

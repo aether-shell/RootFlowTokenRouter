@@ -7473,30 +7473,6 @@
           <div class="card">
             <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ t("admin.settings.features.dataSharing.title") }}
-              </h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ t("admin.settings.features.dataSharing.description") }}
-              </p>
-            </div>
-            <div class="p-6">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="font-medium text-gray-900 dark:text-white">
-                    {{ t("admin.settings.features.dataSharing.enabled") }}
-                  </label>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.features.dataSharing.enabledHint") }}
-                  </p>
-                </div>
-                <Toggle v-model="form.data_sharing_enabled" />
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t("admin.settings.features.creative.title") }}
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -9947,7 +9923,6 @@ const form = reactive<SettingsForm>({
   enable_client_dateline_normalization: true,
   // 页面功能开关默认开启，兼容升级前行为。
   team_enabled: true,
-  data_sharing_enabled: true,
   creative_enabled: true,
   creative_model_settings: [] as CreativeModelSetting[],
   creative_worker_count: 128,
@@ -12077,7 +12052,6 @@ async function saveSettings() {
       payment_enabled: form.payment_enabled,
       // 页面功能开关
       team_enabled: form.team_enabled,
-      data_sharing_enabled: form.data_sharing_enabled,
       creative_enabled: form.creative_enabled,
       creative_model_settings: normalizedCreativeModelSettings,
       creative_worker_count: normalizedCreativeWorkerCount,

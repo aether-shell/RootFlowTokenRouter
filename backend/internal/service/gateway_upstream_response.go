@@ -681,7 +681,6 @@ type streamingResult struct {
 	usage            *ClaudeUsage
 	firstTokenMs     *int
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
-	responseBody     []byte
 }
 
 // hasObservedTokens 报告流式过程中是否已观测到任何上游计量 token。
@@ -876,17 +875,15 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	needModelReplace := originalModel != mappedModel
 	clientDisconnected := false // 客户端断开标志，断开后继续读取上游以获取完整usage
 	sawTerminalEvent := false
-	var responseBody []byte
-	responseAccumulator := &anthropicStreamResponseAccumulator{}
 	useNoopDeltaKeepalive := c != nil && c.Request != nil && shouldUseClaudeCodeNoopDeltaKeepalive(c.GetHeader("User-Agent"))
 	noopDeltaKeepaliveBlockIndex := -1
 	noopDeltaKeepaliveDeltaType := ""
 
 	pendingEventLines := make([]string, 0, 4)
 
-	processSSEEvent := func(lines []string) ([]string, string, []byte, *sseUsagePatch, error) {
+	processSSEEvent := func(lines []string) ([]string, string, *sseUsagePatch, error) {
 		if len(lines) == 0 {
-			return nil, "", nil, nil, nil
+			return nil, "", nil, nil
 		}
 
 		eventName := ""
@@ -903,11 +900,11 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		}
 
 		if eventName == "error" {
-			return nil, dataLine, nil, nil, &sseStreamErrorEventError{RawData: dataLine}
+			return nil, dataLine, nil, &sseStreamErrorEventError{RawData: dataLine}
 		}
 
 		if dataLine == "" {
-			return []string{strings.Join(lines, "\n") + "\n\n"}, "", nil, nil, nil
+			return []string{strings.Join(lines, "\n") + "\n\n"}, "", nil, nil
 		}
 
 		if dataLine == "[DONE]" {
@@ -917,7 +914,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				block = "event: " + eventName + "\n"
 			}
 			block += "data: " + dataLine + "\n\n"
-			return []string{block}, dataLine, nil, nil, nil
+			return []string{block}, dataLine, nil, nil
 		}
 
 		var event map[string]any
@@ -928,7 +925,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				block = "event: " + eventName + "\n"
 			}
 			block += "data: " + dataLine + "\n\n"
-			return []string{block}, dataLine, nil, nil, nil
+			return []string{block}, dataLine, nil, nil
 		}
 
 		eventType, _ := event["type"].(string)
@@ -1013,7 +1010,6 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 		}
 
 		usagePatch := s.extractSSEUsagePatch(event)
-		finalResponseBody := responseAccumulator.ObserveEvent(eventName, event)
 		if anthropicStreamEventIsTerminal(eventName, dataLine) {
 			sawTerminalEvent = true
 		}
@@ -1023,7 +1019,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				block = "event: " + eventName + "\n"
 			}
 			block += "data: " + dataLine + "\n\n"
-			return []string{block}, dataLine, finalResponseBody, usagePatch, nil
+			return []string{block}, dataLine, usagePatch, nil
 		}
 
 		newData, err := json.Marshal(event)
@@ -1034,7 +1030,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				block = "event: " + eventName + "\n"
 			}
 			block += "data: " + dataLine + "\n\n"
-			return []string{block}, dataLine, finalResponseBody, usagePatch, nil
+			return []string{block}, dataLine, usagePatch, nil
 		}
 
 		block := ""
@@ -1042,7 +1038,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			block = "event: " + eventName + "\n"
 		}
 		block += "data: " + string(newData) + "\n\n"
-		return []string{block}, string(newData), finalResponseBody, usagePatch, nil
+		return []string{block}, string(newData), usagePatch, nil
 	}
 
 	for {
@@ -1051,27 +1047,27 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			if !ok {
 				// 上游完成，返回结果
 				if !sawTerminalEvent {
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected, responseBody: responseBody}, fmt.Errorf("stream usage incomplete: missing terminal event")
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, fmt.Errorf("stream usage incomplete: missing terminal event")
 				}
-				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected, responseBody: responseBody}, nil
+				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
 			}
 			if ev.err != nil {
 				if sawTerminalEvent {
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected, responseBody: responseBody}, nil
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: clientDisconnected}, nil
 				}
 				// 检测 context 取消（客户端断开会导致 context 取消，进而影响上游读取）
 				if errors.Is(ev.err, context.Canceled) || errors.Is(ev.err, context.DeadlineExceeded) {
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true, responseBody: responseBody}, fmt.Errorf("stream usage incomplete: %w", ev.err)
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, fmt.Errorf("stream usage incomplete: %w", ev.err)
 				}
 				// 客户端已通过写入失败检测到断开，上游也出错了，返回已收集的 usage
 				if clientDisconnected {
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true, responseBody: responseBody}, fmt.Errorf("stream usage incomplete after disconnect: %w", ev.err)
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, fmt.Errorf("stream usage incomplete after disconnect: %w", ev.err)
 				}
 				// 客户端未断开，正常的错误处理
 				if errors.Is(ev.err, bufio.ErrTooLong) {
 					logger.LegacyPrintf("service.gateway", "SSE line too long: account=%d max_size=%d error=%v", account.ID, maxLineSize, ev.err)
 					sendErrorEvent("response_too_large", fmt.Sprintf("upstream SSE line exceeded %d bytes", maxLineSize))
-					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, responseBody: responseBody}, ev.err
+					return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, ev.err
 				}
 				// 上游中途读错误（unexpected EOF / connection reset 等，常见于 HTTP/2 GOAWAY）：
 				// 若尚未向客户端写过任何字节，包成 UpstreamFailoverError 让 handler 层走 failover/重试。
@@ -1096,7 +1092,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					}
 				}
 				sendErrorEvent("stream_read_error", disconnectMsg)
-				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, responseBody: responseBody}, fmt.Errorf("stream read error: %w", ev.err)
+				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", ev.err)
 			}
 			line := ev.line
 			trimmed := strings.TrimSpace(line)
@@ -1106,19 +1102,14 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 					continue
 				}
 
-				outputBlocks, data, bodyPatch, usagePatch, err := processSSEEvent(pendingEventLines)
+				outputBlocks, data, usagePatch, err := processSSEEvent(pendingEventLines)
 				pendingEventLines = pendingEventLines[:0]
 				if err != nil {
 					if clientDisconnected {
-						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true, responseBody: responseBody}, nil
+						return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, nil
 					}
 					return nil, err
 				}
-				if len(bodyPatch) > 0 {
-					// 响应快照和下发给客户端的内容保持一致，确保工具名与原始请求定义可配对。
-					responseBody = cloneDataSharingRequestBody(reverseToolNamesIfPresent(c, bodyPatch))
-				}
-
 				for _, block := range outputBlocks {
 					if !clientDisconnected {
 						restored := reverseToolNamesIfPresent(c, []byte(block))
@@ -1155,7 +1146,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				continue
 			}
 			if clientDisconnected {
-				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true, responseBody: responseBody}, fmt.Errorf("stream usage incomplete after timeout")
+				return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, clientDisconnect: true}, fmt.Errorf("stream usage incomplete after timeout")
 			}
 			logger.LegacyPrintf("service.gateway", "Stream data interval timeout: account=%d model=%s interval=%s", account.ID, originalModel, streamInterval)
 			// 处理流超时，可能标记账户为临时不可调度或错误状态
@@ -1163,7 +1154,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				s.rateLimitService.HandleStreamTimeout(ctx, account, originalModel)
 			}
 			sendErrorEvent("stream_timeout", fmt.Sprintf("upstream stream idle for %s", streamInterval))
-			return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, responseBody: responseBody}, fmt.Errorf("stream data interval timeout")
+			return &streamingResult{usage: usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream data interval timeout")
 
 		case <-keepaliveCh:
 			if clientDisconnected {
@@ -1437,13 +1428,13 @@ func (s *GatewayService) resolveCacheTTLUsageOverrideTarget(ctx context.Context,
 	return "", false
 }
 
-func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*ClaudeUsage, []byte, error) {
+func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*ClaudeUsage, error) {
 	// 更新5h窗口状态
 	s.rateLimitService.UpdateSessionWindow(ctx, account, resp.Header)
 
 	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, anthropicTooLargeError)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// 解析usage
@@ -1452,9 +1443,9 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 	}
 	if err := json.Unmarshal(body, &response); err != nil {
 		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
-			return nil, nil, invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err, mappedModel)
+			return nil, invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err, mappedModel)
 		}
-		return nil, nil, fmt.Errorf("parse response: %w", err)
+		return nil, fmt.Errorf("parse response: %w", err)
 	}
 
 	// 解析嵌套的 cache_creation 对象中的 5m/1h 明细
@@ -1509,7 +1500,7 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 	// 写入响应
 	c.Data(resp.StatusCode, contentType, body)
 
-	return &response.Usage, cloneDataSharingRequestBody(body), nil
+	return &response.Usage, nil
 }
 
 // replaceModelInResponseBody 替换响应体中的model字段

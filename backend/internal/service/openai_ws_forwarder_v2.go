@@ -764,7 +764,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if reqStream {
 			if responseField.Exists() && responseField.Type == gjson.JSON {
 				finalResponse = []byte(responseField.Raw)
-				// 流式也保存最终 response，供数据共享采集 assistant 输出。
+				// 流式响应缺少 output 时，以已维护的协议状态补齐最终响应。
 				if len(gjson.GetBytes(finalResponse, "output").Array()) == 0 && responseAccumulator.HasContent() {
 					if outputJSON, err := json.Marshal(responseAccumulator.BuildOutput()); err == nil {
 						if patched, err := sjson.SetRawBytes(finalResponse, "output", outputJSON); err == nil {
@@ -904,7 +904,6 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		OpenAIWSMode:                true,
 		UpstreamTerminalEvent:       upstreamTerminalEvent,
 		ResponseHeaders:             lease.HandshakeHeaders(),
-		ResponseBody:                cloneDataSharingRequestBody(finalResponse),
 		Duration:                    time.Since(startTime),
 		FirstTokenMs:                firstTokenMs,
 		UpstreamWarning:             upstreamWarning,

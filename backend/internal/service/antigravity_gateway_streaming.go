@@ -19,7 +19,6 @@ import (
 type antigravityStreamResult struct {
 	usage            *ClaudeUsage
 	firstTokenMs     *int
-	responseBody     []byte
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
 }
 

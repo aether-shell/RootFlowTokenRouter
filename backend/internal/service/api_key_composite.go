@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 )
 
 const (
@@ -105,22 +104,15 @@ func validateCompositeGroupInputs(inputs []APIKeyCompositeGroupInput) ([]APIKeyC
 	return groups, nil
 }
 
-// prepareCompositeGroups 校验分组权限，并为本次新增的数据共享分组保存确认快照。
+// prepareCompositeGroups 校验复合 Key 的分组权限并补齐分组快照。
 func (s *APIKeyService) prepareCompositeGroups(
 	ctx context.Context,
 	user *User,
 	inputs []APIKeyCompositeGroupInput,
-	existing []APIKeyCompositeGroup,
-	confirmed bool,
-	noticeVersion int,
 ) ([]APIKeyCompositeGroup, error) {
 	bindings, err := validateCompositeGroupInputs(inputs)
 	if err != nil {
 		return nil, err
-	}
-	existingByGroup := make(map[int64]APIKeyCompositeGroup, len(existing))
-	for _, binding := range existing {
-		existingByGroup[binding.GroupID] = binding
 	}
 	for i := range bindings {
 		binding := &bindings[i]
@@ -132,21 +124,6 @@ func (s *APIKeyService) prepareCompositeGroups(
 			return nil, ErrGroupNotAllowed
 		}
 		binding.Group = group
-		if previous, exists := existingByGroup[binding.GroupID]; exists {
-			binding.ID = previous.ID
-			binding.APIKeyID = previous.APIKeyID
-			binding.DataSharingNoticeVersion = previous.DataSharingNoticeVersion
-			binding.DataSharingConfirmedAt = previous.DataSharingConfirmedAt
-			continue
-		}
-		if group.DataSharingEnabled {
-			version, confirmedAt, err := s.validateCurrentDataSharingConsent(ctx, group, confirmed, noticeVersion)
-			if err != nil {
-				return nil, err
-			}
-			binding.DataSharingNoticeVersion = version
-			binding.DataSharingConfirmedAt = &confirmedAt
-		}
 	}
 	sort.SliceStable(bindings, func(i, j int) bool { return bindings[i].SortOrder < bindings[j].SortOrder })
 	return bindings, nil
@@ -159,24 +136,5 @@ func cloneCompositeBindings(bindings []APIKeyCompositeGroup) []APIKeyCompositeGr
 	}
 	out := make([]APIKeyCompositeGroup, len(bindings))
 	copy(out, bindings)
-	for i := range out {
-		if bindings[i].DataSharingConfirmedAt != nil {
-			value := *bindings[i].DataSharingConfirmedAt
-			out[i].DataSharingConfirmedAt = &value
-		}
-	}
 	return out
-}
-
-// compositeConsentSnapshot 返回兼容旧 API 字段的最近一次确认信息。
-func compositeConsentSnapshot(bindings []APIKeyCompositeGroup) (int, *int64, *time.Time) {
-	for i := len(bindings) - 1; i >= 0; i-- {
-		binding := bindings[i]
-		if binding.DataSharingNoticeVersion > 0 && binding.DataSharingConfirmedAt != nil {
-			groupID := binding.GroupID
-			confirmedAt := *binding.DataSharingConfirmedAt
-			return binding.DataSharingNoticeVersion, &groupID, &confirmedAt
-		}
-	}
-	return 0, nil, nil
 }

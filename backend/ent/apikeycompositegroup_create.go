@@ -90,34 +90,6 @@ func (_c *APIKeyCompositeGroupCreate) SetNillableSortOrder(v *int) *APIKeyCompos
 	return _c
 }
 
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (_c *APIKeyCompositeGroupCreate) SetDataSharingNoticeVersion(v int) *APIKeyCompositeGroupCreate {
-	_c.mutation.SetDataSharingNoticeVersion(v)
-	return _c
-}
-
-// SetNillableDataSharingNoticeVersion sets the "data_sharing_notice_version" field if the given value is not nil.
-func (_c *APIKeyCompositeGroupCreate) SetNillableDataSharingNoticeVersion(v *int) *APIKeyCompositeGroupCreate {
-	if v != nil {
-		_c.SetDataSharingNoticeVersion(*v)
-	}
-	return _c
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (_c *APIKeyCompositeGroupCreate) SetDataSharingConfirmedAt(v time.Time) *APIKeyCompositeGroupCreate {
-	_c.mutation.SetDataSharingConfirmedAt(v)
-	return _c
-}
-
-// SetNillableDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field if the given value is not nil.
-func (_c *APIKeyCompositeGroupCreate) SetNillableDataSharingConfirmedAt(v *time.Time) *APIKeyCompositeGroupCreate {
-	if v != nil {
-		_c.SetDataSharingConfirmedAt(*v)
-	}
-	return _c
-}
-
 // SetAPIKey sets the "api_key" edge to the APIKey entity.
 func (_c *APIKeyCompositeGroupCreate) SetAPIKey(v *APIKey) *APIKeyCompositeGroupCreate {
 	return _c.SetAPIKeyID(v.ID)
@@ -175,10 +147,6 @@ func (_c *APIKeyCompositeGroupCreate) defaults() {
 		v := apikeycompositegroup.DefaultSortOrder
 		_c.mutation.SetSortOrder(v)
 	}
-	if _, ok := _c.mutation.DataSharingNoticeVersion(); !ok {
-		v := apikeycompositegroup.DefaultDataSharingNoticeVersion
-		_c.mutation.SetDataSharingNoticeVersion(v)
-	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -213,9 +181,6 @@ func (_c *APIKeyCompositeGroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.SortOrder(); !ok {
 		return &ValidationError{Name: "sort_order", err: errors.New(`ent: missing required field "APIKeyCompositeGroup.sort_order"`)}
-	}
-	if _, ok := _c.mutation.DataSharingNoticeVersion(); !ok {
-		return &ValidationError{Name: "data_sharing_notice_version", err: errors.New(`ent: missing required field "APIKeyCompositeGroup.data_sharing_notice_version"`)}
 	}
 	if len(_c.mutation.APIKeyIDs()) == 0 {
 		return &ValidationError{Name: "api_key", err: errors.New(`ent: missing required edge "APIKeyCompositeGroup.api_key"`)}
@@ -269,14 +234,6 @@ func (_c *APIKeyCompositeGroupCreate) createSpec() (*APIKeyCompositeGroup, *sqlg
 	if value, ok := _c.mutation.SortOrder(); ok {
 		_spec.SetField(apikeycompositegroup.FieldSortOrder, field.TypeInt, value)
 		_node.SortOrder = value
-	}
-	if value, ok := _c.mutation.DataSharingNoticeVersion(); ok {
-		_spec.SetField(apikeycompositegroup.FieldDataSharingNoticeVersion, field.TypeInt, value)
-		_node.DataSharingNoticeVersion = value
-	}
-	if value, ok := _c.mutation.DataSharingConfirmedAt(); ok {
-		_spec.SetField(apikeycompositegroup.FieldDataSharingConfirmedAt, field.TypeTime, value)
-		_node.DataSharingConfirmedAt = &value
 	}
 	if nodes := _c.mutation.APIKeyIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -442,42 +399,6 @@ func (u *APIKeyCompositeGroupUpsert) AddSortOrder(v int) *APIKeyCompositeGroupUp
 	return u
 }
 
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (u *APIKeyCompositeGroupUpsert) SetDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpsert {
-	u.Set(apikeycompositegroup.FieldDataSharingNoticeVersion, v)
-	return u
-}
-
-// UpdateDataSharingNoticeVersion sets the "data_sharing_notice_version" field to the value that was provided on create.
-func (u *APIKeyCompositeGroupUpsert) UpdateDataSharingNoticeVersion() *APIKeyCompositeGroupUpsert {
-	u.SetExcluded(apikeycompositegroup.FieldDataSharingNoticeVersion)
-	return u
-}
-
-// AddDataSharingNoticeVersion adds v to the "data_sharing_notice_version" field.
-func (u *APIKeyCompositeGroupUpsert) AddDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpsert {
-	u.Add(apikeycompositegroup.FieldDataSharingNoticeVersion, v)
-	return u
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (u *APIKeyCompositeGroupUpsert) SetDataSharingConfirmedAt(v time.Time) *APIKeyCompositeGroupUpsert {
-	u.Set(apikeycompositegroup.FieldDataSharingConfirmedAt, v)
-	return u
-}
-
-// UpdateDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field to the value that was provided on create.
-func (u *APIKeyCompositeGroupUpsert) UpdateDataSharingConfirmedAt() *APIKeyCompositeGroupUpsert {
-	u.SetExcluded(apikeycompositegroup.FieldDataSharingConfirmedAt)
-	return u
-}
-
-// ClearDataSharingConfirmedAt clears the value of the "data_sharing_confirmed_at" field.
-func (u *APIKeyCompositeGroupUpsert) ClearDataSharingConfirmedAt() *APIKeyCompositeGroupUpsert {
-	u.SetNull(apikeycompositegroup.FieldDataSharingConfirmedAt)
-	return u
-}
-
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -611,48 +532,6 @@ func (u *APIKeyCompositeGroupUpsertOne) AddSortOrder(v int) *APIKeyCompositeGrou
 func (u *APIKeyCompositeGroupUpsertOne) UpdateSortOrder() *APIKeyCompositeGroupUpsertOne {
 	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
 		s.UpdateSortOrder()
-	})
-}
-
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (u *APIKeyCompositeGroupUpsertOne) SetDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpsertOne {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.SetDataSharingNoticeVersion(v)
-	})
-}
-
-// AddDataSharingNoticeVersion adds v to the "data_sharing_notice_version" field.
-func (u *APIKeyCompositeGroupUpsertOne) AddDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpsertOne {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.AddDataSharingNoticeVersion(v)
-	})
-}
-
-// UpdateDataSharingNoticeVersion sets the "data_sharing_notice_version" field to the value that was provided on create.
-func (u *APIKeyCompositeGroupUpsertOne) UpdateDataSharingNoticeVersion() *APIKeyCompositeGroupUpsertOne {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.UpdateDataSharingNoticeVersion()
-	})
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (u *APIKeyCompositeGroupUpsertOne) SetDataSharingConfirmedAt(v time.Time) *APIKeyCompositeGroupUpsertOne {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.SetDataSharingConfirmedAt(v)
-	})
-}
-
-// UpdateDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field to the value that was provided on create.
-func (u *APIKeyCompositeGroupUpsertOne) UpdateDataSharingConfirmedAt() *APIKeyCompositeGroupUpsertOne {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.UpdateDataSharingConfirmedAt()
-	})
-}
-
-// ClearDataSharingConfirmedAt clears the value of the "data_sharing_confirmed_at" field.
-func (u *APIKeyCompositeGroupUpsertOne) ClearDataSharingConfirmedAt() *APIKeyCompositeGroupUpsertOne {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.ClearDataSharingConfirmedAt()
 	})
 }
 
@@ -955,48 +834,6 @@ func (u *APIKeyCompositeGroupUpsertBulk) AddSortOrder(v int) *APIKeyCompositeGro
 func (u *APIKeyCompositeGroupUpsertBulk) UpdateSortOrder() *APIKeyCompositeGroupUpsertBulk {
 	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
 		s.UpdateSortOrder()
-	})
-}
-
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (u *APIKeyCompositeGroupUpsertBulk) SetDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpsertBulk {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.SetDataSharingNoticeVersion(v)
-	})
-}
-
-// AddDataSharingNoticeVersion adds v to the "data_sharing_notice_version" field.
-func (u *APIKeyCompositeGroupUpsertBulk) AddDataSharingNoticeVersion(v int) *APIKeyCompositeGroupUpsertBulk {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.AddDataSharingNoticeVersion(v)
-	})
-}
-
-// UpdateDataSharingNoticeVersion sets the "data_sharing_notice_version" field to the value that was provided on create.
-func (u *APIKeyCompositeGroupUpsertBulk) UpdateDataSharingNoticeVersion() *APIKeyCompositeGroupUpsertBulk {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.UpdateDataSharingNoticeVersion()
-	})
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (u *APIKeyCompositeGroupUpsertBulk) SetDataSharingConfirmedAt(v time.Time) *APIKeyCompositeGroupUpsertBulk {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.SetDataSharingConfirmedAt(v)
-	})
-}
-
-// UpdateDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field to the value that was provided on create.
-func (u *APIKeyCompositeGroupUpsertBulk) UpdateDataSharingConfirmedAt() *APIKeyCompositeGroupUpsertBulk {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.UpdateDataSharingConfirmedAt()
-	})
-}
-
-// ClearDataSharingConfirmedAt clears the value of the "data_sharing_confirmed_at" field.
-func (u *APIKeyCompositeGroupUpsertBulk) ClearDataSharingConfirmedAt() *APIKeyCompositeGroupUpsertBulk {
-	return u.Update(func(s *APIKeyCompositeGroupUpsert) {
-		s.ClearDataSharingConfirmedAt()
 	})
 }
 

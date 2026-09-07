@@ -52,10 +52,10 @@ describe('GroupClientProtocolSelector', () => {
     })
 
     expect(wrapper.get('[data-protocol="openai_responses"]').classes()).toContain(
-      'group-switch-active'
+      'toggle-active'
     )
     expect(wrapper.get('[data-protocol="openai_chat_completions"]').classes()).not.toContain(
-      'group-switch-active'
+      'toggle-active'
     )
   })
 

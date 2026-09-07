@@ -42,8 +42,6 @@ type Tx struct {
 	CreativeRunOutbox *CreativeRunOutboxClient
 	// CreativeRunOutput is the client for interacting with the CreativeRunOutput builders.
 	CreativeRunOutput *CreativeRunOutputClient
-	// DataShareSession is the client for interacting with the DataShareSession builders.
-	DataShareSession *DataShareSessionClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
 	ErrorPassthroughRule *ErrorPassthroughRuleClient
 	// Group is the client for interacting with the Group builders.
@@ -251,7 +249,6 @@ func (tx *Tx) init() {
 	tx.CreativeRun = NewCreativeRunClient(tx.config)
 	tx.CreativeRunOutbox = NewCreativeRunOutboxClient(tx.config)
 	tx.CreativeRunOutput = NewCreativeRunOutputClient(tx.config)
-	tx.DataShareSession = NewDataShareSessionClient(tx.config)
 	tx.ErrorPassthroughRule = NewErrorPassthroughRuleClient(tx.config)
 	tx.Group = NewGroupClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)

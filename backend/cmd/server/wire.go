@@ -100,8 +100,6 @@ func provideCleanup(
 	emailQueue *service.EmailQueueService,
 	billingCache *service.BillingCacheService,
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
-	dataSharingService *service.DataSharingService,
-	dataSharingCaptureWorkerPool *service.DataSharingCaptureWorkerPool,
 	subscriptionService *service.SubscriptionService,
 	oauth *service.OAuthService,
 	openaiOAuth *service.OpenAIOAuthService,
@@ -131,7 +129,7 @@ func provideCleanup(
 			fn   func() error
 		}
 
-		// 应用层清理步骤可并行执行；数据共享采集需先 drain worker 再 flush 缓冲池。
+		// 应用层清理步骤可并行执行；持久化刷写服务在基础设施关闭前按顺序停止。
 		parallelSteps := []cleanupStep{
 			{"CNUsageMonitor", func() error {
 				if cnUsageMonitor != nil {
@@ -361,13 +359,7 @@ func provideCleanup(
 			}},
 		}
 
-		dataSharingSteps := []cleanupStep{
-			{"DataSharingService", func() error {
-				if dataSharingService != nil {
-					dataSharingService.Stop(ctx)
-				}
-				return nil
-			}},
+		sequentialSteps := []cleanupStep{
 			{"UserPlatformQuotaUsageFlusher", func() error {
 				if quotaFlusher != nil {
 					quotaFlusher.Stop()
@@ -426,7 +418,7 @@ func provideCleanup(
 		}
 
 		runParallel(parallelSteps)
-		runSequential(dataSharingSteps)
+		runSequential(sequentialSteps)
 		runSequential(infraSteps)
 
 		// Check if context timed out

@@ -51,7 +51,7 @@ func TestResolveCompositeGrokVideoAPIKeyUsesPersistedOwnerAfterMappingRemoval(t 
 	cache := &compositeGrokVideoCacheStub{groupID: 20, accountID: 88, ownerID: 20}
 	gateway := service.NewOpenAIGatewayService(
 		nil, nil, nil, nil, nil, nil, cache, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	handler := &OpenAIGatewayHandler{gatewayService: gateway}
 	apiKey := &service.APIKey{ID: 33, UserID: 44, IsComposite: true}
@@ -74,7 +74,7 @@ func TestResolveCompositeGrokVideoAPIKeyRestoresBoundGroup(t *testing.T) {
 	cache := &compositeGrokVideoCacheStub{groupID: grokGroup.ID, accountID: 88}
 	gateway := service.NewOpenAIGatewayService(
 		nil, nil, nil, nil, nil, nil, cache, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	handler := &OpenAIGatewayHandler{gatewayService: gateway}
 	apiKey := &service.APIKey{

@@ -273,7 +273,6 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	responseID := ""
 	imageCount := 0
 	var imageOutputSizes []string
-	var responseBody []byte
 	for {
 		actualModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 		if actualModel == "" {
@@ -384,7 +383,6 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 			responseID = strings.TrimSpace(result.responseID)
 			imageCount = result.imageCount
 			imageOutputSizes = result.imageOutputSizes
-			responseBody = result.responseBody
 		} else {
 			result, handleErr := s.handleNonStreamingResponsePassthrough(ctx, resp, c, account, reqModel, upstreamPassthroughModel)
 			if handleErr != nil {
@@ -411,7 +409,6 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 			responseID = strings.TrimSpace(result.responseID)
 			imageCount = result.imageCount
 			imageOutputSizes = result.imageOutputSizes
-			responseBody = result.responseBody
 		}
 		break
 	}
@@ -440,7 +437,6 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		ReasoningEffort:             reasoningEffort,
 		Stream:                      reqStream,
 		OpenAIWSMode:                false,
-		ResponseBody:                cloneDataSharingRequestBody(responseBody),
 		Duration:                    time.Since(startTime),
 		FirstTokenMs:                firstTokenMs,
 	}
@@ -963,7 +959,6 @@ type openaiStreamingResultPassthrough struct {
 	responseID       string
 	imageCount       int
 	imageOutputSizes []string
-	responseBody     []byte
 }
 
 type openaiNonStreamingResultPassthrough struct {
@@ -972,7 +967,6 @@ type openaiNonStreamingResultPassthrough struct {
 	responseID       string
 	imageCount       int
 	imageOutputSizes []string
-	responseBody     []byte
 }
 
 const openAIStreamKeepaliveBytesKey = "openai_stream_keepalive_bytes"
@@ -2022,7 +2016,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	documentScanner := newOpenAISSEJSONDocumentScanner(scanner)
 
 	needModelReplace := strings.TrimSpace(originalModel) != "" && strings.TrimSpace(mappedModel) != "" && strings.TrimSpace(originalModel) != strings.TrimSpace(mappedModel)
-	var finalResponseBody []byte
 	responseAccumulator := apicompat.NewBufferedResponseAccumulator()
 	streamDoneItems := newResponsesStreamOutputItems()
 	streamImageOutputs := make([]json.RawMessage, 0, 1)
@@ -2034,7 +2027,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			responseID:       responseID,
 			imageCount:       imageCounter.Count(),
 			imageOutputSizes: imageCounter.Sizes(),
-			responseBody:     cloneDataSharingRequestBody(finalResponseBody),
 		}
 	}
 
@@ -2197,23 +2189,6 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				trimmedData = strings.TrimSpace(data)
 				line = "data: " + data
 				eventType = strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
-			}
-			if eventType == "response.completed" || eventType == "response.done" {
-				if response := gjson.GetBytes(dataBytes, "response"); response.Exists() && response.Type == gjson.JSON && response.Raw != "" {
-					finalResponseBody = []byte(response.Raw)
-
-					if len(gjson.GetBytes(finalResponseBody, "output").Array()) == 0 {
-						outputJSON, reconstructed := streamDoneItems.BuildOutput()
-						if !reconstructed {
-							outputJSON, reconstructed = buildResponsesOutputJSON(responseAccumulator, streamImageOutputs)
-						}
-						if reconstructed {
-							if patched, err := sjson.SetRawBytes(finalResponseBody, "output", outputJSON); err == nil {
-								finalResponseBody = patched
-							}
-						}
-					}
-				}
 			}
 			imageCounter.AddSSEData(dataBytes)
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
@@ -2407,7 +2382,6 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
 		imageCount:       countOpenAIResponseImageOutputsFromJSONBytes(body),
 		imageOutputSizes: collectOpenAIResponseImageOutputSizesFromJSONBytes(body),
-		responseBody:     cloneDataSharingRequestBody(body),
 	}, nil
 }
 
@@ -2490,7 +2464,6 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
 		imageCount:       countOpenAIImageOutputsFromSSEBody(bodyText),
 		imageOutputSizes: collectOpenAIImageOutputSizesFromSSEBody(bodyText),
-		responseBody:     cloneDataSharingRequestBody(body),
 	}, nil
 }
 

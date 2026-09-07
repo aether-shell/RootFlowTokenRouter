@@ -116,9 +116,8 @@ func TestSettingService_GetPublicSettings_ExposesAffiliateEnabled(t *testing.T) 
 func TestSettingService_GetPublicSettings_ExposesPageFeatureFlags(t *testing.T) {
 	repo := &settingPublicRepoStub{
 		values: map[string]string{
-			SettingKeyTeamEnabled:        "false",
-			SettingKeyDataSharingEnabled: "false",
-			SettingKeyCreativeEnabled:    "false",
+			SettingKeyTeamEnabled:     "false",
+			SettingKeyCreativeEnabled: "false",
 		},
 	}
 	svc := NewSettingService(repo, &config.Config{Team: config.TeamConfig{Enabled: true}})
@@ -126,7 +125,6 @@ func TestSettingService_GetPublicSettings_ExposesPageFeatureFlags(t *testing.T) 
 	settings, err := svc.GetPublicSettings(context.Background())
 	require.NoError(t, err)
 	require.False(t, settings.TeamEnabled)
-	require.False(t, settings.DataSharingEnabled)
 	require.False(t, settings.CreativeEnabled)
 }
 
@@ -170,7 +168,6 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 			SettingKeyUserEmailChangeEnabled:              "true",
 			SettingKeyAllowUserViewErrorRequests:          "true",
 			SettingKeyTeamEnabled:                         "true",
-			SettingKeyDataSharingEnabled:                  "false",
 			SettingKeyCreativeEnabled:                     "false",
 		},
 	}
@@ -190,7 +187,6 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 		ForceEmailOnThirdPartySignup        bool `json:"force_email_on_third_party_signup"`
 		AllowUserViewErrorRequests          bool `json:"allow_user_view_error_requests"`
 		TeamEnabled                         bool `json:"team_enabled"`
-		DataSharingEnabled                  bool `json:"data_sharing_enabled"`
 		CreativeEnabled                     bool `json:"creative_enabled"`
 		PasskeyEnabled                      bool `json:"passkey_enabled"`
 		RegistrationEmailDomainQuotaEnabled bool `json:"registration_email_domain_quota_enabled"`
@@ -201,7 +197,6 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 	require.True(t, settings.ForceEmailOnThirdPartySignup)
 	require.True(t, settings.AllowUserViewErrorRequests)
 	require.True(t, settings.TeamEnabled)
-	require.False(t, settings.DataSharingEnabled)
 	require.False(t, settings.CreativeEnabled)
 	require.True(t, settings.PasskeyEnabled)
 	require.True(t, settings.RegistrationEmailDomainQuotaEnabled)

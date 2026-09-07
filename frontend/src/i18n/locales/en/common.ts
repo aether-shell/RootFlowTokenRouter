@@ -114,7 +114,6 @@ export default {
     batchImage: 'Batch Images',
     creative: 'Creative Studio',
     usage: 'Usage',
-    dataSharing: 'Data Sharing',
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
     affiliateManagement: 'Affiliate Rebates',

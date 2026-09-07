@@ -120,10 +120,6 @@ backup: {
           title: '运行时任务与临时数据',
           description: '包含幂等缓存、调度 outbox、待完成登录会话、清理任务和定时测试结果。'
         },
-        dataShareSessions: {
-          title: '数据共享会话',
-          description: '包含数据共享分组采集的完整 Agent 对话和压缩载荷，可能随请求量快速增长。'
-        }
       },
       s3: {
         title: 'S3 存储配置',
@@ -809,6 +805,22 @@ affiliates: {
     },
 // Groups Management
     groups: {
+      accountFilters: {
+        title: '账号过滤控制',
+        oauthOnly: '仅允许 OAuth 账号',
+        privacyRequired: '仅允许隐私保护已设置的账号'
+      },
+      tabs: {
+        label: '分组设置',
+        general: '通用',
+        platform: '平台设置',
+        pricing: '计费与定价',
+        protocol: '协议控制',
+        identity: '基本信息',
+        scheduling: '调度与访问',
+        imageCapabilities: '图片能力',
+        batchPricing: '批量图片计费'
+      },
       title: '分组管理',
       description: '管理 API 密钥分组和费率配置',
       searchGroups: '搜索分组...',
@@ -834,7 +846,6 @@ affiliates: {
         displayBrand: '品牌类型',
         schedulerType: '调度器',
         rateMultiplier: '费率倍数',
-        dataSharing: '数据共享',
         sessionIsolation: '会话隔离',
         rpmOverride: 'RPM 覆盖',
         rpmOverrideHint: '该用户在此分组的 RPM 上限；留空 = 使用分组默认；0 = 不限制',
@@ -947,14 +958,6 @@ affiliates: {
         title: '指定 fallback 分组',
         noFallback: '不指定（使用默认分组）',
         hint: '当该分组被停用时，绑定到该分组的 API Key 会优先回退到这里选择的分组；留空则继续回退到同平台默认分组。'
-      },
-      dataSharing: {
-        title: '数据共享分组',
-        enabled: '已启用',
-        disabled: '未启用',
-        enabledText: '采集对话数据',
-        disabledText: '不采集对话数据',
-        hint: '开启后，用户切换 API Key 到该分组前需要确认“数据共享须知”。'
       },
       sessionIsolation: {
         title: '开启会话隔离',
@@ -1105,7 +1108,6 @@ affiliates: {
         batchHoldMultiplier: '批量冻结价格比例',
         batchSectionHint: '批量生图仅影响批量任务：结算价格会叠加批量折扣倍率，提交时冻结金额按普通生图原价 × 批量冻结价格比例计算。参考图也会产生上游输入 token 消耗，建议批量生图折扣倍率设置大于 0.5。',
         batchDisabledHint: '请先开启当前分组生图，才能开启批量生图。',
-        batchGeminiOnlyHint: '批量生图当前仅支持 Gemini 分组。',
         modeHint: '默认关闭独立倍率时，图片费用 = 图片价格 × 当前分组有效倍率；开启独立倍率后，图片费用 = 图片价格 × 生图独立倍率。',
         finalPricePreview: '最终单张价格预览',
         notConfigured: '未配置'
@@ -1232,7 +1234,7 @@ affiliates: {
       openaiFast: {
         title: 'OpenAI Fast',
         force: '强制使用 Fast 优先级',
-        hint: '启用后，此 OpenAI 或 Composite 分组的请求会使用 service_tier=priority；全局 Fast/Flex 策略和 API Key 覆盖仍然有效。',
+        hint: '启用后，此 OpenAI 分组的请求会使用 service_tier=priority；全局 Fast/Flex 策略和 API Key 覆盖仍然有效。',
         free: '免费 Fast',
         freeHint: '请求仍使用 priority 档位，但客户实际费用按同一请求的 Standard 价格计算。'
       },

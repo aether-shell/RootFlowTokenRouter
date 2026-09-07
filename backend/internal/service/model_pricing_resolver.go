@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
 )
 
@@ -246,16 +247,9 @@ func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, 
 	return pricing, PricingSourceLiteLLM
 }
 
-// lookupChannelPricingNormalized 查找渠道定价：先用字面模型名做精确/通配匹配，
-// 未命中时用与官方兜底价一致的归一化模型名再查一次。
-//
-// 官方兜底价对 OpenAI/Codex 族会把 gpt-5.6-luna-high 这类变体名归一化到基名
-// （billing_service.go 的 normalizeKnownOpenAICodexModel 分支），而渠道定价此前
-// 只认字面名。两者不对称导致：管理员只配基名、请求模型带 effort 后缀时，渠道定价
-// 未命中而官方兜底命中，计费候选循环首个成功即返回，渠道定价永远轮不到（issue #5256）。
-//
-// 字面名优先，保证管理员对具体变体的显式配价不被基名覆盖；非 OpenAI 模型
-// normalizeKnownOpenAICodexModel 返回空串，此处天然 no-op。
+// lookupChannelPricingNormalized 优先匹配原始请求，再复用目录的明确身份候选。
+// 候选不依赖内置价存在，避免新型号的基础名渠道价被目录回退绕过。
+// @project-doc docs/interfaces/model_catalog_and_marketplace.md#model_catalog_metadata_lookup
 func (r *ModelPricingResolver) lookupChannelPricingNormalized(ctx context.Context, groupID int64, model string) *ChannelModelPricing {
 	if r == nil || r.channelService == nil {
 		return nil
@@ -263,8 +257,19 @@ func (r *ModelPricingResolver) lookupChannelPricingNormalized(ctx context.Contex
 	if pricing := r.channelService.GetEffectiveChannelModelPricing(ctx, groupID, model); pricing != nil {
 		return pricing
 	}
+	candidates := buildModelLookupCandidates(model)
+	for _, candidate := range candidates {
+		if strings.EqualFold(candidate, strings.TrimSpace(model)) {
+			continue
+		}
+		if pricing := r.channelService.GetEffectiveChannelModelPricing(ctx, groupID, candidate); pricing != nil {
+			return pricing
+		}
+	}
+
+	// 保留原有 OpenAI 日期和兼容路由名称的渠道匹配，明确的同型号候选始终优先。
 	normalized := normalizeKnownOpenAICodexModel(model)
-	if normalized == "" || strings.EqualFold(normalized, strings.TrimSpace(model)) {
+	if normalized == "" || slices.Contains(candidates, normalized) {
 		return nil
 	}
 	return r.channelService.GetEffectiveChannelModelPricing(ctx, groupID, normalized)

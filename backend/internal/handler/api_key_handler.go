@@ -58,9 +58,6 @@ type CreateAPIKeyRequest struct {
 	RateLimit7d *float64 `json:"rate_limit_7d"`
 	// 绑定分组不可用时是否自动回退到同平台默认分组，nil 表示使用服务层默认值。
 	FallbackToDefaultGroupWhenUnavailable *bool `json:"fallback_to_default_group_when_unavailable"`
-	// 创建时直接选择数据共享分组也必须由弹窗确认。
-	DataSharingConfirmed     bool `json:"data_sharing_confirmed"`
-	DataSharingNoticeVersion int  `json:"data_sharing_notice_version"`
 }
 
 // UpdateAPIKeyRequest represents the update API key request payload
@@ -88,9 +85,6 @@ type UpdateAPIKeyRequest struct {
 	ResetRateLimitUsage *bool    `json:"reset_rate_limit_usage"` // 重置限速用量
 	// nil 表示保持原配置不变。
 	FallbackToDefaultGroupWhenUnavailable *bool `json:"fallback_to_default_group_when_unavailable"`
-	// 数据共享确认字段：倒计时弹窗确认后由前端传入。
-	DataSharingConfirmed     bool `json:"data_sharing_confirmed"`
-	DataSharingNoticeVersion int  `json:"data_sharing_notice_version"`
 }
 
 type apiKeyLimitInput struct {
@@ -258,8 +252,6 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		ModelMapping:                          req.ModelMapping,
 		ExpiresInDays:                         req.ExpiresInDays,
 		FallbackToDefaultGroupWhenUnavailable: req.FallbackToDefaultGroupWhenUnavailable,
-		DataSharingConfirmed:                  req.DataSharingConfirmed,
-		DataSharingNoticeVersion:              req.DataSharingNoticeVersion,
 	}
 	if req.Quota != nil {
 		svcReq.Quota = *req.Quota
@@ -324,8 +316,6 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
 		RateLimit7d:                           req.RateLimit7d,
 		ResetRateLimitUsage:                   req.ResetRateLimitUsage,
 		FallbackToDefaultGroupWhenUnavailable: req.FallbackToDefaultGroupWhenUnavailable,
-		DataSharingConfirmed:                  req.DataSharingConfirmed,
-		DataSharingNoticeVersion:              req.DataSharingNoticeVersion,
 	}
 	if req.Name != "" {
 		svcReq.Name = &req.Name

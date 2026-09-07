@@ -47,7 +47,6 @@ func newGatewayRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo 
 		nil,
 		nil,
 		nil, // 用户平台配额仓库
-		nil, // 数据共享服务
 	)
 }
 
@@ -80,7 +79,6 @@ func newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo UsageLogReposi
 		nil,
 		nil,
 		&DeferredService{},
-		nil,
 		nil,
 		nil,
 		nil,

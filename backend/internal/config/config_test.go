@@ -2118,41 +2118,6 @@ func TestValidateConfigErrors(t *testing.T) {
 			wantErr: "gateway.usage_record.auto_scale_check_interval_seconds",
 		},
 		{
-			name:    "gateway data sharing capture worker count",
-			mutate:  func(c *Config) { c.Gateway.DataSharingCapture.WorkerCount = 0 },
-			wantErr: "gateway.data_sharing_capture.worker_count",
-		},
-		{
-			name:    "gateway data sharing capture queue size",
-			mutate:  func(c *Config) { c.Gateway.DataSharingCapture.QueueSize = 0 },
-			wantErr: "gateway.data_sharing_capture.queue_size",
-		},
-		{
-			name:    "gateway data sharing capture timeout",
-			mutate:  func(c *Config) { c.Gateway.DataSharingCapture.TaskTimeoutSeconds = 0 },
-			wantErr: "gateway.data_sharing_capture.task_timeout_seconds",
-		},
-		{
-			name:    "gateway data sharing capture compression level",
-			mutate:  func(c *Config) { c.Gateway.DataSharingCapture.CompressionLevel = "ultra" },
-			wantErr: "gateway.data_sharing_capture.compression_level",
-		},
-		{
-			name:    "gateway data sharing capture buffer idle flush",
-			mutate:  func(c *Config) { c.Gateway.DataSharingCapture.BufferIdleFlushSeconds = 0 },
-			wantErr: "gateway.data_sharing_capture.buffer_idle_flush_seconds",
-		},
-		{
-			name:    "gateway data sharing capture buffer max sessions",
-			mutate:  func(c *Config) { c.Gateway.DataSharingCapture.BufferMaxSessions = 0 },
-			wantErr: "gateway.data_sharing_capture.buffer_max_sessions",
-		},
-		{
-			name:    "gateway data sharing capture buffer max pending events",
-			mutate:  func(c *Config) { c.Gateway.DataSharingCapture.BufferMaxPendingEvents = 0 },
-			wantErr: "gateway.data_sharing_capture.buffer_max_pending_events",
-		},
-		{
 			name:    "gateway user group rate cache ttl",
 			mutate:  func(c *Config) { c.Gateway.UserGroupRateCacheTTLSeconds = 0 },
 			wantErr: "gateway.user_group_rate_cache_ttl_seconds",
@@ -2680,38 +2645,6 @@ func TestLoad_DefaultGatewayUsageRecordConfig(t *testing.T) {
 	}
 	if cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds != 10 {
 		t.Fatalf("auto_scale_cooldown_seconds = %d, want 10", cfg.Gateway.UsageRecord.AutoScaleCooldownSeconds)
-	}
-}
-
-func TestLoad_DefaultGatewayDataSharingCaptureConfig(t *testing.T) {
-	resetViperWithJWTSecret(t)
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-	if cfg.Gateway.DataSharingCapture.WorkerCount != 32 {
-		t.Fatalf("worker_count = %d, want 32", cfg.Gateway.DataSharingCapture.WorkerCount)
-	}
-	if cfg.Gateway.DataSharingCapture.QueueSize != 32768 {
-		t.Fatalf("queue_size = %d, want 32768", cfg.Gateway.DataSharingCapture.QueueSize)
-	}
-	if cfg.Gateway.DataSharingCapture.TaskTimeoutSeconds != 15 {
-		t.Fatalf("task_timeout_seconds = %d, want 15", cfg.Gateway.DataSharingCapture.TaskTimeoutSeconds)
-	}
-	if cfg.Gateway.DataSharingCapture.CompressionLevel != "fastest" {
-		t.Fatalf("compression_level = %q, want fastest", cfg.Gateway.DataSharingCapture.CompressionLevel)
-	}
-	if !cfg.Gateway.DataSharingCapture.BufferEnabled {
-		t.Fatalf("buffer_enabled = false, want true")
-	}
-	if cfg.Gateway.DataSharingCapture.BufferIdleFlushSeconds != 30 {
-		t.Fatalf("buffer_idle_flush_seconds = %d, want 30", cfg.Gateway.DataSharingCapture.BufferIdleFlushSeconds)
-	}
-	if cfg.Gateway.DataSharingCapture.BufferMaxSessions != 4096 {
-		t.Fatalf("buffer_max_sessions = %d, want 4096", cfg.Gateway.DataSharingCapture.BufferMaxSessions)
-	}
-	if cfg.Gateway.DataSharingCapture.BufferMaxPendingEvents != 65536 {
-		t.Fatalf("buffer_max_pending_events = %d, want 65536", cfg.Gateway.DataSharingCapture.BufferMaxPendingEvents)
 	}
 }
 

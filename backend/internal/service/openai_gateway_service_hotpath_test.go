@@ -139,10 +139,113 @@ func TestOpenAIGatewayService_Forward_APIKeyMissingInstructionsKeepsLargeInputRa
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
-	expectedBody := `{"model":"gpt-5","stream":false,"reasoning":{"effort":"none"},"input":[{"type":"message","content":[{"type":"input_text","text":"hi","nonce":9007199254740993}]}]}`
+	expectedBody := `{"model":"gpt-5","stream":false,"reasoning":{"effort":"minimal"},"input":[{"type":"message","content":[{"type":"input_text","text":"hi","nonce":9007199254740993}]}]}`
 	require.JSONEq(t, expectedBody, string(upstream.lastBody))
 	require.False(t, gjson.GetBytes(upstream.lastBody, "instructions").Exists())
 	require.Equal(t, "9007199254740993", gjson.GetBytes(upstream.lastBody, "input.0.content.0.nonce").Raw)
+}
+
+func TestOpenAIGatewayService_Forward_AstraReasoningEffortUsesGroupMapping(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, effort := range []string{"minimal", "none"} {
+		t.Run(effort, func(t *testing.T) {
+			upstream := &httpUpstreamRecorder{
+				resp: &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
+				},
+			}
+			cfg := &config.Config{}
+			cfg.Security.URLAllowlist.Enabled = false
+			svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+			account := &Account{
+				ID:          3,
+				Name:        "openai-apikey",
+				Platform:    PlatformOpenAI,
+				Type:        AccountTypeAPIKey,
+				Concurrency: 1,
+				Credentials: map[string]any{
+					"api_key":  "sk-test",
+					"base_url": "https://api.openai.com",
+					"model_mapping": map[string]any{
+						"client-model": "gpt-6-astra",
+					},
+				},
+				Extra: map[string]any{"use_responses_api": true},
+			}
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+
+			body := []byte(`{"model":"client-model","stream":false,"reasoning":{"effort":"` + effort + `"},"input":"hi"}`)
+			mappedBody, changed, err := ApplyOpenAIReasoningEffortPolicy(body, "", []ReasoningEffortMapping{{
+				From:      effort,
+				To:        "low",
+				MatchType: "exact",
+				Model:     "client-model",
+			}}, "")
+			require.NoError(t, err)
+			require.True(t, changed)
+
+			result, err := svc.Forward(context.Background(), c, account, mappedBody)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.NotNil(t, upstream.lastReq)
+			require.Equal(t, "gpt-6-astra", gjson.GetBytes(upstream.lastBody, "model").String())
+			require.Equal(t, "low", gjson.GetBytes(upstream.lastBody, "reasoning.effort").String())
+		})
+	}
+}
+
+func TestOpenAIGatewayService_Forward_PassthroughPreservesAstraInputWithoutGroupMapping(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, tt := range []struct {
+		effort string
+		want   string
+	}{
+		{effort: "none", want: "none"},
+		{effort: "minimal", want: "minimal"},
+	} {
+		t.Run(tt.effort, func(t *testing.T) {
+			upstream := &httpUpstreamRecorder{
+				resp: &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
+				},
+			}
+			cfg := &config.Config{}
+			cfg.Security.URLAllowlist.Enabled = false
+			svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+			account := &Account{
+				ID:          4,
+				Name:        "openai-passthrough",
+				Platform:    PlatformOpenAI,
+				Type:        AccountTypeAPIKey,
+				Concurrency: 1,
+				Credentials: map[string]any{
+					"api_key":  "sk-test",
+					"base_url": "https://api.openai.com",
+				},
+				Extra: map[string]any{"openai_passthrough": true},
+			}
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+			SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+
+			result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-6-astra","reasoning":{"effort":"`+tt.effort+`"},"input":"hi"}`))
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.NotNil(t, upstream.lastReq)
+			require.Equal(t, tt.want, gjson.GetBytes(upstream.lastBody, "reasoning.effort").String())
+			require.NotEqual(t, "low", gjson.GetBytes(upstream.lastBody, "reasoning.effort").String())
+		})
+	}
 }
 
 func TestOpenAIGatewayService_Forward_DecodedMutationKeepsLaterFieldDeletes(t *testing.T) {

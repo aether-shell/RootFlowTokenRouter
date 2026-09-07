@@ -1216,7 +1216,6 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingStillCollectsUsageAf
 	require.NotNil(t, result.usage)
 	require.Equal(t, 11, result.usage.InputTokens)
 	require.Equal(t, 5, result.usage.OutputTokens)
-	require.JSONEq(t, `{"role":"assistant","type":"message","usage":{"input_tokens":11,"output_tokens":5}}`, string(result.responseBody))
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_MissingTerminalEventReturnsError(t *testing.T) {
@@ -1283,7 +1282,6 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardDirect_NonStreamingSuc
 	require.Equal(t, 7, result.Usage.OutputTokens)
 	require.Equal(t, 5, result.Usage.CacheCreationInputTokens)
 	require.Equal(t, 4, result.Usage.CacheReadInputTokens)
-	require.JSONEq(t, upstreamJSON, string(result.ResponseBody))
 	require.Equal(t, upstreamJSON, rec.Body.String())
 }
 

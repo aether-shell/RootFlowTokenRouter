@@ -4,7 +4,7 @@
       <!-- Backdrop: click anywhere outside to close -->
       <div class="fixed inset-0 z-[9998]" @click="emit('close')"></div>
       <div
-        class="action-menu-content fixed z-[9999] w-52 overflow-hidden rounded-control bg-white shadow-lg ring-1 ring-black/5 dark:bg-dark-800"
+        class="action-menu-content fixed z-[9999] max-h-[calc(100dvh-16px)] w-52 overflow-y-auto rounded-control bg-white shadow-lg ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10"
         :style="{ top: position.top + 'px', left: position.left + 'px' }"
         @click.stop
       >
@@ -64,6 +64,12 @@
               <Icon name="refresh" size="sm" />
               {{ t('admin.accounts.resetQuota') }}
             </button>
+            <!-- 删除置于菜单底部，并继续交由页面弹出确认框。 -->
+            <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
+            <button type="button" @click="$emit('delete', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+              <Icon name="trash" size="sm" />
+              {{ t('common.delete') }}
+            </button>
           </template>
         </div>
       </div>
@@ -78,7 +84,7 @@ import { Icon } from '@/components/icons'
 import type { Account } from '@/types'
 
 const props = defineProps<{ show: boolean; account: Account | null; position: { top: number; left: number } | null }>()
-const emit = defineEmits(['close', 'test', 'stats', 'advanced-scheduler-score', 'schedule', 'duplicate', 'reauth', 'refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'invite-reset', 'create-spark-shadow'])
+const emit = defineEmits(['close', 'test', 'stats', 'advanced-scheduler-score', 'schedule', 'duplicate', 'reauth', 'refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'invite-reset', 'create-spark-shadow', 'delete'])
 const { t } = useI18n()
 const canDuplicate = computed(() => {
   if (!props.account || props.account.parent_account_id != null) return false

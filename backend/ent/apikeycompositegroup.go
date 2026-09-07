@@ -33,10 +33,6 @@ type APIKeyCompositeGroup struct {
 	NormalizedPrefix string `json:"normalized_prefix,omitempty"`
 	// SortOrder holds the value of the "sort_order" field.
 	SortOrder int `json:"sort_order,omitempty"`
-	// DataSharingNoticeVersion holds the value of the "data_sharing_notice_version" field.
-	DataSharingNoticeVersion int `json:"data_sharing_notice_version,omitempty"`
-	// DataSharingConfirmedAt holds the value of the "data_sharing_confirmed_at" field.
-	DataSharingConfirmedAt *time.Time `json:"data_sharing_confirmed_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the APIKeyCompositeGroupQuery when eager-loading is set.
 	Edges        APIKeyCompositeGroupEdges `json:"edges"`
@@ -81,11 +77,11 @@ func (*APIKeyCompositeGroup) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case apikeycompositegroup.FieldID, apikeycompositegroup.FieldAPIKeyID, apikeycompositegroup.FieldGroupID, apikeycompositegroup.FieldSortOrder, apikeycompositegroup.FieldDataSharingNoticeVersion:
+		case apikeycompositegroup.FieldID, apikeycompositegroup.FieldAPIKeyID, apikeycompositegroup.FieldGroupID, apikeycompositegroup.FieldSortOrder:
 			values[i] = new(sql.NullInt64)
 		case apikeycompositegroup.FieldPrefix, apikeycompositegroup.FieldNormalizedPrefix:
 			values[i] = new(sql.NullString)
-		case apikeycompositegroup.FieldCreatedAt, apikeycompositegroup.FieldUpdatedAt, apikeycompositegroup.FieldDataSharingConfirmedAt:
+		case apikeycompositegroup.FieldCreatedAt, apikeycompositegroup.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -149,19 +145,6 @@ func (_m *APIKeyCompositeGroup) assignValues(columns []string, values []any) err
 				return fmt.Errorf("unexpected type %T for field sort_order", values[i])
 			} else if value.Valid {
 				_m.SortOrder = int(value.Int64)
-			}
-		case apikeycompositegroup.FieldDataSharingNoticeVersion:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field data_sharing_notice_version", values[i])
-			} else if value.Valid {
-				_m.DataSharingNoticeVersion = int(value.Int64)
-			}
-		case apikeycompositegroup.FieldDataSharingConfirmedAt:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field data_sharing_confirmed_at", values[i])
-			} else if value.Valid {
-				_m.DataSharingConfirmedAt = new(time.Time)
-				*_m.DataSharingConfirmedAt = value.Time
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -229,14 +212,6 @@ func (_m *APIKeyCompositeGroup) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("sort_order=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SortOrder))
-	builder.WriteString(", ")
-	builder.WriteString("data_sharing_notice_version=")
-	builder.WriteString(fmt.Sprintf("%v", _m.DataSharingNoticeVersion))
-	builder.WriteString(", ")
-	if v := _m.DataSharingConfirmedAt; v != nil {
-		builder.WriteString("data_sharing_confirmed_at=")
-		builder.WriteString(v.Format(time.ANSIC))
-	}
 	builder.WriteByte(')')
 	return builder.String()
 }

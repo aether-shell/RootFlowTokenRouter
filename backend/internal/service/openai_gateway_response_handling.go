@@ -33,7 +33,6 @@ type openaiStreamingResult struct {
 	imageCount       int
 	imageOutputSizes []string
 	searchCount      int
-	responseBody     []byte
 }
 
 type openaiNonStreamingResult struct {
@@ -43,7 +42,6 @@ type openaiNonStreamingResult struct {
 	imageCount       int
 	imageOutputSizes []string
 	searchCount      int
-	responseBody     []byte
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string) (*openaiStreamingResult, error) {
@@ -346,7 +344,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	}
 
 	needModelReplace := originalModel != mappedModel
-	var finalResponseBody []byte
 	responseAccumulator := apicompat.NewBufferedResponseAccumulator()
 	streamDoneItems := newResponsesStreamOutputItems()
 	streamImageOutputs := make([]json.RawMessage, 0, 1)
@@ -363,7 +360,6 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			imageCount:       imageCounter.Count(),
 			imageOutputSizes: imageCounter.Sizes(),
 			searchCount:      searchCounter,
-			responseBody:     cloneDataSharingRequestBody(finalResponseBody),
 		}
 	}
 	flushPending := func(disconnectMessage string) {
@@ -1585,7 +1581,6 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		imageCount:       countOpenAIResponseImageOutputsFromJSONBytes(body),
 		imageOutputSizes: collectOpenAIResponseImageOutputSizesFromJSONBytes(body),
 		searchCount:      countGrokNativeSearchCallsFromJSONBytes(body),
-		responseBody:     cloneDataSharingRequestBody(body),
 	}, nil
 }
 
@@ -1718,7 +1713,6 @@ func (s *OpenAIGatewayService) handleSSEToJSON(ctx context.Context, resp *http.R
 		imageCount:       countOpenAIImageOutputsFromSSEBody(bodyText),
 		imageOutputSizes: collectOpenAIImageOutputSizesFromSSEBody(bodyText),
 		searchCount:      countGrokNativeSearchCallsFromSSEBody(bodyText),
-		responseBody:     cloneDataSharingRequestBody(body),
 	}, nil
 }
 

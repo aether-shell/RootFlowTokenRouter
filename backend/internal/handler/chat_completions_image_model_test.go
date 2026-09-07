@@ -134,7 +134,7 @@ func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService 
 	t.Helper()
 	gatewayService := service.NewOpenAIGatewayService(
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, channelService, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, channelService, nil, nil, nil,
 	)
 	return newOpenAIImageChatRejectionHandlerWithService(t, &concurrencyCacheMock{}, gatewayService)
 }

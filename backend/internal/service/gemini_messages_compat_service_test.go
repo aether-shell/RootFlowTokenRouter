@@ -87,7 +87,7 @@ func TestGeminiForwardAsChatCompletions_OAuthRoutesToGeminiAndReturnsChatFormat(
 	require.Equal(t, "gemini-2.5-flash-upstream", result.UpstreamModel)
 	require.Equal(t, 7, result.Usage.InputTokens)
 	require.Equal(t, 3, result.Usage.OutputTokens)
-	require.Equal(t, "hello from gemini", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
+	require.Equal(t, "hello from gemini", gjson.GetBytes(rec.Body.Bytes(), "choices.0.message.content").String())
 
 	require.NotNil(t, httpStub.lastReq)
 	require.Contains(t, httpStub.lastReq.URL.String(), "/v1internal:streamGenerateContent?alt=sse")
@@ -252,7 +252,6 @@ func TestGeminiForwardAsChatCompletions_StreamsOpenAIChunksFromGeminiSSE(t *test
 	require.True(t, result.Stream)
 	require.Equal(t, 2, result.Usage.InputTokens)
 	require.Equal(t, 2, result.Usage.OutputTokens)
-	require.Equal(t, "hello", gjson.GetBytes(result.ResponseBody, "choices.0.message.content").String())
 
 	require.NotNil(t, httpStub.lastReq)
 	require.Contains(t, httpStub.lastReq.URL.String(), "/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse")
@@ -311,9 +310,6 @@ func TestGeminiMessagesCompatServiceForward_StreamingClosesToolUseBeforeText(t *
 	require.Greater(t, toolStop, toolStart, "tool_use 块应被关闭")
 	require.Greater(t, textStart, toolStop, "文本块必须在 tool_use 块关闭后开始")
 
-	require.Equal(t, "tool_use", gjson.GetBytes(result.ResponseBody, "stop_reason").String())
-	require.Equal(t, "tool_use", gjson.GetBytes(result.ResponseBody, "content.0.type").String())
-	require.Equal(t, "text", gjson.GetBytes(result.ResponseBody, "content.1.type").String())
 }
 
 func parseSSEEventsForTest(t *testing.T, stream string) []map[string]any {
@@ -761,10 +757,10 @@ func TestGeminiHandleNativeNonStreamingResponse_DebugDisabledDoesNotEmitHeaderLo
 		Body: io.NopCloser(strings.NewReader(`{"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":2}}`)),
 	}
 
-	usage, responseBody, err := svc.handleNativeNonStreamingResponse(c, resp, false)
+	usage, err := svc.handleNativeNonStreamingResponse(c, resp, false)
 	require.NoError(t, err)
 	require.NotNil(t, usage)
-	require.NotEmpty(t, responseBody)
+	require.NotEmpty(t, w.Body.Bytes())
 	require.False(t, logSink.ContainsMessage("[GeminiAPI]"), "debug 关闭时不应输出 Gemini 响应头日志")
 }
 
@@ -799,7 +795,7 @@ func TestGeminiMessagesCompatServiceForward_PreservesRequestedModelAndMappedUpst
 	require.NotNil(t, result)
 	require.Equal(t, "claude-sonnet-4", result.Model)
 	require.Equal(t, "claude-sonnet-4-20250514", result.UpstreamModel)
-	require.Equal(t, "hello", gjson.GetBytes(result.ResponseBody, "content.0.text").String())
+	require.Equal(t, "hello", gjson.GetBytes(w.Body.Bytes(), "content.0.text").String())
 	require.Equal(t, 1, httpStub.calls)
 	require.NotNil(t, httpStub.lastReq)
 	require.Contains(t, httpStub.lastReq.URL.String(), "/models/claude-sonnet-4-20250514:")

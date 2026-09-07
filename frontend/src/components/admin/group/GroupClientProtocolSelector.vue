@@ -28,21 +28,12 @@
           >{{ protocolEndpoints[protocol] }}</code>
         </div>
 
-        <button
-          type="button"
-          role="switch"
+        <Toggle
+          :model-value="isEnabled(protocol)"
           :data-protocol="protocol"
-          :aria-checked="isEnabled(protocol)"
           :aria-label="t(`admin.groups.clientProtocols.labels.${protocol}`)"
-          class="relative inline-flex h-6 w-12 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-          :class="isEnabled(protocol) ? 'group-switch-active' : 'bg-gray-300 dark:bg-dark-600'"
-          @click="toggle(protocol)"
-        >
-          <span
-            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-            :class="isEnabled(protocol) ? 'translate-x-6' : 'translate-x-1'"
-          />
-        </button>
+          @update:model-value="toggle(protocol)"
+        />
       </div>
     </div>
   </section>
@@ -51,6 +42,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import Toggle from '@/components/common/Toggle.vue'
 import type { GroupClientProtocol, GroupPlatform } from '@/types'
 import {
   hasGroupClientProtocol,

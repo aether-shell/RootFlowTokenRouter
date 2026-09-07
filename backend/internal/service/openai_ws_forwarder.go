@@ -572,19 +572,7 @@ func openAIWSEventMayCarryUpstreamWarning(eventType string) bool {
 	}
 }
 
-func openAIWSTerminalEventResponseBody(message []byte) []byte {
-	if len(message) == 0 {
-		return nil
-	}
-	response := gjson.GetBytes(message, "response")
-	if response.Exists() && response.Raw != "" {
-		// 数据共享解析的是普通 Responses 响应体，这里只取 terminal event 中的 response 对象。
-		return []byte(response.Raw)
-	}
-	return cloneOpenAIWSPayloadBytes(message)
-}
-
-// OpenAIWSTurnCapture 描述一次 WS turn 完成后用于 usage 和数据共享采集的上下文。
+// OpenAIWSTurnCapture 描述一次 WS turn 完成后用于用量结算和错误处理的上下文。
 type OpenAIWSTurnCapture struct {
 	Turn               int
 	StartedAt          time.Time

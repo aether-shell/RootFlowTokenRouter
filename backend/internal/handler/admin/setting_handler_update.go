@@ -358,10 +358,9 @@ type UpdateSettingsRequest struct {
 
 	// 风控中心功能开关
 	RiskControlEnabled *bool `json:"risk_control_enabled"`
-	// 团队、数据共享和创作台页面功能开关
-	TeamEnabled        *bool `json:"team_enabled"`
-	DataSharingEnabled *bool `json:"data_sharing_enabled"`
-	CreativeEnabled    *bool `json:"creative_enabled"`
+	// 团队和创作台页面功能开关
+	TeamEnabled     *bool `json:"team_enabled"`
+	CreativeEnabled *bool `json:"creative_enabled"`
 
 	// cyber 会话屏蔽开关与 TTL
 	CyberSessionBlockEnabled    *bool `json:"cyber_session_block_enabled"`
@@ -1858,12 +1857,6 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.TeamEnabled
 		}(),
-		DataSharingEnabled: func() bool {
-			if req.DataSharingEnabled != nil {
-				return *req.DataSharingEnabled
-			}
-			return previousSettings.DataSharingEnabled
-		}(),
 		CreativeEnabled: func() bool {
 			if req.CreativeEnabled != nil {
 				return *req.CreativeEnabled
@@ -2445,7 +2438,6 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		DefaultConcurrency:                               updatedSettings.DefaultConcurrency,
 		DefaultBalance:                                   updatedSettings.DefaultBalance,
 		TeamEnabled:                                      updatedSettings.TeamEnabled,
-		DataSharingEnabled:                               updatedSettings.DataSharingEnabled,
 		CreativeEnabled:                                  updatedSettings.CreativeEnabled,
 		CreativeModelSettings:                            updatedSettings.CreativeModelSettings,
 		CreativeWorkerCount:                              updatedSettings.CreativeWorkerCount,

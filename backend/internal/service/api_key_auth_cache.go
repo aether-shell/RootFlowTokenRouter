@@ -48,15 +48,13 @@ type APIKeyAuthSnapshot struct {
 
 // APIKeyAuthCompositeGroupSnapshot 缓存一个复合前缀对应的完整鉴权分组。
 type APIKeyAuthCompositeGroupSnapshot struct {
-	ID                       int64                    `json:"id"`
-	GroupID                  int64                    `json:"group_id"`
-	Prefix                   string                   `json:"prefix"`
-	NormalizedPrefix         string                   `json:"normalized_prefix"`
-	SortOrder                int                      `json:"sort_order"`
-	DataSharingNoticeVersion int                      `json:"data_sharing_notice_version"`
-	DataSharingConfirmedAt   *time.Time               `json:"data_sharing_confirmed_at,omitempty"`
-	UserGroupRPMOverride     *int                     `json:"user_group_rpm_override,omitempty"`
-	Group                    *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
+	ID                   int64                    `json:"id"`
+	GroupID              int64                    `json:"group_id"`
+	Prefix               string                   `json:"prefix"`
+	NormalizedPrefix     string                   `json:"normalized_prefix"`
+	SortOrder            int                      `json:"sort_order"`
+	UserGroupRPMOverride *int                     `json:"user_group_rpm_override,omitempty"`
+	Group                *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
 }
 
 // APIKeyAuthActorSnapshot 只缓存验证成员账号状态所需的字段。
@@ -114,7 +112,6 @@ type APIKeyAuthGroupSnapshot struct {
 	IsExclusive                     bool                            `json:"is_exclusive"`
 	Status                          string                          `json:"status"`
 	RateMultiplier                  float64                         `json:"rate_multiplier"`
-	DataSharingEnabled              bool                            `json:"data_sharing_enabled"`
 	SessionIsolationEnabled         bool                            `json:"session_isolation_enabled"`
 	AllowImageGeneration            bool                            `json:"allow_image_generation"`
 	AllowBatchImageGeneration       bool                            `json:"allow_batch_image_generation"`

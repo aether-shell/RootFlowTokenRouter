@@ -399,48 +399,6 @@ func (_c *APIKeyCreate) SetNillableWindow7dStart(v *time.Time) *APIKeyCreate {
 	return _c
 }
 
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (_c *APIKeyCreate) SetDataSharingNoticeVersion(v int) *APIKeyCreate {
-	_c.mutation.SetDataSharingNoticeVersion(v)
-	return _c
-}
-
-// SetNillableDataSharingNoticeVersion sets the "data_sharing_notice_version" field if the given value is not nil.
-func (_c *APIKeyCreate) SetNillableDataSharingNoticeVersion(v *int) *APIKeyCreate {
-	if v != nil {
-		_c.SetDataSharingNoticeVersion(*v)
-	}
-	return _c
-}
-
-// SetDataSharingConfirmedGroupID sets the "data_sharing_confirmed_group_id" field.
-func (_c *APIKeyCreate) SetDataSharingConfirmedGroupID(v int64) *APIKeyCreate {
-	_c.mutation.SetDataSharingConfirmedGroupID(v)
-	return _c
-}
-
-// SetNillableDataSharingConfirmedGroupID sets the "data_sharing_confirmed_group_id" field if the given value is not nil.
-func (_c *APIKeyCreate) SetNillableDataSharingConfirmedGroupID(v *int64) *APIKeyCreate {
-	if v != nil {
-		_c.SetDataSharingConfirmedGroupID(*v)
-	}
-	return _c
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (_c *APIKeyCreate) SetDataSharingConfirmedAt(v time.Time) *APIKeyCreate {
-	_c.mutation.SetDataSharingConfirmedAt(v)
-	return _c
-}
-
-// SetNillableDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field if the given value is not nil.
-func (_c *APIKeyCreate) SetNillableDataSharingConfirmedAt(v *time.Time) *APIKeyCreate {
-	if v != nil {
-		_c.SetDataSharingConfirmedAt(*v)
-	}
-	return _c
-}
-
 // SetFallbackToDefaultGroupWhenUnavailable sets the "fallback_to_default_group_when_unavailable" field.
 func (_c *APIKeyCreate) SetFallbackToDefaultGroupWhenUnavailable(v bool) *APIKeyCreate {
 	_c.mutation.SetFallbackToDefaultGroupWhenUnavailable(v)
@@ -624,10 +582,6 @@ func (_c *APIKeyCreate) defaults() error {
 		v := apikey.DefaultUsage7d
 		_c.mutation.SetUsage7d(v)
 	}
-	if _, ok := _c.mutation.DataSharingNoticeVersion(); !ok {
-		v := apikey.DefaultDataSharingNoticeVersion
-		_c.mutation.SetDataSharingNoticeVersion(v)
-	}
 	if _, ok := _c.mutation.FallbackToDefaultGroupWhenUnavailable(); !ok {
 		v := apikey.DefaultFallbackToDefaultGroupWhenUnavailable
 		_c.mutation.SetFallbackToDefaultGroupWhenUnavailable(v)
@@ -718,9 +672,6 @@ func (_c *APIKeyCreate) check() error {
 	}
 	if _, ok := _c.mutation.Usage7d(); !ok {
 		return &ValidationError{Name: "usage_7d", err: errors.New(`ent: missing required field "APIKey.usage_7d"`)}
-	}
-	if _, ok := _c.mutation.DataSharingNoticeVersion(); !ok {
-		return &ValidationError{Name: "data_sharing_notice_version", err: errors.New(`ent: missing required field "APIKey.data_sharing_notice_version"`)}
 	}
 	if _, ok := _c.mutation.FallbackToDefaultGroupWhenUnavailable(); !ok {
 		return &ValidationError{Name: "fallback_to_default_group_when_unavailable", err: errors.New(`ent: missing required field "APIKey.fallback_to_default_group_when_unavailable"`)}
@@ -867,18 +818,6 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Window7dStart(); ok {
 		_spec.SetField(apikey.FieldWindow7dStart, field.TypeTime, value)
 		_node.Window7dStart = &value
-	}
-	if value, ok := _c.mutation.DataSharingNoticeVersion(); ok {
-		_spec.SetField(apikey.FieldDataSharingNoticeVersion, field.TypeInt, value)
-		_node.DataSharingNoticeVersion = value
-	}
-	if value, ok := _c.mutation.DataSharingConfirmedGroupID(); ok {
-		_spec.SetField(apikey.FieldDataSharingConfirmedGroupID, field.TypeInt64, value)
-		_node.DataSharingConfirmedGroupID = &value
-	}
-	if value, ok := _c.mutation.DataSharingConfirmedAt(); ok {
-		_spec.SetField(apikey.FieldDataSharingConfirmedAt, field.TypeTime, value)
-		_node.DataSharingConfirmedAt = &value
 	}
 	if value, ok := _c.mutation.FallbackToDefaultGroupWhenUnavailable(); ok {
 		_spec.SetField(apikey.FieldFallbackToDefaultGroupWhenUnavailable, field.TypeBool, value)
@@ -1488,66 +1427,6 @@ func (u *APIKeyUpsert) UpdateWindow7dStart() *APIKeyUpsert {
 // ClearWindow7dStart clears the value of the "window_7d_start" field.
 func (u *APIKeyUpsert) ClearWindow7dStart() *APIKeyUpsert {
 	u.SetNull(apikey.FieldWindow7dStart)
-	return u
-}
-
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (u *APIKeyUpsert) SetDataSharingNoticeVersion(v int) *APIKeyUpsert {
-	u.Set(apikey.FieldDataSharingNoticeVersion, v)
-	return u
-}
-
-// UpdateDataSharingNoticeVersion sets the "data_sharing_notice_version" field to the value that was provided on create.
-func (u *APIKeyUpsert) UpdateDataSharingNoticeVersion() *APIKeyUpsert {
-	u.SetExcluded(apikey.FieldDataSharingNoticeVersion)
-	return u
-}
-
-// AddDataSharingNoticeVersion adds v to the "data_sharing_notice_version" field.
-func (u *APIKeyUpsert) AddDataSharingNoticeVersion(v int) *APIKeyUpsert {
-	u.Add(apikey.FieldDataSharingNoticeVersion, v)
-	return u
-}
-
-// SetDataSharingConfirmedGroupID sets the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsert) SetDataSharingConfirmedGroupID(v int64) *APIKeyUpsert {
-	u.Set(apikey.FieldDataSharingConfirmedGroupID, v)
-	return u
-}
-
-// UpdateDataSharingConfirmedGroupID sets the "data_sharing_confirmed_group_id" field to the value that was provided on create.
-func (u *APIKeyUpsert) UpdateDataSharingConfirmedGroupID() *APIKeyUpsert {
-	u.SetExcluded(apikey.FieldDataSharingConfirmedGroupID)
-	return u
-}
-
-// AddDataSharingConfirmedGroupID adds v to the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsert) AddDataSharingConfirmedGroupID(v int64) *APIKeyUpsert {
-	u.Add(apikey.FieldDataSharingConfirmedGroupID, v)
-	return u
-}
-
-// ClearDataSharingConfirmedGroupID clears the value of the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsert) ClearDataSharingConfirmedGroupID() *APIKeyUpsert {
-	u.SetNull(apikey.FieldDataSharingConfirmedGroupID)
-	return u
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (u *APIKeyUpsert) SetDataSharingConfirmedAt(v time.Time) *APIKeyUpsert {
-	u.Set(apikey.FieldDataSharingConfirmedAt, v)
-	return u
-}
-
-// UpdateDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field to the value that was provided on create.
-func (u *APIKeyUpsert) UpdateDataSharingConfirmedAt() *APIKeyUpsert {
-	u.SetExcluded(apikey.FieldDataSharingConfirmedAt)
-	return u
-}
-
-// ClearDataSharingConfirmedAt clears the value of the "data_sharing_confirmed_at" field.
-func (u *APIKeyUpsert) ClearDataSharingConfirmedAt() *APIKeyUpsert {
-	u.SetNull(apikey.FieldDataSharingConfirmedAt)
 	return u
 }
 
@@ -2169,76 +2048,6 @@ func (u *APIKeyUpsertOne) UpdateWindow7dStart() *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) ClearWindow7dStart() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.ClearWindow7dStart()
-	})
-}
-
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (u *APIKeyUpsertOne) SetDataSharingNoticeVersion(v int) *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.SetDataSharingNoticeVersion(v)
-	})
-}
-
-// AddDataSharingNoticeVersion adds v to the "data_sharing_notice_version" field.
-func (u *APIKeyUpsertOne) AddDataSharingNoticeVersion(v int) *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.AddDataSharingNoticeVersion(v)
-	})
-}
-
-// UpdateDataSharingNoticeVersion sets the "data_sharing_notice_version" field to the value that was provided on create.
-func (u *APIKeyUpsertOne) UpdateDataSharingNoticeVersion() *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.UpdateDataSharingNoticeVersion()
-	})
-}
-
-// SetDataSharingConfirmedGroupID sets the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsertOne) SetDataSharingConfirmedGroupID(v int64) *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.SetDataSharingConfirmedGroupID(v)
-	})
-}
-
-// AddDataSharingConfirmedGroupID adds v to the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsertOne) AddDataSharingConfirmedGroupID(v int64) *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.AddDataSharingConfirmedGroupID(v)
-	})
-}
-
-// UpdateDataSharingConfirmedGroupID sets the "data_sharing_confirmed_group_id" field to the value that was provided on create.
-func (u *APIKeyUpsertOne) UpdateDataSharingConfirmedGroupID() *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.UpdateDataSharingConfirmedGroupID()
-	})
-}
-
-// ClearDataSharingConfirmedGroupID clears the value of the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsertOne) ClearDataSharingConfirmedGroupID() *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.ClearDataSharingConfirmedGroupID()
-	})
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (u *APIKeyUpsertOne) SetDataSharingConfirmedAt(v time.Time) *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.SetDataSharingConfirmedAt(v)
-	})
-}
-
-// UpdateDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field to the value that was provided on create.
-func (u *APIKeyUpsertOne) UpdateDataSharingConfirmedAt() *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.UpdateDataSharingConfirmedAt()
-	})
-}
-
-// ClearDataSharingConfirmedAt clears the value of the "data_sharing_confirmed_at" field.
-func (u *APIKeyUpsertOne) ClearDataSharingConfirmedAt() *APIKeyUpsertOne {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.ClearDataSharingConfirmedAt()
 	})
 }
 
@@ -3031,76 +2840,6 @@ func (u *APIKeyUpsertBulk) UpdateWindow7dStart() *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) ClearWindow7dStart() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.ClearWindow7dStart()
-	})
-}
-
-// SetDataSharingNoticeVersion sets the "data_sharing_notice_version" field.
-func (u *APIKeyUpsertBulk) SetDataSharingNoticeVersion(v int) *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.SetDataSharingNoticeVersion(v)
-	})
-}
-
-// AddDataSharingNoticeVersion adds v to the "data_sharing_notice_version" field.
-func (u *APIKeyUpsertBulk) AddDataSharingNoticeVersion(v int) *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.AddDataSharingNoticeVersion(v)
-	})
-}
-
-// UpdateDataSharingNoticeVersion sets the "data_sharing_notice_version" field to the value that was provided on create.
-func (u *APIKeyUpsertBulk) UpdateDataSharingNoticeVersion() *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.UpdateDataSharingNoticeVersion()
-	})
-}
-
-// SetDataSharingConfirmedGroupID sets the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsertBulk) SetDataSharingConfirmedGroupID(v int64) *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.SetDataSharingConfirmedGroupID(v)
-	})
-}
-
-// AddDataSharingConfirmedGroupID adds v to the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsertBulk) AddDataSharingConfirmedGroupID(v int64) *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.AddDataSharingConfirmedGroupID(v)
-	})
-}
-
-// UpdateDataSharingConfirmedGroupID sets the "data_sharing_confirmed_group_id" field to the value that was provided on create.
-func (u *APIKeyUpsertBulk) UpdateDataSharingConfirmedGroupID() *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.UpdateDataSharingConfirmedGroupID()
-	})
-}
-
-// ClearDataSharingConfirmedGroupID clears the value of the "data_sharing_confirmed_group_id" field.
-func (u *APIKeyUpsertBulk) ClearDataSharingConfirmedGroupID() *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.ClearDataSharingConfirmedGroupID()
-	})
-}
-
-// SetDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field.
-func (u *APIKeyUpsertBulk) SetDataSharingConfirmedAt(v time.Time) *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.SetDataSharingConfirmedAt(v)
-	})
-}
-
-// UpdateDataSharingConfirmedAt sets the "data_sharing_confirmed_at" field to the value that was provided on create.
-func (u *APIKeyUpsertBulk) UpdateDataSharingConfirmedAt() *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.UpdateDataSharingConfirmedAt()
-	})
-}
-
-// ClearDataSharingConfirmedAt clears the value of the "data_sharing_confirmed_at" field.
-func (u *APIKeyUpsertBulk) ClearDataSharingConfirmedAt() *APIKeyUpsertBulk {
-	return u.Update(func(s *APIKeyUpsert) {
-		s.ClearDataSharingConfirmedAt()
 	})
 }
 

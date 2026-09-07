@@ -237,13 +237,11 @@ func TestSettingService_PageFeatureFlagsArePersisted(t *testing.T) {
 	svc := NewSettingService(repo, &config.Config{})
 
 	err := svc.UpdateSettings(context.Background(), &SystemSettings{
-		TeamEnabled:        true,
-		DataSharingEnabled: false,
-		CreativeEnabled:    false,
+		TeamEnabled:     true,
+		CreativeEnabled: false,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "true", repo.updates[SettingKeyTeamEnabled])
-	require.Equal(t, "false", repo.updates[SettingKeyDataSharingEnabled])
 	require.Equal(t, "false", repo.updates[SettingKeyCreativeEnabled])
 }
 

@@ -34,6 +34,17 @@ func TestWSPassthroughUsageMeta_InitFromFirstFrame_NonGPT56RecordsExplicitMax(t 
 	require.Equal(t, "max", *requested, "策略改写前的档位必须单独保留")
 }
 
+func TestWSPassthroughUsageMeta_CaptureRequestedReasoningEffortPreservesNone(t *testing.T) {
+	body := []byte(`{"type":"response.create","model":"gpt-6-astra","reasoning":{"effort":"none"}}`)
+
+	meta := newOpenAIWSPassthroughUsageMeta("gpt-6-astra", body)
+	meta.captureRequestedReasoningEffort(body, "gpt-6-astra")
+
+	requested := meta.requestedReasoningEffort.Load()
+	require.NotNil(t, requested)
+	require.Equal(t, "none", *requested, "映射前的 none 必须保留为客户端原始档位")
+}
+
 func TestWSPassthroughUsageMeta_UpdateFromResponseCreate_MappedModelCandidate(t *testing.T) {
 	body := []byte(`{"type":"response.create","model":"sol","reasoning":{"effort":"max"}}`)
 

@@ -670,7 +670,6 @@ func TestBackupService_ContentConfigDefaultsExcludeLargeHistory(t *testing.T) {
 	require.False(t, cfg.IncludeOpsLogs)
 	require.False(t, cfg.IncludeAuditLogs)
 	require.False(t, cfg.IncludeRuntimeData)
-	require.False(t, cfg.IncludeDataShareSessions)
 	require.Contains(t, cfg.ExcludedTableData, "public.ops_error_logs")
 	require.Contains(t, cfg.ExcludedTableData, "public.usage_logs")
 	require.Contains(t, cfg.ExcludedTableData, "public.usage_analytics_hourly")
@@ -678,29 +677,13 @@ func TestBackupService_ContentConfigDefaultsExcludeLargeHistory(t *testing.T) {
 	require.Contains(t, cfg.ExcludedTableData, "public.usage_analytics_aggregation_state")
 	require.Contains(t, cfg.ExcludedTableData, "public.pending_auth_sessions")
 	require.Contains(t, cfg.ExcludedTableData, "public.identity_adoption_decisions")
-	require.Contains(t, cfg.ExcludedTableData, "public.data_share_sessions")
-	require.Len(t, cfg.ExcludedTableData, 34)
+	require.Len(t, cfg.ExcludedTableData, 33)
 
 	_, err = svc.CreateBackup(context.Background(), "manual", 14)
 	require.NoError(t, err)
 	require.Contains(t, dumper.opts.ExcludeTableData, "public.ops_error_logs")
 	require.Contains(t, dumper.opts.ExcludeTableData, "public.usage_billing_dedup")
 	require.Contains(t, dumper.opts.ExcludeTableData, "public.identity_adoption_decisions")
-	require.Contains(t, dumper.opts.ExcludeTableData, "public.data_share_sessions")
-}
-
-func TestBackupService_ContentConfigLegacyValueExcludesDataShareSessions(t *testing.T) {
-	repo := newMockSettingRepo()
-	svc := newTestBackupService(t, repo, &mockDumper{}, newMockObjectStore())
-
-	// 旧配置没有数据共享字段，升级后必须继续采用默认排除策略。
-	legacyConfig := `{"include_usage_records":true,"include_ops_logs":true,"include_audit_logs":true,"include_runtime_data":true}`
-	require.NoError(t, repo.Set(context.Background(), settingKeyBackupContentConfig, legacyConfig))
-
-	cfg, err := svc.GetContentConfig(context.Background())
-	require.NoError(t, err)
-	require.False(t, cfg.IncludeDataShareSessions)
-	require.Equal(t, []string{"public.data_share_sessions"}, cfg.ExcludedTableData)
 }
 
 func TestBackupService_ContentConfigCanIncludeSelectedData(t *testing.T) {
@@ -709,27 +692,23 @@ func TestBackupService_ContentConfigCanIncludeSelectedData(t *testing.T) {
 	svc := newTestBackupService(t, repo, dumper, newMockObjectStore())
 
 	cfg, err := svc.UpdateContentConfig(context.Background(), BackupContentConfig{
-		IncludeUsageRecords:      true,
-		IncludeOpsLogs:           false,
-		IncludeAuditLogs:         true,
-		IncludeRuntimeData:       false,
-		IncludeDataShareSessions: true,
+		IncludeUsageRecords: true,
+		IncludeOpsLogs:      false,
+		IncludeAuditLogs:    true,
+		IncludeRuntimeData:  false,
 	})
 	require.NoError(t, err)
-	require.True(t, cfg.IncludeDataShareSessions)
 	require.NotContains(t, cfg.ExcludedTableData, "public.usage_logs")
 	require.NotContains(t, cfg.ExcludedTableData, "public.usage_analytics_hourly")
 	require.NotContains(t, cfg.ExcludedTableData, "public.usage_analytics_daily")
 	require.NotContains(t, cfg.ExcludedTableData, "public.usage_analytics_aggregation_state")
 	require.NotContains(t, cfg.ExcludedTableData, "public.payment_audit_logs")
-	require.NotContains(t, cfg.ExcludedTableData, "public.data_share_sessions")
 	require.Contains(t, cfg.ExcludedTableData, "public.ops_error_logs")
 	require.Contains(t, cfg.ExcludedTableData, "public.scheduler_outbox")
 
 	_, err = svc.CreateBackup(context.Background(), "manual", 14)
 	require.NoError(t, err)
 	require.NotContains(t, dumper.opts.ExcludeTableData, "public.usage_logs")
-	require.NotContains(t, dumper.opts.ExcludeTableData, "public.data_share_sessions")
 	require.Contains(t, dumper.opts.ExcludeTableData, "public.ops_system_logs")
 }
 

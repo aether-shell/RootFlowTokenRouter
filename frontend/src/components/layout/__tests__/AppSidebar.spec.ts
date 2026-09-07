@@ -125,12 +125,10 @@ describe('AppSidebar admin personal menu', () => {
     expect(dashboardIndex).toBeLessThan(modelsIndex)
   })
 
-  it('uses the public feature switches for team and data sharing entries', () => {
+  it('uses the public feature switch for team entries', () => {
     // 普通用户与管理员入口必须复用同一功能判断，避免只隐藏其中一侧。
     expect(componentSource).toContain("const flagTeamAccess = () => appStore.cachedPublicSettings?.team_enabled !== false")
-    expect(componentSource).toContain("const flagDataSharingAccess = () => appStore.cachedPublicSettings?.data_sharing_enabled !== false")
     expect(componentSource.match(/path: '\/admin\/teams'.*featureFlag: flagTeamAccess/g)).toHaveLength(1)
-    expect(componentSource.match(/path: '\/admin\/data-sharing'.*featureFlag: flagDataSharingAccess/g)).toHaveLength(1)
   })
 
   it('uses distinct icons for ranking, usage, team, and affiliate entries', () => {

@@ -173,10 +173,7 @@ func createAPIKeyRecord(ctx context.Context, client *dbent.Client, key *service.
 		SetRateLimit5h(key.RateLimit5h).
 		SetRateLimit1d(key.RateLimit1d).
 		SetRateLimit7d(key.RateLimit7d).
-		SetFallbackToDefaultGroupWhenUnavailable(key.FallbackToDefaultGroupWhenUnavailable).
-		SetDataSharingNoticeVersion(key.DataSharingNoticeVersion).
-		SetNillableDataSharingConfirmedGroupID(key.DataSharingConfirmedGroupID).
-		SetNillableDataSharingConfirmedAt(key.DataSharingConfirmedAt)
+		SetFallbackToDefaultGroupWhenUnavailable(key.FallbackToDefaultGroupWhenUnavailable)
 
 	if len(key.IPWhitelist) > 0 {
 		builder.SetIPWhitelist(key.IPWhitelist)
@@ -212,9 +209,7 @@ func replaceCompositeGroupRecords(ctx context.Context, client *dbent.Client, api
 			SetGroupID(binding.GroupID).
 			SetPrefix(binding.Prefix).
 			SetNormalizedPrefix(binding.NormalizedPrefix).
-			SetSortOrder(binding.SortOrder).
-			SetDataSharingNoticeVersion(binding.DataSharingNoticeVersion).
-			SetNillableDataSharingConfirmedAt(binding.DataSharingConfirmedAt))
+			SetSortOrder(binding.SortOrder))
 	}
 	return client.APIKeyCompositeGroup.CreateBulk(builders...).Exec(ctx)
 }
@@ -405,7 +400,6 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldMaxReasoningEffort,
 				group.FieldMaxReasoningEffortOverLimit,
 				group.FieldReasoningEffortMappings,
-				group.FieldDataSharingEnabled,
 				group.FieldSessionIsolationEnabled,
 				group.FieldPeakRateEnabled,
 				group.FieldPeakStart,
@@ -524,21 +518,6 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey, fiel
 			builder.SetGroupID(*key.GroupID)
 		} else {
 			builder.ClearGroupID()
-		}
-	}
-
-	if fields.DataSharingConfirmation {
-		// 数据共享确认信息与分组切换同一次主记录更新保存。
-		builder.SetDataSharingNoticeVersion(key.DataSharingNoticeVersion)
-		if key.DataSharingConfirmedGroupID != nil {
-			builder.SetDataSharingConfirmedGroupID(*key.DataSharingConfirmedGroupID)
-		} else {
-			builder.ClearDataSharingConfirmedGroupID()
-		}
-		if key.DataSharingConfirmedAt != nil {
-			builder.SetDataSharingConfirmedAt(*key.DataSharingConfirmedAt)
-		} else {
-			builder.ClearDataSharingConfirmedAt()
 		}
 	}
 
@@ -1310,10 +1289,6 @@ func apiKeyEntityToService(m *dbent.APIKey) *service.APIKey {
 		Window7dStart:                         m.Window7dStart,
 		FallbackToDefaultGroupWhenUnavailable: m.FallbackToDefaultGroupWhenUnavailable,
 		ManagedBy:                             m.ManagedBy,
-		// 数据共享确认信息随 API Key 返回，用户端可判断是否需要重新确认须知。
-		DataSharingNoticeVersion:    m.DataSharingNoticeVersion,
-		DataSharingConfirmedGroupID: m.DataSharingConfirmedGroupID,
-		DataSharingConfirmedAt:      m.DataSharingConfirmedAt,
 	}
 	if m.Edges.User != nil {
 		out.User = userEntityToService(m.Edges.User)
@@ -1350,14 +1325,12 @@ func apiKeyEntityToService(m *dbent.APIKey) *service.APIKey {
 				continue
 			}
 			binding := service.APIKeyCompositeGroup{
-				ID:                       row.ID,
-				APIKeyID:                 row.APIKeyID,
-				GroupID:                  row.GroupID,
-				Prefix:                   row.Prefix,
-				NormalizedPrefix:         row.NormalizedPrefix,
-				SortOrder:                row.SortOrder,
-				DataSharingNoticeVersion: row.DataSharingNoticeVersion,
-				DataSharingConfirmedAt:   row.DataSharingConfirmedAt,
+				ID:               row.ID,
+				APIKeyID:         row.APIKeyID,
+				GroupID:          row.GroupID,
+				Prefix:           row.Prefix,
+				NormalizedPrefix: row.NormalizedPrefix,
+				SortOrder:        row.SortOrder,
 			}
 			if row.Edges.Group != nil {
 				binding.Group = groupEntityToService(row.Edges.Group)
@@ -1432,7 +1405,6 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		Status:                          g.Status,
 		Hydrated:                        true,
 		DuplicateOperationID:            derefString(g.DuplicateOperationID),
-		DataSharingEnabled:              g.DataSharingEnabled,
 		SessionIsolationEnabled:         g.SessionIsolationEnabled,
 		AllowImageGeneration:            g.AllowImageGeneration,
 		AllowBatchImageGeneration:       g.AllowBatchImageGeneration,

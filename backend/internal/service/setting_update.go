@@ -570,9 +570,8 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAccountQuotaNotifyEnabled] = strconv.FormatBool(settings.AccountQuotaNotifyEnabled)
 	updates[SettingKeyAccountQuotaNotifyEmails] = MarshalNotifyEmails(settings.AccountQuotaNotifyEmails)
 
-	// 页面功能开关：控制团队、数据共享和创作台相关页面的入口与访问。
+	// 页面功能开关：控制团队和创作台相关页面的入口与访问。
 	updates[SettingKeyTeamEnabled] = strconv.FormatBool(settings.TeamEnabled)
-	updates[SettingKeyDataSharingEnabled] = strconv.FormatBool(settings.DataSharingEnabled)
 	updates[SettingKeyCreativeEnabled] = strconv.FormatBool(settings.CreativeEnabled)
 
 	// 风控中心总开关：控制菜单入口和网关内容审计是否执行。

@@ -607,9 +607,7 @@ type ForwardResult struct {
 	// UpstreamResponseServiceTier 是上游响应声明的实际服务档位；空值表示未声明或无法确认。
 	UpstreamResponseServiceTier string
 	// ServiceTier 是请求侧声明的服务档位；计费时只允许按上游实际档位降档。
-	ServiceTier  *string
-	ResponseBody []byte // 成功响应体，用于数据共享提取 assistant 输出
-
+	ServiceTier *string
 	// 图片生成计费字段（图片生成模型使用）
 	ImageCount         int    // 生成的图片数量
 	ImageSize          string // 最终计费尺寸 "1K", "2K", "4K"
@@ -773,7 +771,6 @@ type GatewayService struct {
 	tlsFPProfileService   *TLSFingerprintProfileService
 	balanceNotifyService  *BalanceNotifyService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
-	dataSharingService    *DataSharingService
 	advancedAccountStats  *advancedAccountRuntimeStats
 }
 
@@ -806,7 +803,6 @@ func NewGatewayService(
 	resolver *ModelPricingResolver,
 	balanceNotifyService *BalanceNotifyService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
-	dataSharingService *DataSharingService,
 ) *GatewayService {
 	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
 	modelsListTTL := resolveModelsListCacheTTL(cfg)
@@ -843,7 +839,6 @@ func NewGatewayService(
 		resolver:              resolver,
 		balanceNotifyService:  balanceNotifyService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
-		dataSharingService:    dataSharingService,
 		advancedAccountStats:  newAdvancedAccountRuntimeStats(),
 	}
 	svc.userGroupRateResolver = newUserGroupRateResolver(
@@ -1495,35 +1490,6 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 	_, _ = f.WriteString(buf.String())
 }
 
-// captureDataSharingBestEffort 在使用记录成功后异步旁路采集数据共享 session，失败不影响网关主链路。
-func (s *GatewayService) captureDataSharingBestEffort(input *recordUsageCoreInput, result *ForwardResult, requestedModel string, actualCost float64) {
-	if s == nil || s.dataSharingService == nil || input == nil || result == nil || input.APIKey == nil || input.APIKey.Group == nil || !input.APIKey.Group.DataSharingEnabled {
-		return
-	}
-	s.dataSharingService.CaptureClaudeRequestAsync(DataShareCaptureInput{
-		APIKey:            input.APIKey,
-		User:              input.User,
-		Account:           input.Account,
-		Provider:          PlatformFromAPIKey(input.APIKey),
-		Model:             requestedModel,
-		UpstreamModel:     result.UpstreamModel,
-		SessionID:         input.SessionID,
-		RequestID:         result.RequestID,
-		RequestBody:       cloneDataSharingRequestBody(input.RequestBody),
-		ResponseBody:      cloneDataSharingRequestBody(result.ResponseBody),
-		SystemPrompt:      extractSystemPromptFromRequest(input.RequestBody),
-		InputTokens:       result.Usage.InputTokens,
-		OutputTokens:      result.Usage.OutputTokens,
-		CacheReadTokens:   result.Usage.CacheReadInputTokens,
-		CacheCreateTokens: result.Usage.CacheCreationInputTokens,
-		ActualCost:        &actualCost,
-		UserAgent:         input.UserAgent,
-		IPAddress:         input.IPAddress,
-		InboundEndpoint:   input.InboundEndpoint,
-		UpstreamEndpoint:  input.UpstreamEndpoint,
-	})
-}
-
 func (s *GatewayService) qoderCanUseDefaultImagePricing(model string) bool {
 	model = strings.TrimSpace(model)
 	if model == "" || qoderAliasRequiresManualPricingAny(model) {
@@ -1585,144 +1551,6 @@ func (s *GatewayService) resolveQoderChannelPricingForUsage(
 	return nil, billingModel
 }
 
-// ObserveData 解析单条 SSE data 行，并交给 ObserveEvent 更新快照。
-func (a *anthropicStreamResponseAccumulator) ObserveData(eventName string, data string) []byte {
-	data = strings.TrimSpace(data)
-	if data == "" || data == "[DONE]" {
-		return nil
-	}
-	var event map[string]any
-	if err := json.Unmarshal([]byte(data), &event); err != nil {
-		return nil
-	}
-	return a.ObserveEvent(eventName, event)
-}
-
-// ObserveEvent 聚合 Anthropic SSE 事件，尽量还原最终 message 响应体。
-func (a *anthropicStreamResponseAccumulator) ObserveEvent(eventName string, event map[string]any) []byte {
-	if a == nil || event == nil {
-		return nil
-	}
-	eventType, _ := event["type"].(string)
-	if eventType == "" {
-		eventType = eventName
-	}
-	switch eventType {
-	case "message_start":
-		if msg, ok := event["message"].(map[string]any); ok && len(msg) > 0 {
-			a.message = cloneDataShareMap(msg)
-			if _, ok := a.message["type"]; !ok {
-				a.message["type"] = "message"
-			}
-			if _, ok := a.message["role"]; !ok {
-				a.message["role"] = "assistant"
-			}
-			a.content = nil
-			if blocks := mapsFromAny(a.message["content"]); len(blocks) > 0 {
-				a.content = append(a.content, blocks...)
-			}
-			return a.ResponseBody()
-		}
-	case "content_block_start":
-		index := intFromAny(event["index"])
-		block, ok := mapFromAny(event["content_block"])
-		if !ok {
-			return nil
-		}
-		a.ensureContentIndex(index)
-		a.content[index] = cloneDataShareMap(block)
-		return a.ResponseBody()
-	case "content_block_delta":
-		index := intFromAny(event["index"])
-		delta, ok := mapFromAny(event["delta"])
-		if !ok {
-			return nil
-		}
-		a.applyContentDelta(index, delta)
-		return a.ResponseBody()
-	case "message_delta":
-		if a.message == nil {
-			a.message = map[string]any{"role": "assistant", "type": "message"}
-		}
-		if delta, ok := mapFromAny(event["delta"]); ok {
-			for key, value := range delta {
-				a.message[key] = value
-			}
-		}
-		if usage, ok := mapFromAny(event["usage"]); ok {
-			existingUsage, _ := mapFromAny(a.message["usage"])
-			mergedUsage := cloneDataShareMap(existingUsage)
-			for key, value := range usage {
-				mergedUsage[key] = value
-			}
-			a.message["usage"] = mergedUsage
-		}
-		return a.ResponseBody()
-	case "message_stop":
-		if body := a.ResponseBody(); len(body) > 0 {
-			return body
-		}
-		body, _ := json.Marshal(event)
-		return body
-	}
-	return nil
-}
-
-// ResponseBody 输出当前已聚合出的 Anthropic message 快照。
-func (a *anthropicStreamResponseAccumulator) ResponseBody() []byte {
-	if a == nil || a.message == nil {
-		return nil
-	}
-	msg := cloneDataShareMap(a.message)
-	if len(a.content) > 0 {
-		content := make([]map[string]any, 0, len(a.content))
-		for _, block := range a.content {
-			content = append(content, finalizeAnthropicStreamContentBlock(block))
-		}
-		msg["content"] = content
-	}
-	if _, ok := msg["role"]; !ok {
-		msg["role"] = "assistant"
-	}
-	body, err := json.Marshal(msg)
-	if err != nil {
-		return nil
-	}
-	return body
-}
-
-// applyContentDelta 合并 text_delta 和 input_json_delta，构造最终 content block。
-func (a *anthropicStreamResponseAccumulator) applyContentDelta(index int, delta map[string]any) {
-	a.ensureContentIndex(index)
-	block := a.content[index]
-	switch strings.TrimSpace(stringFromAny(delta["type"])) {
-	case "text_delta":
-		block["text"] = stringFromAny(block["text"]) + stringFromAny(delta["text"])
-	case "input_json_delta":
-		block["partial_json"] = stringFromAny(block["partial_json"]) + stringFromAny(delta["partial_json"])
-	default:
-		for key, value := range delta {
-			if key == "type" {
-				continue
-			}
-			block[key] = value
-		}
-	}
-}
-
-// ensureContentIndex 扩展 content 切片，保证指定 index 可写。
-func (a *anthropicStreamResponseAccumulator) ensureContentIndex(index int) {
-	if index < 0 {
-		index = 0
-	}
-	for len(a.content) <= index {
-		a.content = append(a.content, map[string]any{})
-	}
-	if a.content[index] == nil {
-		a.content[index] = map[string]any{}
-	}
-}
-
 func (p *usageBillingParams) shouldDeductAPIKeyQuota() bool {
 	return p.Cost.ActualCost > 0 && p.APIKey.Quota > 0 && p.APIKeyService != nil
 }
@@ -1774,23 +1602,6 @@ func cloneBillingAllocations(allocations []domain.BillingAllocation) []domain.Bi
 		cloned = append(cloned, allocation)
 	}
 	return cloned
-}
-
-// finalizeAnthropicStreamContentBlock 把流式工具参数的 partial_json 转成最终 input。
-func finalizeAnthropicStreamContentBlock(block map[string]any) map[string]any {
-	out := cloneDataShareMap(block)
-	if strings.TrimSpace(stringFromAny(out["type"])) == "tool_use" {
-		if raw := strings.TrimSpace(stringFromAny(out["partial_json"])); raw != "" {
-			var parsed any
-			if err := json.Unmarshal([]byte(raw), &parsed); err == nil {
-				out["input"] = parsed
-			} else {
-				out["input"] = raw
-			}
-			delete(out, "partial_json")
-		}
-	}
-	return out
 }
 
 // @project-doc docs/domains/platform_quotas.md#platform_quota_settlement_and_flush
@@ -1905,11 +1716,6 @@ func zeroCostBreakdown(mode BillingMode) *CostBreakdown {
 		modeString = string(BillingModeToken)
 	}
 	return &CostBreakdown{BillingMode: modeString}
-}
-
-type anthropicStreamResponseAccumulator struct {
-	message map[string]any
-	content []map[string]any
 }
 
 // usageBillingParams 统一扣费所需的参数

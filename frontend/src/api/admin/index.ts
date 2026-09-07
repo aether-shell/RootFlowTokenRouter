@@ -31,7 +31,6 @@ import tlsFingerprintRouterAPI from './tlsFingerprintRouter'
 import channelsAPI from './channels'
 import adminPaymentAPI from './payment'
 import riskControlAPI from './riskControl'
-import adminDataSharingAPI from './dataSharing'
 import auditAPI from './audit'
 import teamsAPI from './teams'
 
@@ -67,7 +66,6 @@ export const adminAPI = {
   channels: channelsAPI,
   payment: adminPaymentAPI,
   riskControl: riskControlAPI,
-  dataSharing: adminDataSharingAPI,
   audit: auditAPI,
   teams: teamsAPI
 }
@@ -101,7 +99,6 @@ export {
   channelsAPI,
   adminPaymentAPI,
   riskControlAPI,
-  adminDataSharingAPI,
   auditAPI,
   teamsAPI
 }
@@ -129,4 +126,3 @@ export type {
   UpdateTLSFingerprintRouterRequest
 } from './tlsFingerprintRouter'
 export type { ContentModerationConfig, ContentModerationLog, ModerationMode } from './riskControl'
-export type { DataShareStats, AdminDataShareSessionFilters } from './dataSharing'

@@ -119,12 +119,6 @@ type APIKey struct {
 	Team           *Team
 	TeamMembership *TeamMembership
 	Group          *Group
-	// DataSharingNoticeVersion 记录当前 Key 最近确认的数据共享须知版本。
-	DataSharingNoticeVersion int
-	// DataSharingConfirmedGroupID 记录最近一次确认对应的数据共享分组。
-	DataSharingConfirmedGroupID *int64
-	// DataSharingConfirmedAt 记录最近一次用户点击确认的时间。
-	DataSharingConfirmedAt *time.Time
 	// FallbackToDefaultGroupWhenUnavailable 控制绑定分组停用时是否回退到同平台默认分组。
 	FallbackToDefaultGroupWhenUnavailable bool
 	// CurrentConcurrency 表示当前 API Key 的实时活跃请求数。
@@ -152,14 +146,12 @@ type APIKey struct {
 
 // APIKeyCompositeGroup 表示复合 API Key 的一个分组前缀映射。
 type APIKeyCompositeGroup struct {
-	ID                       int64
-	APIKeyID                 int64
-	GroupID                  int64
-	Prefix                   string
-	NormalizedPrefix         string
-	SortOrder                int
-	DataSharingNoticeVersion int
-	DataSharingConfirmedAt   *time.Time
+	ID               int64
+	APIKeyID         int64
+	GroupID          int64
+	Prefix           string
+	NormalizedPrefix string
+	SortOrder        int
 	// UserGroupRPMOverride 是认证快照中的请求期配置，不写入映射表。
 	UserGroupRPMOverride *int
 	Group                *Group

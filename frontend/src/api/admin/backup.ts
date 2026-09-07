@@ -21,12 +21,10 @@ export interface BackupStorageConfig {
 
 export interface BackupContentConfig {
   include_usage_records: boolean
-  include_ops_logs: boolean
-  include_audit_logs: boolean
-  include_runtime_data: boolean
-  // 控制备份是否包含完整的数据共享会话载荷。
-  include_data_share_sessions: boolean
-  excluded_table_data?: string[]
+	include_ops_logs: boolean
+	include_audit_logs: boolean
+	include_runtime_data: boolean
+	excluded_table_data?: string[]
 }
 
 export interface BackupScheduleConfig {

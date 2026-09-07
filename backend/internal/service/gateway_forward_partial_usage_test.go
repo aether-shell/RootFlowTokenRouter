@@ -123,7 +123,6 @@ func TestGatewayService_Forward_StreamMissingTerminalPreservesPartialUsage(t *te
 	require.Equal(t, "fast", result.Usage.Speed, "部分结果必须保留 fork 的 Fast 计费语义")
 	require.Equal(t, "rid-partial", result.RequestID)
 	require.NotNil(t, result.FirstTokenMs)
-	require.Nil(t, result.ResponseBody, "失败流不应伪装成可供数据共享的成功响应")
 }
 
 func TestGatewayService_Forward_StreamReadErrorAfterOutputPreservesPartialUsage(t *testing.T) {

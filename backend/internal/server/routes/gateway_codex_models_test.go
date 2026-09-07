@@ -28,7 +28,7 @@ func newCodexModelsRemovalGatewayHandler(repo service.AccountRepository) *handle
 	gatewayService := service.NewGatewayService(
 		repo,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	return handler.NewGatewayHandler(
 		gatewayService,

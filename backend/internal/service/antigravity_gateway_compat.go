@@ -392,7 +392,6 @@ func (s *AntigravityGatewayService) consumeAntigravityCompatResponse(
 		Duration:         time.Since(call.request.startTime),
 		FirstTokenMs:     streamResult.firstTokenMs,
 		ReasoningEffort:  call.request.reasoningEffort,
-		ResponseBody:     cloneDataSharingRequestBody(streamResult.responseBody),
 		ClientDisconnect: streamResult.clientDisconnect,
 	}, nil
 }
@@ -566,7 +565,6 @@ func (s *AntigravityGatewayService) handleChatCompletionsNonStreamingFromAntigra
 	}
 	payload = reverseToolNamesIfPresent(c, payload)
 	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
-	result.responseBody = cloneDataSharingRequestBody(payload)
 	return result, nil
 }
 
@@ -597,7 +595,6 @@ func (s *AntigravityGatewayService) handleResponsesNonStreamingFromAntigravity(
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to restore client tools")
 	}
 	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
-	result.responseBody = cloneDataSharingRequestBody(payload)
 	return result, nil
 }
 

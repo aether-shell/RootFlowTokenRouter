@@ -90,16 +90,6 @@ func SortOrder(v int) predicate.APIKeyCompositeGroup {
 	return predicate.APIKeyCompositeGroup(sql.FieldEQ(FieldSortOrder, v))
 }
 
-// DataSharingNoticeVersion applies equality check predicate on the "data_sharing_notice_version" field. It's identical to DataSharingNoticeVersionEQ.
-func DataSharingNoticeVersion(v int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldEQ(FieldDataSharingNoticeVersion, v))
-}
-
-// DataSharingConfirmedAt applies equality check predicate on the "data_sharing_confirmed_at" field. It's identical to DataSharingConfirmedAtEQ.
-func DataSharingConfirmedAt(v time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldEQ(FieldDataSharingConfirmedAt, v))
-}
-
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.APIKeyCompositeGroup {
 	return predicate.APIKeyCompositeGroup(sql.FieldEQ(FieldCreatedAt, v))
@@ -388,96 +378,6 @@ func SortOrderLT(v int) predicate.APIKeyCompositeGroup {
 // SortOrderLTE applies the LTE predicate on the "sort_order" field.
 func SortOrderLTE(v int) predicate.APIKeyCompositeGroup {
 	return predicate.APIKeyCompositeGroup(sql.FieldLTE(FieldSortOrder, v))
-}
-
-// DataSharingNoticeVersionEQ applies the EQ predicate on the "data_sharing_notice_version" field.
-func DataSharingNoticeVersionEQ(v int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldEQ(FieldDataSharingNoticeVersion, v))
-}
-
-// DataSharingNoticeVersionNEQ applies the NEQ predicate on the "data_sharing_notice_version" field.
-func DataSharingNoticeVersionNEQ(v int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldNEQ(FieldDataSharingNoticeVersion, v))
-}
-
-// DataSharingNoticeVersionIn applies the In predicate on the "data_sharing_notice_version" field.
-func DataSharingNoticeVersionIn(vs ...int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldIn(FieldDataSharingNoticeVersion, vs...))
-}
-
-// DataSharingNoticeVersionNotIn applies the NotIn predicate on the "data_sharing_notice_version" field.
-func DataSharingNoticeVersionNotIn(vs ...int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldNotIn(FieldDataSharingNoticeVersion, vs...))
-}
-
-// DataSharingNoticeVersionGT applies the GT predicate on the "data_sharing_notice_version" field.
-func DataSharingNoticeVersionGT(v int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldGT(FieldDataSharingNoticeVersion, v))
-}
-
-// DataSharingNoticeVersionGTE applies the GTE predicate on the "data_sharing_notice_version" field.
-func DataSharingNoticeVersionGTE(v int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldGTE(FieldDataSharingNoticeVersion, v))
-}
-
-// DataSharingNoticeVersionLT applies the LT predicate on the "data_sharing_notice_version" field.
-func DataSharingNoticeVersionLT(v int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldLT(FieldDataSharingNoticeVersion, v))
-}
-
-// DataSharingNoticeVersionLTE applies the LTE predicate on the "data_sharing_notice_version" field.
-func DataSharingNoticeVersionLTE(v int) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldLTE(FieldDataSharingNoticeVersion, v))
-}
-
-// DataSharingConfirmedAtEQ applies the EQ predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtEQ(v time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldEQ(FieldDataSharingConfirmedAt, v))
-}
-
-// DataSharingConfirmedAtNEQ applies the NEQ predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtNEQ(v time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldNEQ(FieldDataSharingConfirmedAt, v))
-}
-
-// DataSharingConfirmedAtIn applies the In predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtIn(vs ...time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldIn(FieldDataSharingConfirmedAt, vs...))
-}
-
-// DataSharingConfirmedAtNotIn applies the NotIn predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtNotIn(vs ...time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldNotIn(FieldDataSharingConfirmedAt, vs...))
-}
-
-// DataSharingConfirmedAtGT applies the GT predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtGT(v time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldGT(FieldDataSharingConfirmedAt, v))
-}
-
-// DataSharingConfirmedAtGTE applies the GTE predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtGTE(v time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldGTE(FieldDataSharingConfirmedAt, v))
-}
-
-// DataSharingConfirmedAtLT applies the LT predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtLT(v time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldLT(FieldDataSharingConfirmedAt, v))
-}
-
-// DataSharingConfirmedAtLTE applies the LTE predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtLTE(v time.Time) predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldLTE(FieldDataSharingConfirmedAt, v))
-}
-
-// DataSharingConfirmedAtIsNil applies the IsNil predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtIsNil() predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldIsNull(FieldDataSharingConfirmedAt))
-}
-
-// DataSharingConfirmedAtNotNil applies the NotNil predicate on the "data_sharing_confirmed_at" field.
-func DataSharingConfirmedAtNotNil() predicate.APIKeyCompositeGroup {
-	return predicate.APIKeyCompositeGroup(sql.FieldNotNull(FieldDataSharingConfirmedAt))
 }
 
 // HasAPIKey applies the HasEdge predicate on the "api_key" edge.

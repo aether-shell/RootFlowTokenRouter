@@ -536,7 +536,7 @@ func newQoderGatewayServiceWithCache(cache service.GatewayCache) *service.Gatewa
 	return service.NewGatewayService(
 		nil, nil, nil, nil, nil, nil, nil,
 		cache,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 }
 

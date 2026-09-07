@@ -44,7 +44,7 @@ Pro 是持续跟进源项目的 fork。上游同步的目标是在 Pro fork 中�
 | Vue 3 前端 | 用户与管理员控制台、公开页面和首次设置界面 | Vite 构建；发布构建可嵌入 Go 二进制，开发构建可独立运行 |
 | PostgreSQL | 用户、路由、订单、订阅、用量、任务、运行设置和审计等权威数据 | 由 Ent schema、手写 repository 和前向 SQL 迁移共同维护 |
 | Redis | 缓存、限流、并发计数、会话/粘性状态、分布式锁、队列和跨实例失效通知 | 运行依赖；不能被当作业务权威数据库，部分功能在 Redis 故障时按安全要求关闭或降级 |
-| 对象/文件存储 | 批量图片、备份和数据共享导出等大对象 | 按功能使用本地数据目录、S3 兼容存储或供应商对象存储；生命周期由各专题拥有 |
+| 对象/文件存储 | 批量图片和备份等大对象 | 按功能使用本地数据目录、S3 兼容存储或供应商对象存储；生命周期由各专题拥有 |
 | 外部上游 | Anthropic、OpenAI、Gemini、Grok、Qoder 等模型或账号服务 | 通过平台适配器访问；账号能力、代理、渠道和分组共同限制可调度范围 |
 
 Go 模块路径为 `github.com/TokenFlux/TokenRouter`。后端以 `backend/go.mod` 声明的 Go 版本为准；前端使用 Vue 3、TypeScript、Vite、Pinia 和 pnpm，Node 版本由 CI workflow 固定。README 徽章或旧手册中的版本只用于展示，不能覆盖 manifest 和 CI。

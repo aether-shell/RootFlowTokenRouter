@@ -41,7 +41,7 @@ RequestLogger
 | `/health`、`/setup/status` | 无 | `routes/common.go`；进程健康与正常模式 setup 状态 |
 | `/api/event_logging/batch` | 无 | Claude Code 遥测兼容空接收，固定返回成功 |
 | `/api/v1/auth/*` | 大多公开，账户管理子流程按路由加 JWT/短期状态 | `routes/auth.go`；注册、登录、刷新、密码恢复、OAuth、Passkey 登录和身份完成 |
-| `/api/v1/user/*`、`/keys`、`/team`、`/groups`、`/subscriptions`、`/redeem` 等 | 用户 JWT | `routes/user.go`；用户面板资源、团队、Key、用量、数据共享和权益自省 |
+| `/api/v1/user/*`、`/keys`、`/team`、`/groups`、`/subscriptions`、`/redeem` 等 | 用户 JWT | `routes/user.go`；用户面板资源、团队、Key、用量和权益自省 |
 | `/api/v1/admin/*` | 管理员 JWT 或受限管理密钥；部分操作另需 step-up | `routes/admin.go`；用户、分组、账号、渠道、设置、运维、备份、支付和安全管理 |
 | `/api/v1/payment/*` | 用户 JWT | `routes/payment.go`；配置/套餐读取、下单、查单、取消、invoice 和退款申请 |
 | `/api/v1/payment/public/*` | 签名 resume token 或遗留订单验证约束 | 支付结果恢复；不得扩展为匿名订单枚举接口 |

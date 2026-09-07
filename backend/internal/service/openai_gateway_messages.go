@@ -527,7 +527,6 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 
 	// Propagate ServiceTier and ReasoningEffort to result for billing
 	if handleErr == nil && result != nil {
-		result.DataShareSessionID = dataShareSessionIDFromCompatPromptCacheKey(promptCacheKey)
 		if compatContinuationEnabled && promptCacheKey != "" && result.ResponseID != "" {
 			s.bindOpenAICompatSessionResponseID(ctx, c, account, promptCacheKey, result.ResponseID)
 		}
@@ -554,14 +553,6 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	}
 
 	return result, handleErr
-}
-
-func dataShareSessionIDFromCompatPromptCacheKey(promptCacheKey string) string {
-	promptCacheKey = strings.TrimSpace(promptCacheKey)
-	if promptCacheKey == "" {
-		return ""
-	}
-	return "openai-compat:" + hashSensitiveValueForLog(promptCacheKey)
 }
 
 func ensureCodexOAuthInstructionsField(reqBody map[string]any) {
@@ -682,7 +673,6 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	acc.SupplementResponseOutput(finalResponse)
 
 	anthropicResp := apicompat.ResponsesToAnthropic(finalResponse, originalModel)
-	responseBody, _ := json.Marshal(anthropicResp)
 
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
@@ -698,7 +688,6 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 		BillingModel:                billingModel,
 		UpstreamModel:               upstreamModel,
 		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
-		ResponseBody:                cloneDataSharingRequestBody(responseBody),
 		Stream:                      false,
 		Duration:                    time.Since(startTime),
 	}, nil
@@ -957,8 +946,6 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	firstChunk := true
 	clientDisconnected := false
 	clientOutputStarted := false
-	responseAccumulator := &anthropicStreamResponseAccumulator{}
-	var finalResponseBody []byte
 	var cyberPolicyErr error
 	var streamFailoverErr error
 	var streamNonFailoverErr error
@@ -993,7 +980,6 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			BillingModel:                billingModel,
 			UpstreamModel:               upstreamModel,
 			UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
-			ResponseBody:                cloneDataSharingRequestBody(finalResponseBody),
 			Stream:                      true,
 			Duration:                    time.Since(startTime),
 			FirstTokenMs:                firstTokenMs,
@@ -1124,17 +1110,6 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 
 		// Convert to Anthropic events
 		events := apicompat.ResponsesEventToAnthropicEvents(&event, state)
-		for _, evt := range events {
-			if body := observeAnthropicStreamEvent(responseAccumulator, evt); len(body) > 0 {
-				finalResponseBody = body
-			}
-		}
-		if isTerminalEvent && event.Response != nil && len(event.Response.Output) > 0 {
-			anthropicResp := apicompat.ResponsesToAnthropic(event.Response, originalModel)
-			if body, err := json.Marshal(anthropicResp); err == nil {
-				finalResponseBody = cloneDataSharingRequestBody(body)
-			}
-		}
 		if !clientDisconnected {
 			for _, evt := range events {
 				sse, err := apicompat.ResponsesAnthropicEventToSSE(evt)
@@ -1174,11 +1149,6 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			return resultWithUsage(), streamNonFailoverErr
 		}
 		finalEvents := apicompat.FinalizeResponsesAnthropicStream(state)
-		for _, evt := range finalEvents {
-			if body := observeAnthropicStreamEvent(responseAccumulator, evt); len(body) > 0 {
-				finalResponseBody = body
-			}
-		}
 		if len(finalEvents) > 0 && !clientDisconnected {
 			for _, evt := range finalEvents {
 				sse, err := apicompat.ResponsesAnthropicEventToSSE(evt)
@@ -1414,30 +1384,6 @@ func copyOpenAIUsageFromResponsesUsage(usage *apicompat.ResponsesUsage) OpenAIUs
 		result.CacheReadInputTokens = usage.InputTokensDetails.CachedTokens
 	}
 	return result
-}
-
-// observeAnthropicStreamEvent 将转换后的 Anthropic 事件同步给数据共享快照聚合器。
-func observeAnthropicStreamEvent(acc *anthropicStreamResponseAccumulator, evt apicompat.AnthropicStreamEvent) []byte {
-	if acc == nil {
-		return nil
-	}
-	payload, err := json.Marshal(evt)
-	if err != nil {
-		return nil
-	}
-	return acc.ObserveData(evt.Type, string(payload))
-}
-
-// observeAnthropicMapEvent 将手写的 Anthropic SSE 事件同步给数据共享快照聚合器。
-func observeAnthropicMapEvent(acc *anthropicStreamResponseAccumulator, eventName string, event any) []byte {
-	if acc == nil || event == nil {
-		return nil
-	}
-	payload, err := json.Marshal(event)
-	if err != nil {
-		return nil
-	}
-	return acc.ObserveData(eventName, string(payload))
 }
 
 // buildAnthropicStreamErrorSSE 构造 Anthropic SSE 错误帧，用于终止 cyber_policy 流。

@@ -178,7 +178,6 @@ func TestAntigravityCompatOAuthUsesNativeTokenAndRoute(t *testing.T) {
 				require.Equal(t, "stop", gjson.Get(recorder.Body.String(), "choices.0.finish_reason").String())
 				require.Equal(t, int64(8), gjson.Get(recorder.Body.String(), "usage.prompt_tokens").Int())
 				require.Equal(t, int64(3), gjson.Get(recorder.Body.String(), "usage.completion_tokens").Int())
-				require.JSONEq(t, recorder.Body.String(), string(result.ResponseBody))
 			}
 		})
 	}
@@ -230,9 +229,6 @@ func TestAntigravityCompatResponsesRestoresNamespaceTools(t *testing.T) {
 			require.Contains(t, recorder.Body.String(), `"name":"read_thread"`)
 			require.Contains(t, recorder.Body.String(), `"namespace":"codex_app"`)
 			require.NotContains(t, recorder.Body.String(), `"codex_app__read_thread"`)
-			if !tt.stream {
-				require.JSONEq(t, recorder.Body.String(), string(result.ResponseBody))
-			}
 		})
 	}
 }
@@ -283,8 +279,6 @@ func TestAntigravityCompatChatRestoresForkToolNames(t *testing.T) {
 			require.NotContains(t, string(upstream.requestBodies[0]), `"sessions_lookup"`)
 			require.Contains(t, recorder.Body.String(), `"sessions_lookup"`)
 			require.NotContains(t, recorder.Body.String(), `"cc_sess_lookup"`)
-			require.Contains(t, string(result.ResponseBody), `"sessions_lookup"`)
-			require.NotContains(t, string(result.ResponseBody), `"cc_sess_lookup"`)
 		})
 	}
 }
@@ -722,8 +716,6 @@ func TestAntigravityCompatChatStreamMapsToolCallAndUsage(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `"finish_reason":"tool_calls"`)
 	require.Contains(t, recorder.Body.String(), `"prompt_tokens":8`)
 	require.Equal(t, 1, strings.Count(recorder.Body.String(), "data: [DONE]"))
-	require.Contains(t, string(result.responseBody), `"get_weather"`)
-	require.Contains(t, string(result.responseBody), `"prompt_tokens":8`)
 }
 
 func TestAntigravityCompatFirstEventTimeoutTriggersFailover(t *testing.T) {
