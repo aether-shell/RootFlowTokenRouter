@@ -25,6 +25,7 @@ import (
 var (
 	ErrNoUpdateAvailable         = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
 	ErrRollbackVersionNotAllowed = infraerrors.BadRequest("ROLLBACK_VERSION_NOT_ALLOWED", "version is not in the allowed rollback list")
+	ErrSelfUpdateDisabled        = infraerrors.Forbidden("SELF_UPDATE_DISABLED", "self-update is disabled for managed Pro builds")
 )
 
 const (
@@ -64,7 +65,7 @@ type UpdateService struct {
 	cache          UpdateCache
 	githubClient   GitHubReleaseClient
 	currentVersion string
-	buildType      string // "source" for manual builds, "release" for CI builds
+	buildType      string // "source"、"release" 或受管的 "pro"
 }
 
 // NewUpdateService creates a new UpdateService
@@ -85,7 +86,7 @@ type UpdateInfo struct {
 	ReleaseInfo    *ReleaseInfo `json:"release_info,omitempty"`
 	Cached         bool         `json:"cached"`
 	Warning        string       `json:"warning,omitempty"`
-	BuildType      string       `json:"build_type"` // "source" or "release"
+	BuildType      string       `json:"build_type"` // "source"、"release" 或受管的 "pro"
 }
 
 // ReleaseInfo contains GitHub release details
@@ -131,6 +132,16 @@ type GitHubAsset struct {
 
 // CheckUpdate checks for available updates
 func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInfo, error) {
+	if s.selfUpdateDisabled() {
+		return &UpdateInfo{
+			CurrentVersion: s.currentVersion,
+			LatestVersion:  s.currentVersion,
+			HasUpdate:      false,
+			Cached:         false,
+			BuildType:      s.buildType,
+		}, nil
+	}
+
 	// Try cache first
 	if !force {
 		if cached, err := s.getFromCache(ctx); err == nil && cached != nil {
@@ -163,6 +174,10 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 // PerformUpdate downloads and applies the update
 // Uses atomic file replacement pattern for safe in-place updates
 func (s *UpdateService) PerformUpdate(ctx context.Context) error {
+	if s.selfUpdateDisabled() {
+		return ErrSelfUpdateDisabled
+	}
+
 	info, err := s.CheckUpdate(ctx, true)
 	if err != nil {
 		return err
@@ -280,6 +295,10 @@ func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []
 
 // Rollback restores the previous version
 func (s *UpdateService) Rollback() error {
+	if s.selfUpdateDisabled() {
+		return ErrSelfUpdateDisabled
+	}
+
 	exePath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
@@ -305,6 +324,10 @@ func (s *UpdateService) Rollback() error {
 // ListRollbackVersions 返回严格早于当前版本的最近正式版本，按新到旧排序。
 // 草稿、预发布和非标准版本号均不会进入列表。
 func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVersion, error) {
+	if s.selfUpdateDisabled() {
+		return nil, ErrSelfUpdateDisabled
+	}
+
 	releases, err := s.fetchRollbackCandidates(ctx)
 	if err != nil {
 		return nil, err
@@ -325,6 +348,10 @@ func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVer
 // RollbackToVersion 下载并安装指定旧版本。
 // 目标必须属于 ListRollbackVersions 返回的允许列表，当前版本和其他输入都会被拒绝。
 func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) error {
+	if s.selfUpdateDisabled() {
+		return ErrSelfUpdateDisabled
+	}
+
 	target, ok := normalizeRollbackVersion(version)
 	if !ok {
 		return ErrRollbackVersionNotAllowed
@@ -357,6 +384,10 @@ func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) e
 	}
 
 	return s.applyReleaseAssets(ctx, assets)
+}
+
+func (s *UpdateService) selfUpdateDisabled() bool {
+	return s.buildType == "pro"
 }
 
 // fetchRollbackCandidates 拉取最近 release，并只保留严格早于当前版本的最新候选。

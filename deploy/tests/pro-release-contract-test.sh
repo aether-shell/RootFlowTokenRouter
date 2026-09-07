@@ -9,9 +9,12 @@ MANIFEST="${REPO_ROOT}/deploy/pro/customizations.yaml"
 
 bash -n "${REPO_ROOT}/tools/pro-image.sh"
 bash -n "${REPO_ROOT}/tools/pro-remote-check.sh"
+bash -n "${REPO_ROOT}/tools/pro-upgrade.sh"
 bash -n "${REPO_ROOT}/tools/pro-deploy.sh"
 python3 -m py_compile "${REPO_ROOT}/tools/pro_release_guard.py"
 PYTHONDONTWRITEBYTECODE=1 python3 "${REPO_ROOT}/deploy/tests/pro_release_guard_test.py"
+jq -e --arg version "v$(tr -d '\r\n' < "${REPO_ROOT}/backend/cmd/server/VERSION")" \
+  '.canonical_repository.upstream_release == $version' "${MANIFEST}" >/dev/null
 jq -e '.schema_version == 1 and .product == "pro"' "${MANIFEST}" >/dev/null
 
 IMAGE_CHECK_OUTPUT="$("${REPO_ROOT}/tools/pro-image.sh" \
@@ -46,14 +49,17 @@ fi
 
 grep -Fq 'pro-image-dispatch:' "${REPO_ROOT}/Makefile"
 grep -Fq 'commit="$$(git rev-parse HEAD)"' "${REPO_ROOT}/Makefile"
-grep -Fq 'env -u GITHUB_TOKEN gh workflow run pro-image.yml --repo aether-shell/RootFlowTokenRouter' "${REPO_ROOT}/Makefile"
+grep -Fq 'env -u GITHUB_TOKEN -u GH_TOKEN gh workflow run pro-image.yml --repo aether-shell/RootFlowTokenRouter' "${REPO_ROOT}/Makefile"
 grep -Fq 'pro-remote-check:' "${REPO_ROOT}/Makefile"
 grep -Fq 'tools/pro-remote-check.sh' "${REPO_ROOT}/Makefile"
+grep -Fq '[[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]' "${REPO_ROOT}/.github/workflows/pro-image.yml"
 
 grep -Fq 'stage="image_preflight"' "${REPO_ROOT}/tools/pro-remote-check.sh"
 grep -Fq 'docker pull "${image}"' "${REPO_ROOT}/tools/pro-remote-check.sh"
 grep -Fq 'com.docker.compose.project' "${REPO_ROOT}/tools/pro-remote-check.sh"
 grep -Fq 'cc.tknhub.product' "${REPO_ROOT}/tools/pro-remote-check.sh"
+grep -Fq 'expected_base_commit' "${REPO_ROOT}/tools/pro-remote-check.sh"
+grep -Fq 'org.opencontainers.image.revision' "${REPO_ROOT}/tools/pro-remote-check.sh"
 for forbidden in 'pg_dump' 'pg_restore' 'docker compose' 'mkdir -p' 'scp '; do
   if grep -Fq "${forbidden}" "${REPO_ROOT}/tools/pro-remote-check.sh"; then
     echo "Pro 远端预检包含发布写操作: ${forbidden}" >&2

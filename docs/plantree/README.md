@@ -15,6 +15,6 @@
 
 | Plan | Status | Current Phase | Last Landed | Next Target |
 | --- | --- | --- | --- | --- |
-| [Pro 发布安全](plans/pro-release-safety/README.md) | Done | Pro v0.1.276 复盘已转化为发布门禁 | 自动镜像调度、远端预检和分阶段失败输出（当前提交） | 配置 GHCR 只读部署凭据；下次发布以 `aa2d857c` 为线上基线 |
+| [Pro 发布安全](plans/pro-release-safety/README.md) | In Progress | v0.1.278 已同步，继续落地两段式升级 | v0.1.278 本地 merge（`c3b80cd3`） | 提交并推送适配；READY 后等待迁移发布二次确认 |
 
 低承诺想法记录在 [ideas/inbox.md](ideas/inbox.md)。

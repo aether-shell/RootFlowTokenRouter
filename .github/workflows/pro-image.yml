@@ -68,28 +68,40 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Refuse to overwrite an existing commit tag
+      - name: Detect existing immutable commit image
+        id: existing
         env:
           IMAGE_TAG: ghcr.io/aether-shell/rootflowtokenrouter:${{ steps.metadata.outputs.commit }}
         run: |
           if docker manifest inspect "$IMAGE_TAG" >/dev/null 2>&1; then
-            echo "Immutable Pro image tag already exists: $IMAGE_TAG" >&2
-            exit 1
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Build and validate complete Pro image
+        if: steps.existing.outputs.exists != 'true'
         env:
           DOCKER_BUILDKIT: '1'
           PRO_IMAGE: ghcr.io/aether-shell/rootflowtokenrouter:${{ steps.metadata.outputs.commit }}
         run: bash tools/pro-image.sh build/pro-release-manifest.json
-      - name: Push validated immutable Pro image
+      - name: Resolve validated immutable Pro image
         id: image
         env:
           IMAGE_TAG: ghcr.io/aether-shell/rootflowtokenrouter:${{ steps.metadata.outputs.commit }}
+          EXPECTED_COMMIT: ${{ steps.metadata.outputs.commit }}
         run: |
-          docker push "$IMAGE_TAG"
+          if [[ "${{ steps.existing.outputs.exists }}" == "true" ]]; then
+            docker pull "$IMAGE_TAG"
+            test "$(docker image inspect "$IMAGE_TAG" --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" = "https://github.com/aether-shell/RootFlowTokenRouter"
+            test "$(docker image inspect "$IMAGE_TAG" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$EXPECTED_COMMIT"
+            test "$(docker image inspect "$IMAGE_TAG" --format '{{ index .Config.Labels "cc.tknhub.product" }}')" = "pro"
+          else
+            docker push "$IMAGE_TAG"
+          fi
           reference=$(docker image inspect "$IMAGE_TAG" --format '{{ index .RepoDigests 0 }}')
           digest=${reference#*@}
-          test -n "$digest"
+          [[ "$reference" == ghcr.io/aether-shell/rootflowtokenrouter@sha256:* ]]
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
       - name: Attach immutable image digest to manifest
         env:

@@ -9,8 +9,8 @@
     ],
     "branch": "main",
     "image_repository": "ghcr.io/aether-shell/rootflowtokenrouter",
-    "upstream_release": "v0.1.276",
-    "upstream_commit": "8bc7c66cc884beeb6d01cba303c285be417fe66f",
+    "upstream_release": "v0.1.278",
+    "upstream_commit": "e7906995f5f722655dd5f593b88651d39abb16a8",
     "protected_ancestors": [
       "0272bdec77e0749b61c2c1150effb0d64373c8f5"
     ]
@@ -61,7 +61,8 @@
         "src/components/account/__tests__/CreateAccountModal.spec.ts",
         "src/components/account/__tests__/EditAccountModal.spec.ts",
         "src/components/account/__tests__/BulkEditAccountModal.spec.ts",
-        "src/views/admin/__tests__/DashboardView.spec.ts"
+        "src/views/admin/__tests__/DashboardView.spec.ts",
+        "src/components/common/__tests__/VersionBadge.rollback.spec.ts"
       ]
     },
     {
@@ -78,6 +79,26 @@
       "command": [
         "bash",
         "deploy/tests/pro-release-contract-test.sh"
+      ]
+    },
+    {
+      "id": "pro-upgrade-tooling",
+      "working_directory": ".",
+      "command": [
+        "bash",
+        "deploy/tests/pro-upgrade-contract-test.sh"
+      ]
+    },
+    {
+      "id": "pro-managed-update-backend",
+      "working_directory": "backend",
+      "command": [
+        "go",
+        "test",
+        "-tags=unit",
+        "./internal/service",
+        "-run",
+        "^TestUpdateServiceProBuildDisablesOfficialSelfUpdate$"
       ]
     }
   ],
@@ -131,6 +152,24 @@
       "image_commands": [
         ["pg_dump", "--version"],
         ["psql", "--version"]
+      ]
+    },
+    {
+      "id": "pro-managed-upgrade",
+      "scope": "application",
+      "required_paths": [
+        "tools/pro-upgrade.sh",
+        "deploy/tests/pro-upgrade-contract-test.sh",
+        "backend/internal/service/update_service.go",
+        "frontend/src/components/common/VersionBadge.vue"
+      ],
+      "test_ids": [
+        "pro-upgrade-tooling",
+        "pro-managed-update-backend",
+        "pro-frontend"
+      ],
+      "binary_markers": [
+        "SELF_UPDATE_DISABLED"
       ]
     },
     {

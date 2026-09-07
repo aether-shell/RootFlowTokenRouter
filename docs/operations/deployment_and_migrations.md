@@ -46,13 +46,19 @@ Pro 的发布事实源是 `deploy/pro/customizations.yaml`。该文件使用 JSO
 发布按以下阶段相互隔离执行：
 
 1. `make pro-verify` 核对 fork 身份、提交关系、必需文件和全部二开测试。
-2. `make pro-image-dispatch PRO_BASE_REF=<当前线上完整提交>` 从 `git rev-parse HEAD` 自动取得待构建提交，并在固定仓库 `aether-shell/RootFlowTokenRouter` 触发 `.github/workflows/pro-image.yml`。该入口会移除当前 shell 的 `GITHUB_TOKEN`，避免失效环境变量覆盖 GitHub CLI keyring 凭据；禁止依赖 `gh` 的多 remote 自动选择，也禁止手工补写待构建 commit。工作流重新执行严格门禁，并输出含 GHCR 不可变摘要的发布清单。
+2. `make pro-image-dispatch PRO_BASE_REF=<当前线上完整提交>` 从 `git rev-parse HEAD` 自动取得待构建提交，并在固定仓库 `aether-shell/RootFlowTokenRouter` 触发 `.github/workflows/pro-image.yml`。该入口会移除当前 shell 的 `GITHUB_TOKEN` 和 `GH_TOKEN`，避免失效环境变量覆盖 GitHub CLI keyring 凭据；禁止依赖 `gh` 的多 remote 自动选择，也禁止手工补写待构建 commit。工作流重新执行严格门禁，并输出含 GHCR 不可变摘要的发布清单；同一 commit 的合格 Pro 镜像可以复用，但必须重新生成与当前线上基线绑定的清单。
 3. 本地调试可使用 `make pro-release-manifest PRO_BASE_REF=<当前线上完整提交>` 和 `make pro-image` 构建不推送的镜像；正式发布必须使用工作流产出的清单与摘要。
 4. `make pro-deploy-check PRO_IMAGE_DIGEST=<ghcr.io/...@sha256:...>` 只校验本地参数、迁移授权和发布清单，不连接服务器。
 5. `make pro-remote-check PRO_IMAGE_DIGEST=<ghcr.io/...@sha256:...>` 通过固定 SSH 主机拉取摘要镜像并核对 OCI source、完整 revision、Pro 产品标签及 app/database 的 Compose 归属。它不创建发布目录、不备份数据库、不安装 override，也不重建容器。此步骤要求服务器已配置可读取该 GHCR package 的凭据。
 6. 远端预检通过并取得发布二次确认后，运行 `make pro-release PRO_IMAGE_DIGEST=<ghcr.io/...@sha256:...> PRO_EXECUTE=1`。未提供 `PRO_EXECUTE=1` 时不得连接服务器执行部署。
 
+日常升级的首选入口是 `make pro-upgrade`。它要求 fork `main` 已完成上游同步、人工冲突审查和推送，随后自动读取线上 app 的完整 revision、执行全部 Pro 门禁、复用或触发当前 fork HEAD 的镜像构建、下载与线上基线匹配的发布清单，并完成远端只读预检。成功后只写入本地忽略文件 `build/pro-upgrade-ready.json`，绝不创建远端发布目录、备份数据库或切换生产。
+
+`make pro-upgrade` 输出 READY 后必须停止并等待用户二次确认。确认后另起一次命令运行 `make pro-upgrade-release PRO_EXECUTE=1`；若 ready state 显示存在数据库变化，还必须增加 `PRO_ALLOW_MIGRATIONS=1`。发布入口会重新校验干净 `main`、`origin/main`、HEAD、发布清单哈希、镜像摘要、数据库变更数，并由远端预检确认线上 app 仍是准备时记录的 `base_ref`。任何一项漂移都会终止，必须重新准备，不能沿用旧 ready state。
+
 构建与部署不能合并成自动流水线。镜像必须包含 fork source、完整 revision、版本和 `cc.tknhub.product=pro` 标签；部署只接受 `ghcr.io/aether-shell/rootflowtokenrouter@sha256:<digest>`，禁止 `latest`、普通 tag、官方镜像和手工二进制替换。
+
+Pro 镜像使用 `BuildType=pro`。后端在此构建类型下不查询或安装 `TokenFlux/TokenRouter` 官方 Release，更新、回退 API 均返回 `SELF_UPDATE_DISABLED`，前端也不显示原生回退入口。上游同步仍然是“人工合并和验证 fork，再走 Pro 镜像发布”，不得使用源项目的一键二进制升级覆盖线上程序。
 
 正式部署强制复用远端镜像预检，并且预检必须先于发布目录创建、文件上传、数据库备份和 Compose 切换。预检通过后，脚本保存发布证据并使用 Pro PostgreSQL 容器创建完整 dump，再用 `pg_restore --list` 验证；备份成功前不会覆盖线上 Compose override。应用仅通过独立 Compose override 和 `--no-deps app` 更新，不重建 PostgreSQL、Redis 或 sidecar。若相对 `PRO_BASE_REF` 存在 SQL 迁移或 Ent schema 变化，必须额外设置 `PRO_ALLOW_MIGRATIONS=1`；失败时不自动回退应用，以免旧二进制连接已变化的数据库。没有数据库变更时，验证失败可恢复旧应用镜像。
 

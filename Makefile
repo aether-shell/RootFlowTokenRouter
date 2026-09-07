@@ -1,7 +1,8 @@
-.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan pro-verify pro-release-manifest pro-image pro-image-dispatch pro-deploy-check pro-remote-check pro-release
+.PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan pro-verify pro-release-manifest pro-image pro-image-dispatch pro-deploy-check pro-remote-check pro-release pro-upgrade pro-upgrade-release
 
 PNPM ?= npx --yes pnpm@9
 PRO_RELEASE_MANIFEST ?= build/pro-release-manifest.json
+PRO_UPGRADE_STATE ?= build/pro-upgrade-ready.json
 
 FRONTEND_CRITICAL_VITEST := \
 	src/api/__tests__/client.spec.ts \
@@ -76,7 +77,7 @@ pro-image-dispatch:
 	test "$$(git branch --show-current)" = "main" || (echo "current branch must be main" >&2; exit 2); \
 	test -z "$$(git status --porcelain)" || (echo "working tree must be clean" >&2; exit 2); \
 	test "$$commit" = "$$(git rev-parse origin/main)" || (echo "HEAD must match origin/main" >&2; exit 2); \
-	env -u GITHUB_TOKEN gh workflow run pro-image.yml --repo aether-shell/RootFlowTokenRouter --ref main \
+	env -u GITHUB_TOKEN -u GH_TOKEN gh workflow run pro-image.yml --repo aether-shell/RootFlowTokenRouter --ref main \
 		-f commit="$$commit" -f deployed_base_commit="$$base_ref"; \
 	echo "Dispatched Pro Image for $$commit (base $$base_ref)"
 
@@ -89,6 +90,16 @@ pro-deploy-check:
 pro-remote-check:
 	@test -n "$(PRO_IMAGE_DIGEST)" || (echo "PRO_IMAGE_DIGEST is required" >&2; exit 2)
 	@bash tools/pro-remote-check.sh --manifest "$(PRO_RELEASE_MANIFEST)" --image "$(PRO_IMAGE_DIGEST)"
+
+# 一键准备当前 fork main：构建、下载清单并完成远端预检，但绝不切换生产。
+pro-upgrade:
+	@bash tools/pro-upgrade.sh prepare --manifest "$(PRO_RELEASE_MANIFEST)" --state "$(PRO_UPGRADE_STATE)"
+
+# 二次确认后的发布入口；只消费 pro-upgrade 生成且仍有效的 ready state。
+pro-upgrade-release:
+	@test "$(PRO_EXECUTE)" = "1" || (echo "PRO_EXECUTE=1 is required" >&2; exit 2)
+	@bash tools/pro-upgrade.sh release --manifest "$(PRO_RELEASE_MANIFEST)" --state "$(PRO_UPGRADE_STATE)" \
+		$(if $(filter 1,$(PRO_ALLOW_MIGRATIONS)),--allow-migrations,) --execute
 
 # 唯一 Pro 应用发布入口；必须双重显式提供镜像摘要和 PRO_EXECUTE=1。
 pro-release:

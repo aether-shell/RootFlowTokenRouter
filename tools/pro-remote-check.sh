@@ -59,6 +59,7 @@ APP_SERVICE="$(jq -r '.runtime_contract.app_service' "${CUSTOMIZATIONS}")"
 DB_CONTAINER="$(jq -r '.runtime_contract.database_container' "${CUSTOMIZATIONS}")"
 DB_SERVICE="$(jq -r '.runtime_contract.database_service' "${CUSTOMIZATIONS}")"
 EXPECTED_COMMIT="$(jq -r '.source.commit // empty' "${RELEASE_MANIFEST}")"
+EXPECTED_BASE_COMMIT="$(jq -r '.base_ref // empty' "${RELEASE_MANIFEST}")"
 PRODUCT="$(jq -r '.product // empty' "${RELEASE_MANIFEST}")"
 MANIFEST_IMAGE="$(jq -r '.image.reference // empty' "${RELEASE_MANIFEST}")"
 
@@ -71,6 +72,7 @@ MANIFEST_IMAGE="$(jq -r '.image.reference // empty' "${RELEASE_MANIFEST}")"
 [[ "${DB_CONTAINER}" == "tokenrouter-pro-postgres" && "${DB_SERVICE}" == "postgres" ]] || fail "数据库容器归属不是 Pro"
 [[ "${PRODUCT}" == "pro" ]] || fail "发布清单不是 Pro"
 [[ "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || fail "发布清单 commit 非法"
+[[ "${EXPECTED_BASE_COMMIT}" =~ ^[0-9a-f]{40}$ ]] || fail "发布清单线上基线 commit 非法"
 [[ "${MANIFEST_IMAGE}" == "${IMAGE}" ]] || fail "镜像摘要与发布清单不一致"
 [[ "$(git -C "${REPO_ROOT}" rev-parse HEAD)" == "${EXPECTED_COMMIT}" ]] || fail "当前 HEAD 与发布清单不一致"
 [[ -z "$(git -C "${REPO_ROOT}" status --porcelain)" ]] || fail "工作区不干净，禁止远端预检"
@@ -82,18 +84,19 @@ REMOTE="${SSH_USER}@${HOST}"
 STAGE="image_preflight"
 
 ssh "${SSH_OPTIONS[@]}" "${REMOTE}" bash -s -- \
-  "${IMAGE}" "${EXPECTED_COMMIT}" "${COMPOSE_FILE}" "${COMPOSE_PROJECT}" \
+  "${IMAGE}" "${EXPECTED_COMMIT}" "${EXPECTED_BASE_COMMIT}" "${COMPOSE_FILE}" "${COMPOSE_PROJECT}" \
   "${APP_CONTAINER}" "${APP_SERVICE}" "${DB_CONTAINER}" "${DB_SERVICE}" <<'REMOTE_SCRIPT'
 set -euo pipefail
 
 image="$1"
 expected_commit="$2"
-compose_file="$3"
-compose_project="$4"
-app_container="$5"
-app_service="$6"
-db_container="$7"
-db_service="$8"
+expected_base_commit="$3"
+compose_file="$4"
+compose_project="$5"
+app_container="$6"
+app_service="$7"
+db_container="$8"
+db_service="$9"
 source_url="https://github.com/aether-shell/RootFlowTokenRouter"
 stage="image_preflight"
 
@@ -121,6 +124,7 @@ verify_container_owner() {
 [[ -f "${compose_file}" ]]
 verify_container_owner "${app_container}" "${app_service}"
 verify_container_owner "${db_container}" "${db_service}"
+[[ "$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${app_container}")" == "${expected_base_commit}" ]]
 docker pull "${image}"
 [[ "$(docker image inspect "${image}" --format '{{ index .Config.Labels "org.opencontainers.image.source" }}')" == "${source_url}" ]]
 [[ "$(docker image inspect "${image}" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" == "${expected_commit}" ]]

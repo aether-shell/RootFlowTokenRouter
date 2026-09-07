@@ -69,6 +69,26 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoUpdateAvailable)
 }
 
+func TestUpdateServiceProBuildDisablesOfficialSelfUpdate(t *testing.T) {
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		&updateServiceGitHubClientStub{},
+		"0.1.276-pro.test",
+		"pro",
+	)
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+	require.NoError(t, err)
+	require.Equal(t, "pro", info.BuildType)
+	require.Equal(t, info.CurrentVersion, info.LatestVersion)
+	require.False(t, info.HasUpdate)
+	require.ErrorIs(t, svc.PerformUpdate(context.Background()), ErrSelfUpdateDisabled)
+	require.ErrorIs(t, svc.Rollback(), ErrSelfUpdateDisabled)
+	_, err = svc.ListRollbackVersions(context.Background())
+	require.ErrorIs(t, err, ErrSelfUpdateDisabled)
+	require.ErrorIs(t, svc.RollbackToVersion(context.Background(), "0.1.275"), ErrSelfUpdateDisabled)
+}
+
 func newRollbackTestService(current string, releases []*GitHubRelease) *UpdateService {
 	return NewUpdateService(
 		&updateServiceCacheStub{},

@@ -61,3 +61,4 @@ jobs:
           build-args: |
             COMMIT=${{ github.sha }}
             VERSION=verification-pro.${{ github.sha }}
+            BUILD_TYPE=pro

@@ -13,4 +13,9 @@ describe('VersionBadge 回退目标', () => {
     expect(source).not.toContain("const GITHUB_REPO = 'Wei-Shaw/sub2api'")
     expect(source).not.toContain("const DOCKER_IMAGE = 'weishaw/sub2api'")
   })
+
+  it('Pro 受管构建隐藏原生回退入口', () => {
+    expect(source).toContain("const isManagedBuild = computed(() => buildType.value === 'pro')")
+    expect(source).toContain('v-if="!isManagedBuild"')
+  })
 })

@@ -6,6 +6,7 @@
     "tree": "0000000000000000000000000000000000000000",
     "dirty": false
   },
+  "base_ref": "1111111111111111111111111111111111111111",
   "changed_migrations": [],
   "changed_database_paths": [],
   "automatic_app_rollback_allowed": true,

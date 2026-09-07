@@ -44,6 +44,7 @@ docker build \
   --build-arg "VERSION=${VERSION}" \
   --build-arg "COMMIT=${COMMIT}" \
   --build-arg "DATE=${BUILD_DATE}" \
+  --build-arg "BUILD_TYPE=pro" \
   --label "org.opencontainers.image.source=${SOURCE_URL}" \
   --label "org.opencontainers.image.revision=${COMMIT}" \
   --label "org.opencontainers.image.version=${VERSION}" \

@@ -1,16 +1,16 @@
 # Implementation Status
 
-Date: 2026-09-04
+Date: 2026-09-06
 
 ## Current Phase
 
-上游 v0.1.276 已合并并发布；本次发布暴露的问题已沉淀为自动镜像调度、发布前远端镜像预检和分阶段错误门禁。
+上游 v0.1.278 已合并到本地 `main`，Pro 二开和两段式升级改动已通过本地验证；当前尚未推送或发布。
 
-## Next Operational Check
+## Active TODO
 
-- 线上应用 commit 为 `aa2d857c3993d0e050106bf4fd8537705ee1aba0`；其后的提交只包含发布工具和文档，不代表线上应用版本。
-- 下一次应用发布必须以 `aa2d857c3993d0e050106bf4fd8537705ee1aba0` 作为 `PRO_BASE_REF` 重新生成清单。
-- 正式切换前先为服务器配置最小 `read:packages` GHCR 凭据，并单独执行 `make pro-remote-check`。
+- 提交并推送 v0.1.278 适配和两段式升级改动。
+- 推送后运行 `make pro-upgrade`，验证真实 workflow 和远端只读预检。
+- READY 后停止；迁移 265 会删除数据共享表和字段，只有取得用户二次确认并显式设置 `PRO_ALLOW_MIGRATIONS=1` 才能切换生产。
 
 ## Done This Phase
 
@@ -24,6 +24,13 @@ Date: 2026-09-04
 - 已增加只拉取和核验镜像的 `make pro-remote-check`；正式发布在创建目录、备份和切换前强制复用该预检。
 - 已将发布错误细分到镜像预检、文件上传、备份、应用切换、运行时验证、HTTP 验收和证据归档阶段。
 - 已归档 [v0.1.276 发布复盘](history/2026-09-04-v0.1.276-release.md)。
+- 已实现两段式 `make pro-upgrade` / `make pro-upgrade-release`，ready state 绑定 fork HEAD、线上基线、镜像、清单和数据库变更数。
+- 已为 Pro 镜像注入 `BuildType=pro`，后端拒绝官方自更新/回退，前端隐藏原生回退入口。
+- 已通过升级/发布契约、受管更新焦点测试、前端测试和类型检查、YAML/shell 静态检查及 Dockerfile 构建定义检查。
+- 已将上游 v0.1.278 以 merge commit `c3b80cd3` 合入本地 `main`，保留 Pro 客户端策略、仪表盘分组筛选、PostgreSQL 工具、盈利 sidecar 和发布门禁。
+- 已吸收 v0.1.277–v0.1.278 的 TF CLI 导入、GPT-6 Astra、分组页签/菜单、API Key 近 30 天用量、模型目录和别名定价修复，并下线数据共享功能。
+- 已将 Pro 上游基线更新为 `e7906995`，并把上游标签中滞后的 VERSION 修正为 `0.1.278`。
+- 迁移 265 已通过隔离 PostgreSQL/Redis 集成测试；后端全仓编译、Pro 开发门禁、前端 319 文件 2279 项测试、lint 和生产构建均通过。
 
 ## Blockers
 
@@ -31,18 +38,20 @@ Date: 2026-09-04
 
 ## Last Landed
 
-Pro v0.1.276 发布流程加固（2026-09-04，当前提交）。发布结果证据见 [复盘记录](history/2026-09-04-v0.1.276-release.md)。
+上游 v0.1.278 本地 merge（2026-09-06，`c3b80cd3`）。该提交尚未推送；VERSION、Pro 基线和两段式升级仍是未提交工作区改动。
 
 ## Last Verified Commands
 
 - `GOTOOLCHAIN=auto python3 tools/pro_release_guard.py --development`
-- `GOTOOLCHAIN=auto go test ./...`
-- `NODE_OPTIONS=--no-experimental-webstorage pnpm run test:run`（314 文件，2217 项）
+- `bash deploy/tests/pro-release-contract-test.sh`
+- `bash deploy/tests/pro-upgrade-contract-test.sh`
+- `GOCACHE=/private/tmp/tokenrouter-go-cache GOTOOLCHAIN=auto go test -tags=unit ./internal/service -run '^TestUpdateServiceProBuildDisablesOfficialSelfUpdate$'`
+- `GOTOOLCHAIN=auto go test ./... -run '^$'`
+- `GOTOOLCHAIN=auto go test -tags=integration ./internal/repository -run '^TestMigration265RemovesDataSharing$'`
+- `GOTOOLCHAIN=auto go test ./internal/service -run 'Test(ModelPricingResolverCatalogAlias|PricingCatalogLookup|OpenAIRemovedGPT56Alias|OpenAIModelAlias|PricingService)'`
+- `GOTOOLCHAIN=auto go test ./internal/handler ./internal/server/routes -run 'Test(OpenAIReasoningEffortPolicy|RemovedFeatureRoutes)'`
+- `NODE_OPTIONS=--no-experimental-webstorage pnpm run test:run`（319 文件，2279 项）
 - `pnpm run lint:check`
 - `pnpm run build`
-- `bash deploy/tests/pro-release-contract-test.sh`
 - `docker buildx build --check --file Dockerfile .`
 - `git diff --check`
-- `make pro-verify`
-- GitHub Actions `Pro Image` run `33874725031`
-- 线上镜像标签、版本、四个二开 marker、迁移 259–264、数据库 dump、页面状态和 sidecar 容器 ID 验收
