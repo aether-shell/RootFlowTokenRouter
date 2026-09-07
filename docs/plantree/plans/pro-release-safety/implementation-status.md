@@ -4,11 +4,10 @@ Date: 2026-09-06
 
 ## Current Phase
 
-上游 v0.1.278 已合并到本地 `main`，Pro 二开和两段式升级改动已通过本地验证；当前尚未推送或发布。
+上游 v0.1.278、Pro 二开适配和两段式升级改动已提交并推送到 `origin/main`；当前尚未运行升级准备或发布。
 
 ## Active TODO
 
-- 提交并推送 v0.1.278 适配和两段式升级改动。
 - 推送后运行 `make pro-upgrade`，验证真实 workflow 和远端只读预检。
 - READY 后停止；迁移 265 会删除数据共享表和字段，只有取得用户二次确认并显式设置 `PRO_ALLOW_MIGRATIONS=1` 才能切换生产。
 
@@ -38,7 +37,7 @@ Date: 2026-09-06
 
 ## Last Landed
 
-上游 v0.1.278 本地 merge（2026-09-06，`c3b80cd3`）。该提交尚未推送；VERSION、Pro 基线和两段式升级仍是未提交工作区改动。
+Pro 升级门禁（2026-09-06，`93fd6932`）已推送到 `origin/main`；其父提交包含上游 v0.1.278 merge（`c3b80cd3`）。
 
 ## Last Verified Commands
 

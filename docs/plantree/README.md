@@ -15,6 +15,6 @@
 
 | Plan | Status | Current Phase | Last Landed | Next Target |
 | --- | --- | --- | --- | --- |
-| [Pro 发布安全](plans/pro-release-safety/README.md) | In Progress | v0.1.278 已同步，继续落地两段式升级 | v0.1.278 本地 merge（`c3b80cd3`） | 提交并推送适配；READY 后等待迁移发布二次确认 |
+| [Pro 发布安全](plans/pro-release-safety/README.md) | In Progress | v0.1.278 与两段式升级已推送，等待升级准备 | Pro 升级门禁（`93fd6932`） | 运行 `make pro-upgrade`；READY 后等待迁移发布二次确认 |
 
 低承诺想法记录在 [ideas/inbox.md](ideas/inbox.md)。
