@@ -1881,6 +1881,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	originalModel string,
 	mappedModel string,
 ) (*openaiStreamingResultPassthrough, error) {
+	if shouldRepairOpenAIResponsesToolCompletion(account) {
+		resp.Body = repairOpenAIResponsesToolCompletionBody(resp.Body, account, s.openAIResponsesToolCompletionLineLimit())
+		defer resp.Body.Close()
+	}
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 
 	c.Header("Content-Type", "text/event-stream")

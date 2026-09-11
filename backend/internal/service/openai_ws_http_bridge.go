@@ -756,6 +756,10 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	if hasOpenAIResponsesClientToolMapping(clientToolMapping) {
 		resp.Body = newOpenAIResponsesClientToolStreamBody(resp.Body, clientToolMapping, maxLineSize)
 	}
+	if shouldRepairOpenAIResponsesToolCompletion(account) {
+		resp.Body = repairOpenAIResponsesToolCompletionBody(resp.Body, account, maxLineSize)
+		defer resp.Body.Close()
+	}
 	scanner := bufio.NewScanner(resp.Body)
 	scanBuf := getSSEScannerBuf64K()
 	scanner.Buffer(scanBuf[:0], maxLineSize)

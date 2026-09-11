@@ -255,10 +255,13 @@ func TestProxyOpenAIWSHTTPBridgeTurnAPIKeyRestoresClientToolsInResponseDone(t *t
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Len(t, events, 4)
+	require.Len(t, events, 5)
+	// 上游缺少 item.done，桥接层须在终态前补齐，才能让客户端执行 exec。
+	require.Equal(t, "response.output_item.done", gjson.GetBytes(events[3], "type").String())
+	require.Equal(t, "call_exec", gjson.GetBytes(events[3], "item.call_id").String())
 	terminal := events[len(events)-1]
 	require.Equal(t, "response.done", gjson.GetBytes(terminal, "type").String())
-	require.Equal(t, int64(3), gjson.GetBytes(terminal, "sequence_number").Int())
+	require.Equal(t, int64(4), gjson.GetBytes(terminal, "sequence_number").Int())
 	require.Equal(t, "custom_tool_call", gjson.GetBytes(terminal, "response.output.0.type").String())
 	require.Equal(t, "pwd", gjson.GetBytes(terminal, "response.output.0.input").String())
 	require.False(t, gjson.GetBytes(terminal, "response.output.0.arguments").Exists())
@@ -2204,6 +2207,11 @@ func TestOpenAIWSHTTPBridgeKeepsContinuationFramesOnHTTPWithoutPreviousResponseI
 	}
 
 	writeMessage(`{"type":"response.create","model":"gpt-5.1","stream":true,"input":"first"}`)
+	// 最终响应携带工具时，先接收补齐的工具生命周期，再发送下一轮结果。
+	for _, typ := range []string{"response.output_item.added", "response.function_call_arguments.done", "response.output_item.done"} {
+		event := readMessage()
+		require.Equal(t, typ, gjson.GetBytes(event, "type").String())
+	}
 	firstTurnEvent := readMessage()
 	require.Equal(t, "response.completed", gjson.GetBytes(firstTurnEvent, "type").String())
 	require.Equal(t, "resp_bridge_first", gjson.GetBytes(firstTurnEvent, "response.id").String())

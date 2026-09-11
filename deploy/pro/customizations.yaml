@@ -17,6 +17,11 @@
   },
   "release_tests": [
     {
+      "id": "openai-tool-completion",
+      "working_directory": "backend",
+      "command": ["go", "test", "./internal/service", "-run", "^TestOpenAIResponsesToolCompletion"]
+    },
+    {
       "id": "openai-client-policy-service",
       "working_directory": "backend",
       "command": [
@@ -103,6 +108,20 @@
     }
   ],
   "customizations": [
+    {
+      "id": "openai-api-key-tool-completion",
+      "scope": "application",
+      "required_paths": [
+        "backend/internal/service/openai_responses_tool_completion.go",
+        "backend/internal/service/openai_responses_tool_completion_test.go",
+        "backend/internal/service/openai_gateway_grok_tool_protocol.go",
+        "backend/internal/service/openai_gateway_response_handling.go",
+        "backend/internal/service/openai_gateway_passthrough.go",
+        "backend/internal/service/openai_ws_http_bridge.go"
+      ],
+      "test_ids": ["openai-tool-completion"],
+      "binary_markers": ["Responses tool completion: invalid completed tool item"]
+    },
     {
       "id": "openai-api-key-client-policy",
       "scope": "application",

@@ -140,6 +140,19 @@ func transformResponsesClientToolStream(
 	mapping apicompat.ResponsesClientToolMapping,
 	maxLineSize int,
 ) {
+	restorer := apicompat.NewResponsesClientToolStreamRestorer(mapping)
+	transformResponsesEventStream(source, destination, maxLineSize, func(payload []byte, _ string) ([][]byte, bool, error) {
+		return restorer.RestoreEvent(payload)
+	})
+}
+
+// 共用事件解析和输出边界，允许工具恢复与工具完成修复分别维护逐请求状态。
+func transformResponsesEventStream(
+	source io.ReadCloser,
+	destination *io.PipeWriter,
+	maxLineSize int,
+	transform func([]byte, string) ([][]byte, bool, error),
+) {
 	defer func() { _ = source.Close() }()
 	if maxLineSize <= 0 {
 		maxLineSize = defaultMaxLineSize
@@ -150,7 +163,6 @@ func transformResponsesClientToolStream(
 	defer putSSEScannerBuf64K(scanBuf)
 	scanner.Buffer(scanBuf[:0], maxLineSize)
 	documents := newOpenAISSEJSONDocumentScanner(scanner)
-	restorer := apicompat.NewResponsesClientToolStreamRestorer(mapping)
 	buffered := bufio.NewWriterSize(destination, 4*1024)
 	pendingFields := make([]string, 0, 2)
 	frameHadEventField := false
@@ -215,7 +227,13 @@ func transformResponsesClientToolStream(
 			payloads := [][]byte{payload}
 			if json.Valid(payload) {
 				var err error
-				payloads, _, err = restorer.RestoreEvent(payload)
+				eventType := ""
+				for _, field := range pendingFields {
+					if typ, ok := extractOpenAISSEEventLine(field); ok {
+						eventType = typ
+					}
+				}
+				payloads, _, err = transform(payload, eventType)
 				if err != nil {
 					_ = buffered.Flush()
 					_ = destination.CloseWithError(fmt.Errorf("restore Responses client tool event: %w", err))

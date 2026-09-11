@@ -49,6 +49,10 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 }
 
 func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel, reasoningEffort string) (*openaiStreamingResult, error) {
+	if shouldRepairOpenAIResponsesToolCompletion(account) {
+		resp.Body = repairOpenAIResponsesToolCompletionBody(resp.Body, account, s.openAIResponsesToolCompletionLineLimit())
+		defer resp.Body.Close()
+	}
 	observer := upstreamResponseModelObserverFromContext(c)
 	if observer == nil {
 		observer = beginUpstreamResponseModelObservation(c)
